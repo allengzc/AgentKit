@@ -183,13 +183,30 @@ public struct SessionIndexSpec: Codable {
 
 /// How to find messages and usage inside a session entry.
 public struct SessionMessageSpec: Codable {
-	public var type: String
+	/// The entry type that carries a message. Optional because an agent may use
+	/// several (`types`) instead of one.
+	public var type: String?
+	/// Every entry type that carries a message.
+	///
+	/// pi and Codex write one (`message`, `response_item`); Claude Code writes
+	/// both `user` and `assistant` entries, and a spec that could only name one
+	/// of them would either lose the user's first prompt or lose the token counts.
+	public var types: [String]?
+
+	/// True when this line's `type` is a message for this agent.
+	public func matches(type entryType: String?) -> Bool {
+		if let types { return entryType.map(types.contains) ?? false }
+		return entryType == type
+	}
 	/// Dotted path to the message object; nil means the entry itself is it.
 	public var payload: String?
 	public var role: String?
 	public var text: String?
 	/// Path (inside the message) to a `usage` object, and the fields worth reading.
 	public var usage: String?
+	/// Path to a token count. A comma-separated list is summed, because agents
+	/// report totals differently: pi writes one number, Claude Code splits it into
+	/// input, output and two cache counters.
 	public var tokens: String?
 	public var cost: String?
 	/// Some agents record usage on a separate event carrying a running total.
@@ -202,6 +219,12 @@ public struct SessionsSpec: Codable {
 	/// Walk every directory under the root rather than exactly one level.
 	public var recursive: Bool?
 	public var headerType: String?
+	/// How many leading lines to search for the header. Defaults to 1.
+	///
+	/// pi and Codex put it on the first line; Claude Code has no header line at
+	/// all, and its `sessionId` and `cwd` ride along on whichever entry happens to
+	/// be first, which may be an attachment or a queue operation.
+	public var headerScanLines: Int?
 	/// Entry type that renames the session inline (pi's `session_info`).
 	public var nameEntryType: String?
 	public var header: SessionHeaderPaths?

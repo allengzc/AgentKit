@@ -1,0 +1,143 @@
+{
+  "descriptorVersion": 1,
+  "id": "claude",
+  "name": "Claude Code",
+  "subtitle": "claude (Anthropic)",
+  "icon": "sparkles",
+  "homepage": "https://code.claude.com/docs/en/settings",
+
+  "root": { "env": "CLAUDE_CONFIG_DIR", "default": "~/.claude" },
+  "detect": {
+    "paths": ["~/.claude", "~/.claude.json"],
+    "cli": {
+      "name": "claude",
+      "package": "@anthropic-ai/claude-code",
+      "loginShellLookup": true,
+      "versionArgs": ["--version"],
+      "candidates": [
+        "~/.nvm/versions/node/*/bin/claude",
+        "~/.claude/local/claude",
+        "~/.bun/bin/claude",
+        "/opt/homebrew/bin/claude",
+        "/usr/local/bin/claude"
+      ]
+    }
+  },
+
+  "write": {
+    "backup": { "suffix": ".bak-agentkit", "keep": 10 },
+    "scopeGuard": ["$ROOT", "$HOME", "/tmp"]
+  },
+
+  "surfaces": [
+    {
+      "id": "settings",
+      "kind": "settings",
+      "title": "通用设置",
+      "icon": "slider.horizontal.3",
+      "shape": "typed-json",
+      "file": "$ROOT/settings.json",
+      "schema": "claude-code"
+    },
+
+    {
+      "id": "mcp",
+      "kind": "mcp",
+      "title": "MCP 服务器",
+      "icon": "point.3.connected.trianglepath.dotted",
+      "shape": "mcp-servers-map",
+      "serverKey": "mcpServers",
+      "layers": [
+        {
+          "path": "~/.claude.json",
+          "scope": "user",
+          "precedence": 10,
+          "writable": true,
+          "note": "Claude Code 的全局配置。它同时保存账号、用量统计和每个项目的历史，所以这个文件几乎每次运行 claude 都会被改写；AgentKit 落盘前会比对哈希，发现被改过就拒绝写入。"
+        },
+        {
+          "path": "$CWD/.mcp.json",
+          "scope": "project",
+          "precedence": 30,
+          "writable": true,
+          "note": "跟着仓库走的项目级 MCP 配置，通常是要提交的。"
+        }
+      ]
+    },
+
+    {
+      "id": "skills",
+      "kind": "skills",
+      "title": "Skills",
+      "icon": "shippingbox",
+      "shape": "skill-dirs",
+      "ignore": [".git", "node_modules", ".venv", "venv", "logs", ".cache", "dist", "build"],
+      "maxDepth": 5,
+      "roots": [
+        { "path": "$ROOT/skills", "scope": "user", "writable": true },
+        { "path": "$CWD/.claude/skills", "scope": "project", "writable": true }
+      ]
+    },
+
+    {
+      "id": "subagents",
+      "kind": "subagents",
+      "title": "子 Agents",
+      "icon": "person.2",
+      "shape": "md-frontmatter",
+      "roots": [
+        { "path": "$ROOT/agents", "scope": "user", "writable": true },
+        { "path": "$CWD/.claude/agents", "scope": "project", "writable": true }
+      ],
+      "frontmatter": {
+        "required": ["name", "description"],
+        "fields": ["name", "description", "tools", "model"]
+      }
+    },
+
+    {
+      "id": "sessions",
+      "kind": "sessions",
+      "title": "会话",
+      "icon": "clock.arrow.circlepath",
+      "shape": "jsonl-sessions",
+      "root": "$ROOT/projects",
+      "sessions": {
+        "recursive": true,
+        "headerScanLines": 40,
+        "header": {
+          "id": "sessionId",
+          "cwd": "cwd",
+          "timestamp": "timestamp"
+        },
+        "message": {
+          "type": "assistant",
+          "types": ["user", "assistant"],
+          "payload": "message",
+          "role": "role",
+          "text": "content",
+          "usage": "usage",
+          "tokens": "input_tokens,output_tokens,cache_read_input_tokens,cache_creation_input_tokens"
+        }
+      },
+      "cli": { "resume": ["--resume"] }
+    },
+
+    {
+      "id": "instructions",
+      "kind": "instructions",
+      "title": "全局指令",
+      "icon": "text.book.closed",
+      "shape": "md",
+      "files": [
+        { "path": "$ROOT/CLAUDE.md", "role": "instructions", "precedence": 10 },
+        { "path": "$CWD/CLAUDE.md", "role": "project", "precedence": 20 },
+        { "path": "$CWD/CLAUDE.local.md", "role": "project", "precedence": 21 }
+      ],
+      "discovery": {
+        "filenames": ["CLAUDE.md", "CLAUDE.local.md"],
+        "walkUpFromCwd": true
+      }
+    }
+  ]
+}

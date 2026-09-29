@@ -1848,6 +1848,114 @@ do {
 	check(slow.timedOut, "超时被标记")
 }
 
+group("Claude Code 描述文件")
+
+do {
+	let descriptor = try JSONDecoder().decode(
+		AgentDescriptor.self,
+		from: Data(try String(contentsOf: URL(fileURLWithPath: #filePath)
+			.deletingLastPathComponent()
+			.deletingLastPathComponent()
+			.appendingPathComponent("Resources/Agents/claude.json")).utf8)
+	)
+	equal(descriptor.id, "claude", "id")
+	equal(descriptor.surface(id: "settings")?.schema, "claude-code", "设置面板指向 Claude 的字段表")
+	check(SettingsSchema.all.contains { $0.id == "claude-code" }, "字段表已注册")
+
+	// Sessions: no header line, both entry kinds carry messages, tokens are split.
+	let sessions = descriptor.surface(id: "sessions")!
+	equal(sessions.sessions?.recursive, true, "会话目录按项目分一层")
+	equal(sessions.sessions?.headerScanLines, 40, "头部要往下找")
+	equal(sessions.sessions?.message?.types, ["user", "assistant"], "两种条目都算消息")
+
+	let message = sessions.sessions!.message!
+	check(message.matches(type: "user"), "user 条目算消息")
+	check(message.matches(type: "assistant"), "assistant 条目算消息")
+	check(!message.matches(type: "attachment"), "attachment 不算")
+	check(!message.matches(type: "summary"), "summary 不算")
+
+	// The container both MCP layers use.
+	equal(descriptor.surface(id: "mcp")?.serverKey, "mcpServers", "MCP 容器名")
+
+	// The descriptor must not promise a toggle Claude Code does not have.
+	check(descriptor.surface(id: "mcp")?.toggleKey == nil, "Claude Code 没有单服务器开关，描述文件也不假装有")
+}
+
+group("会话：没有头部行、多种消息类型、token 求和")
+
+do {
+	// A file shaped like Claude Code's: the first lines are not the session
+	// header, the user message carries the cwd, and usage is split in four.
+	let directory = fixtureRoot.appendingPathComponent("claude/sessions/-Users-dev-projects-demo")
+	try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+	let file = directory.appendingPathComponent("0f3a2b1c-1111-2222-3333-444444444444.jsonl")
+	let lines = [
+		#"{"type":"queue-operation","sessionId":"0f3a2b1c-1111-2222-3333-444444444444","timestamp":"2026-09-29T10:00:00.000Z"}"#,
+		#"{"type":"attachment","sessionId":"0f3a2b1c-1111-2222-3333-444444444444","cwd":"/Users/dev/projects/demo","timestamp":"2026-09-29T10:00:01.000Z"}"#,
+		#"{"type":"user","sessionId":"0f3a2b1c-1111-2222-3333-444444444444","cwd":"/Users/dev/projects/demo","timestamp":"2026-09-29T10:00:02.000Z","message":{"role":"user","content":"帮我把这个仓库的结构梳理一下"}}"#,
+		#"{"type":"assistant","sessionId":"0f3a2b1c-1111-2222-3333-444444444444","cwd":"/Users/dev/projects/demo","timestamp":"2026-09-29T10:00:03.000Z","message":{"role":"assistant","model":"demo-model","content":[{"type":"text","text":"先看目录。"}],"usage":{"input_tokens":100,"output_tokens":40,"cache_read_input_tokens":900,"cache_creation_input_tokens":60}}}"#,
+	]
+	try (lines.joined(separator: "\n") + "\n").write(to: file, atomically: true, encoding: .utf8)
+
+	let config = SessionsConfig(
+		root: fixtureRoot.appendingPathComponent("claude/sessions"),
+		recursive: true,
+		headerType: nil,
+		headerScanLines: 40,
+		header: SessionHeaderPaths(id: "sessionId", cwd: "cwd", timestamp: "timestamp", parent: nil, model: nil),
+		index: nil,
+		indexURL: nil,
+		message: SessionMessageSpec(
+			type: "assistant",
+			types: ["user", "assistant"],
+			payload: "message",
+			role: "role",
+			text: "content",
+			usage: "usage",
+			tokens: "input_tokens,output_tokens,cache_read_input_tokens,cache_creation_input_tokens",
+			cost: nil,
+			usageEventType: nil,
+			usageEventPayload: nil,
+			usageEventTokens: nil
+		),
+		nameEntryType: nil,
+		policy: BackupPolicy(suffix: ".bak-agentkit", keep: 3)
+	)
+
+	let records = SessionsSurface.enumerate(config: config)
+	equal(records.count, 1, "找到一个会话")
+	equal(records.first?.sessionID, "0f3a2b1c-1111-2222-3333-444444444444", "id 来自第三条的 sessionId")
+	equal(records.first?.cwd, "/Users/dev/projects/demo", "cwd 来自同一个条目")
+
+	var record = records[0]
+	SessionsSurface.summarize(&record, config: config)
+	equal(record.messageCount, 2, "user 和 assistant 都算一条消息")
+	equal(record.totalTokens, 1100, "四个 token 字段相加")
+	equal(record.models, ["demo-model"], "模型来自 assistant 条目")
+	equal(record.firstUserText, "帮我把这个仓库的结构梳理一下", "首条用户消息来自 user 条目")
+
+	// The header budget must still refuse a file that never declares an id.
+	let blank = directory.appendingPathComponent("no-header.jsonl")
+	try (#"{"type":"queue-operation","timestamp":"2026-09-29T10:00:00.000Z"}"# + "\n")
+		.write(to: blank, atomically: true, encoding: .utf8)
+	let narrow = SessionsConfig(
+		root: fixtureRoot.appendingPathComponent("claude/sessions"),
+		recursive: true,
+		headerType: nil,
+		headerScanLines: 40,
+		header: SessionHeaderPaths(id: "sessionId", cwd: "cwd", timestamp: nil, parent: nil, model: nil),
+		index: nil,
+		indexURL: nil,
+		message: nil,
+		nameEntryType: nil,
+		policy: BackupPolicy(suffix: ".bak-agentkit", keep: 3)
+	)
+	check(
+		SessionsSurface.header(of: blank, config: narrow) == nil,
+		"扫完预算仍没有 id 就当作不是会话"
+	)
+}
+
 group("指令文件路径解析")
 
 do {

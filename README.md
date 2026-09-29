@@ -8,6 +8,7 @@
 |---|---|---|
 | **pi**（`@earendil-works/pi-coding-agent`） | `~/.pi/agent` | 模型与 Provider、MCP、Skills、会话、全局指令、子 Agents、通用设置、主题/扩展/Packages |
 | **Codex**（`codex-cli`） | `~/.codex` | 模型与 Provider、MCP、Skills、会话、全局指令、通用设置 |
+| **Claude Code**（`claude`） | `~/.claude` | MCP、Skills、子 Agents、会话、全局指令、通用设置 |
 
 **支持哪个 agent 由一份 JSON 描述文件决定** —— 加一个新 agent = 加一个 JSON，不改代码。
 
@@ -46,6 +47,20 @@ python3 Tools/make-icon.py     # 重新生成 Icon.svg / Icon-simple.svg / AppIc
 ## 为什么是描述文件驱动的
 
 本地 coding agent 的配置从来不是"一个文件"。同样是"模型配置"，两个 agent 就长得完全不一样：
+
+三个 agent 的差异，同一张表看下来：
+
+| 配置面 | pi | Codex | Claude Code |
+|---|---|---|---|
+| 会话头部 | 第一行 | 第一行 | **没有头部行**，`sessionId` 每行都有、`cwd` 只在部分行上 |
+| 会话的消息类型 | 一种 | 一种 | **两种**（`user` + `assistant`） |
+| token | 每条一个总数 | 累计事件取最后一个 | **四个字段相加**（含两种 cache） |
+| 会话名 | 文件内的记录 | 单独的索引文件 | 不保存，所以不能改名 |
+| 指令文件 | `AGENTS.md` | `AGENTS.md` | `CLAUDE.md` / `CLAUDE.local.md` |
+| MCP 开关 | `disabled` | `enabled` | **没有**，所以这个面板不提供开关 |
+| 子 Agents | `~/.pi/agent/agents` | 无 | `~/.claude/agents` |
+
+下面这张表是老的两个 agent 的细节对照：
 
 | 配置面 | pi | Codex |
 |---|---|---|
@@ -176,12 +191,16 @@ chip：一个 skill 带 30+ 个文件时，`HStack` 会把每个名字压到**�
 
 ![Codex 会话](docs/codex-sessions.png)
 
+![Claude Code 会话](docs/claude-sessions.png)
+
 Codex 的名字来自 `session_index.jsonl`，AgentKit **只读取不代写**，所以那个面板里
 「重命名」是禁用的，并且说明了原因。
 
 ### 全局指令 / 子 Agents / 通用设置 / 主题 · 扩展
 
 ![Codex 通用设置](docs/codex-settings.png)
+
+![Claude Code 通用设置](docs/claude-settings.png)
 
 ![全局指令](docs/instructions.png)
 
@@ -346,6 +365,14 @@ log show --last 5m --info --predicate 'subsystem == "com.allengzc.agentkit"'
   因为 pi 没有单个 skill 的开关，只有全局的 `enableSkillCommands`。界面里写明了这一点。
 - **不接管密钥**：`apiKey` / `env_key` / `auth.json` 一律只做掩码显示。
 - **Codex 的会话重命名不支持**：它的名字存在单独的索引文件里，AgentKit 不代写。
+- **Claude Code 的 settings 字段表覆盖 78 项**（模型、权限、Hooks、MCP、插件、界面…），
+  由 `Tools/make-claude-schema.py` 从[上游设置参考](https://code.claude.com/docs/en/settings-reference)解析生成。
+  标签就是**字面的 JSON 键名**、说明是上游英文原文 —— 一百个键逐个编中文名反而会看不出自己在改哪个键。
+- **`~/.claude.json` 既是配置也是状态**：MCP 服务器在里面，但账号、用量统计和每个项目的历史也在里面，
+  而且 claude 几乎每次运行都会改写它。AgentKit 照常支持读写（有备份 + 落盘前比对哈希），
+  但正因为那个文件一直在变，写入被拒绝的概率比别的文件高。
+- **Claude Code 的 MCP 面板没有开关**：它用 `disabledMcpjsonServers` 这种项目级列表来停用服务器，
+  不是每个服务器一个布尔值，所以这里不假装有开关。
 - **Codex 的 settings 字段表覆盖 69 项**（模型、审批、沙盒、终端、凭据、工具）；
   `features.*`、`mcp_servers.*`、`model_providers.*` 等宽表键落在只读的
   「其它键（保留）」里，原样保留但不在这里编辑。
@@ -365,7 +392,7 @@ Sources/Core/        JSON/TOML 树与无损读写、按字节拼接与表级修�
 Sources/Surfaces/    各面板的纯逻辑（无 UI）：MCP 合并、会话解析、skills 扫描、设置 schema
 Sources/App/         状态、项目作用域、写入控制器、Finder/终端动作
 Sources/Views/       SwiftUI 界面
-Resources/Agents/    内置描述文件（pi.json、codex.json）
+Resources/Agents/    内置描述文件（pi.json、codex.json、claude.json）
 Resources/Icon.svg   图标数据源（AppIcon.icns 由它生成）
 Tests/main.swift     549 项离线断言
 ```

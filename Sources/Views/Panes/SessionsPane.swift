@@ -47,8 +47,16 @@ struct SessionsPane: View {
 	/// name entry type support.
 	private var supportsRename: Bool { config?.nameEntryType != nil }
 
+	/// True when names live in a sidecar index (Codex), rather than nowhere
+	/// (Claude Code). Both disable renaming, for different reasons.
+	private var hasIndex: Bool { config?.indexURL != nil }
+
 	private var renameHelp: String {
-		if !supportsRename { return "\(agent.name) 的会话名存在索引文件里，AgentKit 不支持在这里改写" }
+		if !supportsRename {
+			return hasIndex
+				? "\(agent.name) 的会话名存在索引文件里，AgentKit 不支持在这里改写"
+				: "\(agent.name) 不在会话文件里保存名字，AgentKit 不支持在这里改写"
+		}
 		if model.isSelectedAgentRunning { return "agent 正在运行，改写会话文件不安全" }
 		return "追加一条重命名记录"
 	}
@@ -344,10 +352,16 @@ struct SessionsPane: View {
 					}
 
 					if !supportsRename {
+						// Two different reasons, and saying the wrong one is worse
+						// than saying nothing: Codex keeps names in a sidecar index
+						// that is only read, while Claude Code does not record a
+						// renameable name anywhere.
 						InfoBanner(
 							kind: .info,
 							title: "这个 agent 的会话名不由会话文件保存",
-							detail: "它的名字来自单独的索引文件，AgentKit 只读取，不代写。"
+							detail: hasIndex
+								? "它的名字来自单独的索引文件，AgentKit 只读取，不代写。"
+								: "这个 agent 不在会话文件里保存名字，所以 AgentKit 不能替你改名。"
 						)
 					} else if model.isSelectedAgentRunning {
 						InfoBanner(

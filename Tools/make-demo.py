@@ -365,6 +365,104 @@ enabled = false
         }
     })
 
+    # ---- claude code -------------------------------------------------------
+    claude = os.path.join(HOME, ".claude")
+    write_json(os.path.join(claude, "settings.json"), {
+        "model": "claude-sonnet-5",
+        "alwaysThinkingEnabled": True,
+        "cleanupPeriodDays": 30,
+        "permissions": {
+            "allow": ["Bash(git status)", "Read"],
+            "deny": ["Bash(rm -rf *)"],
+            "defaultMode": "acceptEdits",
+        },
+        "statusLine": {"type": "command", "command": "~/.claude/statusline.sh"},
+        "env": {"CLAUDE_CODE_ENABLE_TELEMETRY": "0"},
+    })
+    write(os.path.join(claude, "CLAUDE.md"),
+          "# 全局记忆\n\n- 回复用中文。\n- 改完代码先跑测试再说话。\n")
+
+    skill(
+        os.path.join(claude, "skills/release-notes"), "release-notes",
+        "Draft release notes from a milestone, grouped by what a user would notice.",
+        files={"references/voice.md": "# 口吻\n\n平实，不吹。\n"},
+    )
+    skill(
+        os.path.join(claude, "skills/pdf-tools"), "pdf-tools",
+        "Fill in PDF forms and pull tables out of them. Use when handed a PDF and "
+        "asked for specific fields or a summary table.",
+        extra_front={"allowed-tools": "Read, Write, Bash"},
+        files={"scripts/fill.py": "print('demo')\n"},
+    )
+    write(os.path.join(claude, "agents/code-reviewer.md"),
+          "---\nname: code-reviewer\ndescription: Review a diff for correctness before shipping.\n"
+          "model: claude-sonnet-5\ntools: Read, Grep, Bash\n---\n\n只看这次改动的 diff。\n")
+
+    # `~/.claude.json` is the global config: MCP servers live here, next to a lot
+    # of account and usage state.
+    write_json(os.path.join(HOME, ".claude.json"), {
+        "numStartups": 12,
+        "userID": "demo-user-id",
+        "mcpServers": {
+            "github": {
+                "command": "/opt/homebrew/bin/mcp-github",
+                "args": ["--toolsets", "repos,issues"],
+                "env": {"GITHUB_TOKEN": "ghp_demo_not_a_real_token"},
+            },
+            "playwright": {"command": "npx", "args": ["-y", "@playwright/mcp@latest"]},
+        },
+        "projects": {
+            PROJECT_A: {
+                "allowedTools": [],
+                "hasTrustDialogAccepted": True,
+                "mcpServers": {
+                    "orchard-db": {
+                        "command": "/opt/homebrew/bin/mcp-postgres",
+                        "args": ["--dsn", "postgres://localhost/orchard_dev"],
+                    }
+                },
+            }
+        },
+    })
+    write_json(os.path.join(PROJECT_A, ".mcp.json"), {
+        "mcpServers": {
+            "storybook": {"command": "/usr/local/bin/mcp-storybook", "args": ["--port", "6006"]}
+        }
+    })
+
+    # Sessions: slug directories, and deliberately no header line — the first
+    # entries are a queue operation and an attachment.
+    claude_plan = [
+        (PROJECT_A, "2026-09-28T09:12:04.000Z", "0f3a2b1c-1111-2222-3333-444444444444",
+         [("user", "帮我看看导出模块的分层是不是太浅了。", 0, 0, 0),
+          ("assistant", "它的三个职责可以拆开。", 1200, 340, 24000)]),
+        (PROJECT_B, "2026-09-27T16:02:11.000Z", "1a2b3c4d-5555-6666-7777-888888888888",
+         [("user", "提交前加个确认吧。", 0, 0, 0),
+          ("assistant", "确认只在检测到未保存改动时出现。", 800, 210, 16000)]),
+    ]
+    slug = lambda path: path.replace("/", "-")
+    for cwd, stamp, sid, turns in claude_plan:
+        folder = os.path.join(claude, "projects", slug(cwd))
+        os.makedirs(folder, exist_ok=True)
+        lines = [
+            json.dumps({"type": "queue-operation", "sessionId": sid, "timestamp": stamp}),
+            json.dumps({"type": "attachment", "sessionId": sid, "cwd": cwd, "timestamp": stamp}),
+        ]
+        for role, text, input_tokens, output_tokens, cache_read in turns:
+            message = {"role": role, "content": text if role == "user" else [{"type": "text", "text": text}]}
+            if role == "assistant":
+                message["model"] = "claude-sonnet-5"
+                message["usage"] = {
+                    "input_tokens": input_tokens,
+                    "output_tokens": output_tokens,
+                    "cache_read_input_tokens": cache_read,
+                    "cache_creation_input_tokens": 400,
+                }
+            lines.append(json.dumps({
+                "type": role, "sessionId": sid, "cwd": cwd, "timestamp": stamp, "message": message,
+            }, ensure_ascii=False))
+        write(os.path.join(folder, f"{sid}.jsonl"), "\n".join(lines) + "\n")
+
     # ---- report ------------------------------------------------------------
     total = sum(len(files) for _, _, files in os.walk(ROOT))
     print(f"demo fixture: {ROOT} ({total} files)")

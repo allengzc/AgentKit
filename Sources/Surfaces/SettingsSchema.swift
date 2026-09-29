@@ -94,7 +94,7 @@ public struct SettingsSchemaDefinition: Identifiable {
 
 // MARK: - Builder helpers
 
-private func boolField(
+func boolField(
 	_ key: String, _ label: String, fallback: Bool, _ help: String, scope: String? = nil
 ) -> SettingField {
 	SettingField(
@@ -103,7 +103,7 @@ private func boolField(
 	)
 }
 
-private func intField(
+func intField(
 	_ key: String, _ label: String, fallback: Int?, min: Int? = nil, max: Int? = nil,
 	_ help: String, scope: String? = nil
 ) -> SettingField {
@@ -113,14 +113,14 @@ private func intField(
 	)
 }
 
-private func textField(
+func textField(
 	_ key: String, _ label: String, _ fallback: String = "", _ help: String,
 	type: SettingFieldType = .text, scope: String? = nil
 ) -> SettingField {
 	SettingField(key: key, label: label, type: type, help: help, fallback: fallback, scopeNote: scope)
 }
 
-private func choiceField(
+func choiceField(
 	_ key: String, _ label: String, options: [String], fallback: String, _ help: String,
 	scope: String? = nil
 ) -> SettingField {
@@ -130,14 +130,14 @@ private func choiceField(
 	)
 }
 
-private func listField(
+func listField(
 	_ key: String, _ label: String, _ help: String, type: SettingFieldType = .textList,
 	fallback: String = "[]"
 ) -> SettingField {
 	SettingField(key: key, label: label, type: type, help: help, fallback: fallback, scopeNote: nil)
 }
 
-private func jsonField(
+func jsonField(
 	_ key: String, _ label: String, _ help: String, fallback: String = "{}"
 ) -> SettingField {
 	SettingField(key: key, label: label, type: .json, help: help, fallback: fallback, scopeNote: nil)
@@ -596,7 +596,7 @@ public enum SettingsSchema {
 	)
 
 	/// Schemas this build knows about, keyed by the descriptor's `schema` value.
-	public static let all: [SettingsSchemaDefinition] = [pi087, codex0157]
+	public static let all: [SettingsSchemaDefinition] = [pi087, codex0157, claudeCode]
 
 	public static func definition(for id: String?) -> SettingsSchemaDefinition? {
 		guard let id else { return nil }

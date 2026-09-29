@@ -67,6 +67,7 @@ public struct SessionsConfig {
 	public let root: URL
 	public let recursive: Bool
 	public let headerType: String?
+	public let headerScanLines: Int?
 	public let header: SessionHeaderPaths
 	public let index: SessionIndexSpec?
 	public let indexURL: URL?
@@ -95,6 +96,7 @@ public struct SessionsConfig {
 			root: root,
 			recursive: spec.recursive ?? false,
 			headerType: spec.headerType,
+			headerScanLines: spec.headerScanLines,
 			header: header,
 			index: spec.index,
 			indexURL: indexURL,
@@ -147,19 +149,40 @@ public enum SessionsSurface {
 		// Codex's first line embeds the whole system prompt, so the header can be
 		// far larger than pi's; read enough for it and no more.
 		let data = (try? handle.read(upToCount: 4 << 20)) ?? Data()
-		guard let newline = data.firstIndex(of: 0x0A) else { return nil }
-		let line = data[data.startIndex..<newline]
-		guard let object = try? JSONSerialization.jsonObject(with: line) as? [String: Any] else { return nil }
 
-		if let expected = config.headerType, object["type"] as? String != expected { return nil }
-		guard let id = JSONPath.string(in: object, path: config.header.id) else { return nil }
+		// Header fields are filled across the budgeted lines, first non-nil wins.
+		//
+		// pi and Codex put everything on line 1, so the default budget of 1 keeps
+		// the old behaviour exactly. Claude Code has no header line at all: its
+		// `sessionId` rides on every entry but `cwd` only appears on some, so the
+		// id and the working directory can come from different lines.
+		let budget = max(config.headerScanLines ?? 1, 1)
+		var scanned = 0
+		var id: String?
+		var cwd: String?
+		var startedAt: String?
+		var parent: String?
+		var model: String?
 
+		for line in data.split(separator: 0x0A, omittingEmptySubsequences: true) {
+			guard scanned < budget else { break }
+			scanned += 1
+			guard let object = try? JSONSerialization.jsonObject(with: line) as? [String: Any] else { continue }
+			if let expected = config.headerType, object["type"] as? String != expected { continue }
+			if id == nil { id = JSONPath.string(in: object, path: config.header.id) }
+			if cwd == nil { cwd = JSONPath.string(in: object, path: config.header.cwd) }
+			if startedAt == nil { startedAt = JSONPath.string(in: object, path: config.header.timestamp) }
+			if parent == nil { parent = JSONPath.string(in: object, path: config.header.parent) }
+			if model == nil { model = JSONPath.string(in: object, path: config.header.model) }
+		}
+
+		guard let id else { return nil }
 		return SessionHeader(
 			id: id,
-			cwd: JSONPath.string(in: object, path: config.header.cwd) ?? "",
-			started: JSONPath.string(in: object, path: config.header.timestamp).flatMap(ISO8601.date),
-			parent: JSONPath.string(in: object, path: config.header.parent),
-			model: JSONPath.string(in: object, path: config.header.model)
+			cwd: cwd ?? "",
+			started: startedAt.flatMap(ISO8601.date),
+			parent: parent,
+			model: model
 		)
 	}
 
@@ -269,7 +292,7 @@ public enum SessionsSurface {
 				return
 			}
 
-			guard type == spec.type else { return }
+			guard spec.matches(type: type) else { return }
 			messageCount += 1
 			let message = JSONPath.object(in: object, path: spec.payload) ?? object
 
@@ -277,8 +300,12 @@ public enum SessionsSurface {
 				models.append(model)
 			}
 			if let usage = JSONPath.object(in: message, path: spec.usage) {
-				tokens += JSONPath.int(in: usage, path: spec.tokens) ?? 0
-				cost += JSONPath.double(in: usage, path: spec.cost) ?? 0
+				// A comma-separated list is a sum: Claude Code reports input,
+				// output and two cache counters separately.
+				for path in (spec.tokens ?? "").split(separator: ",") {
+					tokens += JSONPath.int(in: usage, path: path.trimmingCharacters(in: .whitespaces)) ?? 0
+				}
+				cost += JSONPath.double(in: usage, path: spec.cost ?? "") ?? 0
 			}
 
 			if !firstUserMessageSeen, JSONPath.string(in: message, path: spec.role) == "user" {

@@ -48,6 +48,9 @@ SHOTS_LIST=(
   "codex-mcp:codex/mcp:"
   "codex-models:codex/models:"
   "codex-sessions:codex/sessions:"
+  "claude-settings:claude/settings:"
+  "claude-mcp:claude/mcp:"
+  "claude-sessions:claude/sessions:"
 )
 
 quit_app() {
