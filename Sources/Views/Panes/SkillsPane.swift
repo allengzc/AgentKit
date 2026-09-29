@@ -23,6 +23,13 @@ struct SkillsPane: View {
 	@State private var confirmDelete: SkillEntry?
 	@State private var confirmDisable: SkillEntry?
 	@State private var token = UUID()
+	/// The bundled-file list starts as a short preview: a skill can ship 30+
+	/// files and the detail pane should stay readable.
+	@State private var showsAllBundled = false
+	@State private var expandedFolders: Set<String> = []
+	@State private var folderContents: [String: [SkillItem]] = [:]
+
+	private let bundledPreviewLimit = 7
 
 	private struct CreateRequest: Identifiable {
 		let id = UUID()
@@ -71,6 +78,11 @@ struct SkillsPane: View {
 			.frame(maxWidth: .infinity, maxHeight: .infinity)
 		}
 		.task(id: token) { scan() }
+		.onChange(of: selectedID) { _, _ in
+			showsAllBundled = false
+			expandedFolders = []
+			folderContents = [:]
+		}
 		.onChange(of: model.externalChangeToken) { _, _ in scan() }
 		.onChange(of: model.projectURL) { _, _ in scan() }
 		.sheet(item: $creating) { request in createSheet(request) }
@@ -289,25 +301,7 @@ struct SkillsPane: View {
 					}
 
 					if !entry.topLevel.isEmpty {
-						VStack(alignment: .leading, spacing: 5) {
-							Text("随包文件").font(.caption.weight(.semibold))
-							HStack(spacing: 6) {
-								ForEach(entry.topLevel.prefix(14), id: \.self) { name in
-									Text(name)
-										.font(.system(size: 10.5, design: .monospaced))
-										.padding(.horizontal, 6)
-										.padding(.vertical, 2)
-										.background(
-											RoundedRectangle(cornerRadius: 5).fill(Color(nsColor: .quaternarySystemFill))
-										)
-								}
-								if entry.topLevel.count > 14 {
-									Text("…还有 \(entry.topLevel.count - 14) 项")
-										.font(.caption2)
-										.foregroundStyle(.tertiary)
-								}
-							}
-						}
+						bundledFiles(entry)
 					}
 
 					Divider()
@@ -468,4 +462,140 @@ struct SkillsPane: View {
 			creating = nil
 		}
 	}
+
+	// MARK: - 随包文件
+
+	/// A skill ships anything from one manifest to a whole tree of references and
+	/// scripts, so this is a list, not a row of chips. The old chip layout put
+	/// every name in one competing `HStack`: each label was squeezed until it
+	/// wrapped one letter per line.
+	private func bundledFiles(_ entry: SkillEntry) -> some View {
+		let items = entry.topLevel
+		let visible = showsAllBundled ? items : Array(items.prefix(bundledPreviewLimit))
+		return VStack(alignment: .leading, spacing: 6) {
+			HStack(spacing: 6) {
+				Text("随包文件").font(.caption.weight(.semibold))
+				Text("\(items.count) 项").font(.caption2).foregroundStyle(.tertiary)
+				Spacer()
+			}
+			VStack(spacing: 0) {
+				ForEach(Array(visible.enumerated()), id: \.element.id) { index, item in
+					if index > 0 {
+						Divider().padding(.leading, 34)
+					}
+					bundledRow(item, in: entry.directory, indented: false)
+					if item.isDirectory, expandedFolders.contains(item.id) {
+						ForEach(children(of: item, in: entry.directory)) { child in
+							bundledRow(child, in: entry.directory.appendingPathComponent(item.name), indented: true)
+						}
+					}
+				}
+			}
+			.padding(.vertical, 2)
+			.background(
+				RoundedRectangle(cornerRadius: 8, style: .continuous)
+					.fill(Color(nsColor: .controlBackgroundColor))
+			)
+			.overlay(
+				RoundedRectangle(cornerRadius: 8, style: .continuous)
+					.strokeBorder(Color(nsColor: .separatorColor), lineWidth: 1)
+			)
+
+			if items.count > bundledPreviewLimit {
+				Button(showsAllBundled ? "收起" : "显示全部 \(items.count) 项") {
+					showsAllBundled.toggle()
+				}
+				.buttonStyle(.link)
+				.controlSize(.small)
+				.font(.caption)
+			}
+		}
+	}
+
+	private func bundledRow(_ item: SkillItem, in directory: URL, indented: Bool) -> some View {
+		let url = directory.appendingPathComponent(item.name)
+		let expanded = item.isDirectory && expandedFolders.contains(item.id)
+		return Button {
+			if item.isDirectory {
+				cacheChildren(of: item, in: directory)
+				if expanded {
+					expandedFolders.remove(item.id)
+				} else {
+					expandedFolders.insert(item.id)
+				}
+			} else {
+				ShellActions.reveal(url)
+			}
+		} label: {
+			HStack(spacing: 6) {
+				Group {
+					if item.isDirectory {
+						Image(systemName: "chevron.right")
+							.font(.system(size: 8, weight: .semibold))
+							.foregroundStyle(.tertiary)
+							.rotationEffect(.degrees(expanded ? 90 : 0))
+					} else {
+						Color.clear
+					}
+				}
+				.frame(width: 9)
+
+				Image(systemName: fileIcon(item))
+					.font(.caption)
+					.foregroundStyle(item.isDirectory ? Color.accentColor : Color.secondary)
+					.frame(width: 15)
+
+				// One line, middle-truncated. A name must never wrap: wrapping is
+				// what turned these into columns of single letters.
+				Text(item.name)
+					.font(.system(size: 11.5, design: .monospaced))
+					.lineLimit(1)
+					.truncationMode(.middle)
+					.frame(maxWidth: .infinity, alignment: .leading)
+
+				Text(item.displaySize)
+					.font(.system(size: 10.5, design: .monospaced))
+					.foregroundStyle(.tertiary)
+					.lineLimit(1)
+					.layoutPriority(1)
+			}
+			.padding(.leading, indented ? 26 : 8)
+			.padding(.trailing, 8)
+			.padding(.vertical, 3)
+			.contentShape(Rectangle())
+		}
+		.buttonStyle(.plain)
+		.help(item.isDirectory ? "\(url.path)（点击\(expanded ? "收起" : "展开")）" : url.path)
+	}
+
+	private func children(of item: SkillItem, in directory: URL) -> [SkillItem] {
+		folderContents[item.id] ?? []
+	}
+
+	private func cacheChildren(of item: SkillItem, in directory: URL) {
+		guard folderContents[item.id] == nil else { return }
+		let url = directory.appendingPathComponent(item.name).resolvingSymlinksInPath()
+		let children = ((try? FileManager.default.contentsOfDirectory(
+			at: url,
+			includingPropertiesForKeys: [.isDirectoryKey, .fileSizeKey],
+			options: [.skipsHiddenFiles]
+		)) ?? []).map { SkillItem.item(at: $0) }
+		folderContents[item.id] = SkillItem.sorted(children)
+	}
+
+	private func fileIcon(_ item: SkillItem) -> String {
+		guard !item.isDirectory else { return "folder" }
+		switch (item.name as NSString).pathExtension.lowercased() {
+		case "md", "markdown", "mdx": return "doc.text"
+		case "json", "toml", "yaml", "yml": return "curlybraces"
+		case "sh", "bash", "zsh", "py", "js", "ts", "rb", "pl", "lua": return "terminal"
+		case "swift": return "swift"
+		case "png", "jpg", "jpeg", "gif", "webp", "svg", "pdf": return "photo"
+		case "csv", "tsv": return "tablecells"
+		case "txt", "log": return "text.alignleft"
+		default: return "doc"
+		}
+	}
+
+
 }

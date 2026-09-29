@@ -1380,8 +1380,8 @@ do {
 	let blender = snapshot.skills.first { $0.name == "demo-skill" }
 	equal(blender?.isSymlink, true, "识别符号链接")
 	equal(blender?.realDirectory.path, realSkill.path, "记录符号链接的真实目录")
-	check(blender?.topLevel.contains("logs") == false, "展示随包文件时也过滤掉 logs")
-	check(blender?.topLevel.contains("SKILL.md") == true, "列出 SKILL.md")
+	check(blender?.topLevel.contains { $0.name == "logs" } == false, "展示随包文件时也过滤掉 logs")
+	check(blender?.topLevel.contains { $0.name == "SKILL.md" } == true, "列出 SKILL.md")
 
 	equal(snapshot.missingManifest.map { $0.url.lastPathComponent }, ["plain-directory"], "报告没有 SKILL.md 的目录")
 
@@ -1624,6 +1624,98 @@ do {
 	// An unterminated fence still shows its content rather than swallowing it.
 	let unterminated = MarkdownText.parse("```\nabc\n")
 	equal(unterminated.count, 1, "未闭合的代码围栏也产出代码块")
+}
+
+group("随包文件：结构化列表数据")
+
+do {
+	// The pane used to render these as chips in one competing HStack, which
+	// squeezed every label until it wrapped one letter per line. A list needs
+	// more than names, so the surface layer now reports type, size and counts.
+	let directory = fixtureRoot.appendingPathComponent("bundled/skills/demo")
+	let manager = FileManager.default
+	for sub in ["scripts", "references", "empty", "node_modules", "logs", ".git"] {
+		try manager.createDirectory(at: directory.appendingPathComponent(sub), withIntermediateDirectories: true)
+	}
+	try "# demo\n".write(to: directory.appendingPathComponent("SKILL.md"), atomically: true, encoding: .utf8)
+	try "# readme\n".write(to: directory.appendingPathComponent("README.md"), atomically: true, encoding: .utf8)
+	try String(repeating: "x", count: 3000)
+		.write(to: directory.appendingPathComponent("notes.txt"), atomically: true, encoding: .utf8)
+	try "print(1)\n".write(to: directory.appendingPathComponent("scripts/run.py"), atomically: true, encoding: .utf8)
+	try "a\n".write(to: directory.appendingPathComponent("scripts/helper.sh"), atomically: true, encoding: .utf8)
+	try "ref\n".write(to: directory.appendingPathComponent("references/api.md"), atomically: true, encoding: .utf8)
+	try "junk\n".write(to: directory.appendingPathComponent("node_modules/x.js"), atomically: true, encoding: .utf8)
+
+	let descriptor = try JSONDecoder().decode(
+		AgentDescriptor.self,
+		from: Data(try String(contentsOf: URL(fileURLWithPath: #filePath)
+			.deletingLastPathComponent()
+			.deletingLastPathComponent()
+			.appendingPathComponent("Resources/Agents/pi.json")).utf8)
+	)
+	// Drive the real scanner rather than a test-only entry point, so the test
+	// covers the same path the pane uses.
+	let skillsRoot = fixtureRoot.appendingPathComponent("bundled/skills")
+	let skillsSurface = descriptor.surface(id: "skills")!
+	let snapshot = SkillsScanner.scan(
+		roots: [(spec: RootEntry(path: skillsRoot.path, scope: "user", writable: true), url: skillsRoot)],
+		ignore: Set(skillsSurface.ignore ?? []),
+		maxDepth: skillsSurface.maxDepth ?? 4,
+		policy: descriptor.backupPolicy
+	)
+	check(snapshot.missingManifest.isEmpty, "夹具里没有缺清单的目录")
+	guard let entry = snapshot.skills.first else {
+		check(false, "夹具 skill 应该能被扫描到")
+		exit(1)
+	}
+
+	let names = entry.topLevel.map(\.name)
+	equal(
+		names,
+		["SKILL.md", "empty", "references", "scripts", "notes.txt", "README.md"],
+		"排序：清单在前，然后目录，然后文件，各自按名字"
+	)
+
+	let byName = Dictionary(uniqueKeysWithValues: entry.topLevel.map { ($0.name, $0) })
+	equal(byName["SKILL.md"]?.isDirectory, false, "SKILL.md 是文件")
+	equal(byName["scripts"]?.isDirectory, true, "scripts 是目录")
+	equal(byName["scripts"]?.childCount, 2, "scripts 有 2 个子项")
+	equal(byName["scripts"]?.displaySize, "2 项", "目录显示子项数")
+	equal(byName["empty"]?.displaySize, "空", "空目录说明是空的")
+	equal(byName["references"]?.childCount, 1, "references 有 1 个子项")
+	equal(byName["notes.txt"]?.bytes, 3000, "文件大小按字节")
+	equal(byName["notes.txt"]?.displaySize, "2.9 KB", "大小格式化")
+	check(!names.contains("node_modules"), "忽略 node_modules")
+	check(!names.contains("logs"), "忽略 logs")
+	check(!names.contains(".git"), "忽略隐藏目录")
+	check(!names.contains("run.py"), "只列顶层，不递归")
+
+	// Every row is one line, so a long name has to survive as data.
+	equal(SkillItem.sizeText(0), "0 B", "0 字节")
+	equal(SkillItem.sizeText(1023), "1023 B", "小于 1KB 用字节")
+	equal(SkillItem.sizeText(1024), "1.0 KB", "1KB")
+	equal(SkillItem.sizeText(5 * 1024 * 1024), "5.0 MB", "5MB")
+
+	// The real skill that exposed the problem: 32 entries, several directories.
+	let real = PathResolver.homeDirectory()
+		.appendingPathComponent(".agents/skills/big-skill")
+	if manager.fileExists(atPath: real.appendingPathComponent("SKILL.md").path) {
+		let realRoot = real.deletingLastPathComponent()
+		let realSnapshot = SkillsScanner.scan(
+			roots: [(spec: RootEntry(path: realRoot.path, scope: "user", writable: true), url: realRoot)],
+			ignore: Set(skillsSurface.ignore ?? []),
+			maxDepth: skillsSurface.maxDepth ?? 4,
+			policy: descriptor.backupPolicy
+		)
+		if let realEntry = realSnapshot.skills.first(where: { $0.directory.lastPathComponent == "big-skill" }) {
+			check(realEntry.topLevel.count > 20, "真实 skill 有 \(realEntry.topLevel.count) 项")
+			equal(realEntry.topLevel.first?.name, "SKILL.md", "清单排在最前")
+			check(
+				realEntry.topLevel.allSatisfy { !$0.name.isEmpty },
+				"每一项都有名字，没有空标签"
+			)
+		}
+	}
 }
 
 group("指令文件路径解析")

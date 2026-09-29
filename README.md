@@ -76,7 +76,7 @@ python3 Tools/make-icon.py     # 重新生成 Icon.svg / Icon-simple.svg / AppIc
 ```bash
 ./build.sh          # 编译到 out/AgentKit.app（只需要 swiftc）
 ./install.sh        # 再复制到 /Applications/AgentKit.app 并提示入口
-./run-tests.sh      # 523 项离线断言，不需要窗口、不需要网络
+./run-tests.sh      # 544 项离线断言，不需要窗口、不需要网络
 ```
 
 要求：macOS 14+、Xcode 命令行工具（Swift 6.x）、一个用于签名的 Apple Development
@@ -152,6 +152,10 @@ pi-mcp-adapter 已经不再读取这个文件：生效的是 ~/.config/mcp/mcp.j
 递归查找 `SKILL.md`，**穿过符号链接**（一个链接到别处仓库的 skill 目录也能正常列出），同时剪掉 `.git` / `node_modules` / `.venv` / `logs` 这类目录并限制
 深度。校验规则对齐规范：缺 `description` 即"不会被加载"，`name` 必须符合 Agent
 Skills 规范。
+
+随包文件是一张列表（图标 + 名字 + 大小 / 子项数），目录可以就地展开，默认只显示前
+7 项。这里原来是一排 chip：一个 skill 带 30+ 个文件时，`HStack` 会把每个名字压到
+**每行只放一个字母**。文件名现在强制单行 + 中间截断 —— 列表里的名字不允许折行。
 
 ### 会话
 
@@ -351,7 +355,7 @@ Sources/App/         状态、项目作用域、写入控制器、Finder/终端�
 Sources/Views/       SwiftUI 界面
 Resources/Agents/    内置描述文件（pi.json、codex.json）
 Resources/Icon.svg   图标数据源（AppIcon.icns 由它生成）
-Tests/main.swift     523 项离线断言
+Tests/main.swift     544 项离线断言
 ```
 
 ## License

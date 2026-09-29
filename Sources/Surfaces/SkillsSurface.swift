@@ -14,6 +14,68 @@
 
 import Foundation
 
+/// One entry in a skill's directory listing.
+///
+/// Carries enough for the pane to lay it out as a list rather than guessing:
+/// a name-only list cannot show sizes, and rendering long names as chips made
+/// them wrap one letter per line.
+public struct SkillItem: Identifiable, Hashable {
+	public let name: String
+	public let isDirectory: Bool
+	public let bytes: Int64
+	/// Immediate children, for a directory. 0 for a file.
+	public let childCount: Int
+
+	public var id: String { name }
+
+	public var displaySize: String {
+		guard !isDirectory else { return childCount == 0 ? "空" : "\(childCount) 项" }
+		return SkillItem.sizeText(bytes)
+	}
+
+	/// Sorted for reading: the manifest first, then directories, then files.
+	public static func sorted(_ items: [SkillItem]) -> [SkillItem] {
+		items.sorted { left, right in
+			let leftManifest = left.name.caseInsensitiveCompare("SKILL.md") == .orderedSame
+			let rightManifest = right.name.caseInsensitiveCompare("SKILL.md") == .orderedSame
+			if leftManifest != rightManifest { return leftManifest }
+			if left.isDirectory != right.isDirectory { return left.isDirectory }
+			return left.name.localizedStandardCompare(right.name) == .orderedAscending
+		}
+	}
+
+	/// Reads one directory entry.
+	static func item(at url: URL) -> SkillItem {
+		let values = try? url.resourceValues(forKeys: [.isDirectoryKey, .fileSizeKey])
+		let isDirectory = values?.isDirectory ?? false
+		let bytes = Int64(values?.fileSize ?? 0)
+		var childCount = 0
+		if isDirectory {
+			// Follow a nested symlink: a linked directory should still report
+			// what is inside it.
+			let target = url.resolvingSymlinksInPath()
+			childCount = ((try? FileManager.default.contentsOfDirectory(
+				at: target,
+				includingPropertiesForKeys: nil,
+				options: [.skipsHiddenFiles]
+			)) ?? []).count
+		}
+		return SkillItem(
+			name: url.lastPathComponent,
+			isDirectory: isDirectory,
+			bytes: bytes,
+			childCount: childCount
+		)
+	}
+
+	static func sizeText(_ bytes: Int64) -> String {
+		if bytes < 1024 { return "\(bytes) B" }
+		let kilobytes = Double(bytes) / 1024
+		if kilobytes < 1024 { return String(format: "%.1f KB", kilobytes) }
+		return String(format: "%.1f MB", kilobytes / 1024)
+	}
+}
+
 public struct SkillEntry: Identifiable {
 	public let url: URL
 	public let directory: URL
@@ -23,7 +85,7 @@ public struct SkillEntry: Identifiable {
 	public let isSymlink: Bool
 	public let realDirectory: URL
 	public let document: TextDocument
-	public let topLevel: [String]
+	public let topLevel: [SkillItem]
 
 	public var id: String { url.path }
 	public var frontmatter: FrontmatterDocument { document.frontmatter }
@@ -230,14 +292,13 @@ public enum SkillsScanner {
 		// A symlinked skill directory resolves to its target for listing:
 		// `contentsOfDirectory` does not follow the link itself.
 		let listingDirectory = directory.resolvingSymlinksInPath()
-		let topLevel = ((try? FileManager.default.contentsOfDirectory(
+		let children = ((try? FileManager.default.contentsOfDirectory(
 			at: listingDirectory,
-			includingPropertiesForKeys: nil,
+			includingPropertiesForKeys: [.isDirectoryKey, .fileSizeKey],
 			options: [.skipsHiddenFiles]
 		)) ?? [])
-			.map(\.lastPathComponent)
-			.filter { !ignore.contains($0) }
-			.sorted()
+			.filter { !ignore.contains($0.lastPathComponent) }
+		let topLevel = SkillItem.sorted(children.map { SkillItem.item(at: $0) })
 
 		return SkillEntry(
 			url: manifest,
