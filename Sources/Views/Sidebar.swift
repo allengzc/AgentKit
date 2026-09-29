@@ -170,6 +170,9 @@ struct Sidebar: View {
 	private var footer: some View {
 		VStack(alignment: .leading, spacing: 6) {
 			if model.isSelectedAgentRunning {
+				// The only place this is shown. It used to appear in the toolbar
+				// too, where macOS grouped it with the ⋯ button into one capsule
+				// — the same sentence twice, and an odd-looking control.
 				Label(
 					String(
 						format: L.t("agent.running", "%@ 正在运行"),

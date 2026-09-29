@@ -36,20 +36,6 @@ struct RootView: View {
 				projectMenu
 			}
 			ToolbarItem(placement: .automatic) {
-				if model.isSelectedAgentRunning {
-					Label(
-						String(
-							format: L.t("agent.running", "%@ 正在运行"),
-							model.selectedAgent?.descriptor.detect?.cli?.name ?? "CLI"
-						),
-						systemImage: "bolt.horizontal.circle"
-					)
-					.font(.caption)
-					.foregroundStyle(.orange)
-					.help(L.t("help.reloadNeeded", "配置改动需要 /reload 或重启才会生效"))
-				}
-			}
-			ToolbarItem(placement: .automatic) {
 				if showsOverflow {
 					overflowMenu(groups)
 				}
