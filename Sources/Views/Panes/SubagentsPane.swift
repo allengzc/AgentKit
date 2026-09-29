@@ -165,6 +165,7 @@ struct SubagentsPane: View {
 			Text("子 agent 由 subagent 扩展加载：frontmatter 里的 name 与 description 是必填项，model 用 `provider/modelId` 指定。")
 				.font(.caption)
 				.foregroundStyle(.secondary)
+			ProjectScopeBanner(surface: surface)
 			if let banner { InfoBanner(kind: .info, title: banner) }
 			if let errorText { InfoBanner(kind: .error, title: errorText) }
 		}

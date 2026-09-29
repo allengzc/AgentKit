@@ -90,6 +90,7 @@ struct ResourcesPane: View {
 			Text("扩展的启用/停用沿用 pi 的约定：文件名以 .off 结尾即不加载。这里的改动是直接重命名文件，会先征求确认。")
 				.font(.caption)
 				.foregroundStyle(.secondary)
+			ProjectScopeBanner(surface: surface)
 			if let banner { InfoBanner(kind: .info, title: banner) }
 			if let errorText { InfoBanner(kind: .error, title: errorText) }
 		}

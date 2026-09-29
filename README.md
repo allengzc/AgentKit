@@ -48,7 +48,7 @@
 ```bash
 ./build.sh          # 编译到 out/AgentKit.app（只需要 swiftc）
 ./install.sh        # 再复制到 /Applications/AgentKit.app 并提示入口
-./run-tests.sh      # 415 项离线断言，不需要窗口、不需要网络
+./run-tests.sh      # 480 项离线断言，不需要窗口、不需要网络
 ```
 
 要求：macOS 14+、Xcode 命令行工具（Swift 6.x）、一个用于签名的 Apple Development
@@ -59,8 +59,22 @@
 ```bash
 open -a AgentKit
 AGENTKIT_OPEN=codex/mcp open -a AgentKit              # 直接进某个 agent 的某个面板
+AGENTKIT_PROJECT=~/code/my-repo open -a AgentKit      # 指定项目作用域
 CODEX_HOME=/tmp/fixture open -a AgentKit              # 换一个配置根（夹具优先调试）
 ```
+
+### 项目作用域
+
+描述文件里有八条 `$CWD` 路径（项目的 MCP 层、 `.pi/skills`、`.pi/agents`、
+`.codex/config.toml` …）。**不选项目它们就全部不加载**，而静默消失是最糟的选项 ——
+看起来像项目配错了。所以：
+
+- 工具栏左边的文件夹菜单选项目，最近用过的和 agent 会话历史里出现过的目录都在里面；
+- 侧边栏显示当前作用域，点一下回到全局；
+- 没选项目时，受影响的每个面板顶部都会写明"有 N 条项目级路径没有加载"，并给一个选择按钮。
+
+会话历史里的目录是**从会话 header 的 `cwd` 读出来的**，不是从目录名反推的：pi 把路径里的
+`/` 换成 `-` 存成 slug，而真实目录名里可能本来就有连字符，反解会出错。
 
 ---
 
@@ -75,6 +89,10 @@ CODEX_HOME=/tmp/fixture open -a AgentKit              # 换一个配置根（夹
 读取、显示或记录密钥明文。pi 走 `pi auth check --provider X --json --no-refresh` 检查
 认证；Codex 没有等价的子命令，就不显示这个按钮。编辑 provider 是**合并**而不是替换，
 `compat`、`requires_openai_auth` 这类 AgentKit 不认识的键原样保留。
+
+MCP 服务器编辑器同理：它只改表单上那四个字段，`env`、`cwd`、`type`、
+`startup_timeout_sec` 之类一律原样留着 —— 用表单重建整个条目会把这些悄悄删掉。
+什么都没改时它显示"没有改动。"并且写入按钮是灰的。
 
 ### MCP 服务器
 
@@ -256,6 +274,7 @@ agent 没有对应的 schema，那个面板会显示"找不到 schema"并降级�
 | `CODEX_HOME` | 覆盖 Codex 的配置根 |
 | `AGENTKIT_CONFIG_DIR` | 覆盖描述文件目录（默认 `~/.config/agentkit`） |
 | `AGENTKIT_OPEN=codex/mcp` | 启动直接进指定 agent 的指定面板 |
+| `AGENTKIT_PROJECT=~/repo` | 指定项目作用域（等价于在工具栏里选项目） |
 | `AGENTKIT_SIGN_IDENTITY` | 构建时指定签名身份 |
 | `AGENTKIT_TARGET` | 构建目标三元组，默认 `arm64-apple-macosx14.0` |
 
@@ -269,6 +288,8 @@ log show --last 5m --info --predicate 'subsystem == "com.allengzc.agentkit"'
 
 ## 已知限制
 
+- **项目作用域要手动选**：GUI 程序没有"当前工作目录"这种有意义的默认值，所以 AgentKit
+  不去猜，而是在工具栏让你选，并把没加载的路径数写在面板上。
 - **内置两个 agent**（pi 与 Codex）。架构为其它 agent 留好了接口，但描述文件只是数据 ——
   如果目标 agent 用了第三种配置格式（YAML / INI），需要先给 Core 加一个解析器。
 - **TOML 的结构性改动不是逐字节的**：只重排受影响的表，其它表不动；顶层增删键会整份
@@ -294,10 +315,10 @@ log show --last 5m --info --predicate 'subsystem == "com.allengzc.agentkit"'
 Sources/Core/        JSON/TOML 树与无损读写、按字节拼接与表级修补、路径解析、
                      描述文件、Markdown/frontmatter、进程
 Sources/Surfaces/    各面板的纯逻辑（无 UI）：MCP 合并、会话解析、skills 扫描、设置 schema
-Sources/App/         状态、写入控制器、Finder/终端动作
+Sources/App/         状态、项目作用域、写入控制器、Finder/终端动作
 Sources/Views/       SwiftUI 界面
 Resources/Agents/    内置描述文件（pi.json、codex.json）
-Tests/main.swift     415 项离线断言
+Tests/main.swift     480 项离线断言
 ```
 
 ## License

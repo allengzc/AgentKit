@@ -20,7 +20,11 @@ public final class AppModel {
 	public private(set) var globalIssues: [DescriptorIssue] = []
 	public var selectedAgentID: String?
 	public var selectedSurfaceID: String?
-	public var projectURL: URL?
+
+	/// The project directory that `$CWD` resolves to. Selecting one is what makes
+	/// a repo's own `.pi/` or `.codex/` configuration reachable.
+	public let projects: ProjectStore
+	public var projectURL: URL? { projects.current }
 
 	// MARK: - Runtime state
 
@@ -37,6 +41,7 @@ public final class AppModel {
 
 	public init(appSupport: URL = PathResolver.defaultAppSupport) {
 		self.appSupport = appSupport
+		self.projects = ProjectStore(appSupport: appSupport)
 		reloadDescriptors()
 	}
 
@@ -137,6 +142,7 @@ public final class AppModel {
 				if let agent = self.selectedAgent, agent.cliURL == nil {
 					self.statusMessage = "找不到 \(agent.descriptor.detect?.cli?.name ?? "CLI")，依赖命令行的功能已停用"
 				}
+				self.projects.refreshSuggestions(for: self.agents, appSupport: support)
 			}
 		}
 	}

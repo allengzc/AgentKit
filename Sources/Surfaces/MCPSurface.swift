@@ -200,6 +200,64 @@ public enum MCPShape {
 		document.value(at: [shape.serverKey])?.objectValue?.keys ?? []
 	}
 
+	/// The fields the server form owns. Everything else in an entry is left alone.
+	public struct MCPServerDraft: Equatable {
+		public var command: String
+		public var args: [String]
+		public var url: String
+		public var disabled: Bool
+
+		public init(command: String = "", args: [String] = [], url: String = "", disabled: Bool = false) {
+			self.command = command
+			self.args = args
+			self.url = url
+			self.disabled = disabled
+		}
+	}
+
+	/// Applies the form onto an existing entry, merging rather than replacing.
+	///
+	/// A server entry can carry `env`, `cwd`, `type`, `startup_timeout_sec`,
+	/// `http_headers` and keys AgentKit has never heard of. Rebuilding the object
+	/// from the form alone would silently delete every one of them — so the form
+	/// only ever touches the four fields it displays.
+	public static func mergedServer(
+		existing: JSONValue?,
+		draft: MCPServerDraft,
+		shape: MCPServerShape
+	) -> JSONValue {
+		var object = existing?.objectValue ?? JSONObject()
+		let url = draft.url.trimmingCharacters(in: .whitespaces)
+		let command = draft.command.trimmingCharacters(in: .whitespaces)
+
+		if url.isEmpty {
+			object["command"] = .string(command)
+			// Keep `args` when there is something to say, or when the file already
+			// had the key. Adding `args = []` to an entry that never had one is a
+			// change the user did not ask for.
+			if !draft.args.isEmpty || object["args"] != nil {
+				object["args"] = .array(draft.args.map { .string($0) })
+			}
+			_ = object.removeValue(forKey: "url")
+		} else {
+			object["url"] = .string(url)
+			_ = object.removeValue(forKey: "command")
+			_ = object.removeValue(forKey: "args")
+		}
+
+		if let toggleKey = shape.toggleKey {
+			if draft.disabled {
+				object[toggleKey] = .bool(shape.toggleDisabledValue)
+			} else {
+				// Absence is the enabled state for both pi and Codex, so writing
+				// the key back just to say "on" would be noise.
+				_ = object.removeValue(forKey: toggleKey)
+			}
+		}
+
+		return .object(object)
+	}
+
 	/// Empty server template, in the shape the adapter expects.
 	public static func emptyServer(remote: Bool) -> JSONValue {
 		remote

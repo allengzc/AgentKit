@@ -152,6 +152,7 @@ struct SkillsPane: View {
 				TextField("搜索", text: $query)
 					.textFieldStyle(.roundedBorder)
 			}
+			ProjectScopeBanner(surface: surface)
 			if let banner { InfoBanner(kind: .info, title: banner) }
 			if let errorText { InfoBanner(kind: .error, title: errorText) }
 			if let snapshot, !snapshot.missingRoots.isEmpty {

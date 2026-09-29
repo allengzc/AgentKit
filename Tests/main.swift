@@ -301,6 +301,182 @@ do {
 	check(bomOut.first != 0xEF, "写回时不保留 BOM")
 }
 
+group("MCP 服务器编辑：合并而不是重建")
+
+do {
+	// A real Codex entry: the form shows command and args, but the entry carries
+	// an env table and a startup timeout. Rebuilding the object from the form
+	// would delete all of it.
+	let nodeRepl = try JSONParser.parse("""
+	{
+	  "command": "/Applications/Codex.app/Contents/Resources/cua_node/bin/node_repl",
+	  "args": [],
+	  "startup_timeout_sec": 120,
+	  "env": { "CODEX_HOME": "/Users/dev/.codex", "BROWSER_USE_AVAILABLE_BACKENDS": "chrome,iab" },
+	  "cwd": "."
+	}
+	""")
+	let edited = MCPShape.mergedServer(
+		existing: nodeRepl,
+		draft: MCPShape.MCPServerDraft(command: "/usr/local/bin/node_repl", args: [], url: "", disabled: false),
+		shape: MCPServerShape(serverKey: "mcp_servers", toggleKey: "enabled", toggleDisabledValue: false)
+	)
+	equal(edited.value(at: ["command"])?.stringValue, "/usr/local/bin/node_repl", "表单字段被更新")
+	equal(edited.value(at: ["env", "CODEX_HOME"])?.stringValue, "/Users/dev/.codex", "env 表完整保留")
+	equal(
+		edited.value(at: ["env", "BROWSER_USE_AVAILABLE_BACKENDS"])?.stringValue,
+		"chrome,iab",
+		"env 里的每个键都保留"
+	)
+	equal(edited.value(at: ["startup_timeout_sec"])?.intValue, 120, "表单不认识的键保留")
+	equal(edited.value(at: ["cwd"])?.stringValue, ".", "cwd 保留")
+	equal(edited.value(at: ["args"])?.arrayValue?.count, 0, "原有的空 args 不会消失")
+
+	// The same edit on an entry with no args: adding `args: []` would be an
+	// unrequested diff, so the key stays absent.
+	let noArgs = try JSONParser.parse(#"{"command": "/bin/tool"}"#)
+	let added = MCPShape.mergedServer(
+		existing: noArgs,
+		draft: MCPShape.MCPServerDraft(command: "/bin/tool", args: [], url: "  ", disabled: false),
+		shape: .pi
+	)
+	equal(added.value(at: ["args"]), nil, "没有 args 的条目不会被写上空数组")
+	equal(added, noArgs, "什么都没改的编辑产生零改动")
+
+	// pi spells the switch `disabled = true`.
+	let piDisabled = try JSONParser.parse(#"{"command": "/bin/tool", "disabled": true, "env": {"A": "1"}}"#)
+	let piEnabled = MCPShape.mergedServer(
+		existing: piDisabled,
+		draft: MCPShape.MCPServerDraft(command: "/bin/tool", args: [], url: "", disabled: false),
+		shape: .pi
+	)
+	equal(piEnabled.value(at: ["disabled"]), nil, "启用后删掉 disabled 键而不是写 false")
+	equal(piEnabled.value(at: ["env", "A"])?.stringValue, "1", "启用不会动其它键")
+
+	let piOff = MCPShape.mergedServer(
+		existing: piDisabled,
+		draft: MCPShape.MCPServerDraft(command: "/bin/tool", args: [], url: "", disabled: true),
+		shape: .pi
+	)
+	equal(piOff.value(at: ["disabled"])?.boolValue, true, "停用写 disabled = true")
+
+	// Codex writes the opposite polarity under a different key.
+	let codex = MCPServerShape(serverKey: "mcp_servers", toggleKey: "enabled", toggleDisabledValue: false)
+	let codexOff = MCPShape.mergedServer(
+		existing: try JSONParser.parse(#"{"command": "/bin/tool"}"#),
+		draft: MCPShape.MCPServerDraft(command: "/bin/tool", args: [], url: "", disabled: true),
+		shape: codex
+	)
+	equal(codexOff.value(at: ["enabled"])?.boolValue, false, "Codex 停用写 enabled = false")
+
+	// Switching transport must remove the fields that belong to the other one.
+	let remote = MCPShape.mergedServer(
+		existing: nodeRepl,
+		draft: MCPShape.MCPServerDraft(command: "", args: [], url: "https://example.com/mcp", disabled: false),
+		shape: codex
+	)
+	equal(remote.value(at: ["url"])?.stringValue, "https://example.com/mcp", "切到远程后写 url")
+	equal(remote.value(at: ["command"]), nil, "切到远程后删掉 command")
+	equal(remote.value(at: ["args"]), nil, "切到远程后删掉 args")
+	equal(remote.value(at: ["env", "CODEX_HOME"])?.stringValue, "/Users/dev/.codex", "切传输方式也不丢其它键")
+
+	let backToStdio = MCPShape.mergedServer(
+		existing: remote,
+		draft: MCPShape.MCPServerDraft(command: "/bin/tool", args: ["--x"], url: "", disabled: false),
+		shape: codex
+	)
+	equal(backToStdio.value(at: ["command"])?.stringValue, "/bin/tool", "切回 stdio")
+	equal(backToStdio.value(at: ["args"])?.stringsValue, ["--x"], "args 参数")
+	equal(backToStdio.value(at: ["url"]), nil, "切回 stdio 后删掉 url")
+
+	// A brand new server has nothing to merge from.
+	let fresh = MCPShape.mergedServer(
+		existing: nil,
+		draft: MCPShape.MCPServerDraft(command: "/bin/new", args: ["-a"], url: "", disabled: false),
+		shape: .pi
+	)
+	equal(fresh.objectValue?.keys, ["command", "args"], "新条目只包含表单字段")
+	equal(MCPShape.validate(name: "ok", value: fresh), nil, "新条目通过校验")
+	check(MCPShape.validate(name: "", value: fresh) != nil, "空名字被拒绝")
+	check(MCPShape.validate(name: "a/b", value: fresh) != nil, "名字里的斜杠被拒绝")
+}
+
+// MARK: - Project scope
+
+group("项目作用域")
+
+do {
+	let support = fixtureRoot.appendingPathComponent("project-support")
+	let projectA = fixtureRoot.appendingPathComponent("project-a")
+	let projectB = fixtureRoot.appendingPathComponent("project-b")
+	for url in [support, projectA, projectB] {
+		try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+	}
+
+	try MainActor.assumeIsolated {
+		let store = ProjectStore(appSupport: support)
+		check(store.current == nil, "默认是全局作用域")
+		equal(store.currentLabel, "全局", "全局时的标签")
+		check(store.currentDisplayPath.contains("全局"), "全局时的说明")
+
+		store.select(projectA)
+		equal(store.current?.path, projectA.path, "选择项目")
+		equal(store.currentLabel, projectA.lastPathComponent, "标签取目录名")
+		check(store.currentDisplayPath.hasSuffix("project-a"), "显示路径")
+
+		store.select(projectB)
+		store.select(projectA)
+		equal(store.recent.map(\.lastPathComponent), ["project-a", "project-b"], "最近项目去重且最新的在前")
+		equal(store.menuEntries.map(\.path), [projectB.path], "菜单里不重复列出当前项目")
+
+		// The state has to survive a restart, or the user re-picks every launch.
+		let reopened = ProjectStore(appSupport: support)
+		equal(reopened.current?.path, projectA.path, "重启后恢复上次的项目")
+		equal(reopened.recent.map(\.lastPathComponent), ["project-a", "project-b"], "重启后恢复最近列表")
+
+		reopened.select(nil)
+		check(reopened.current == nil, "可以回到全局作用域")
+		equal(reopened.recent.count, 2, "回到全局不会清空最近列表")
+
+		// A project that vanished must not be restored.
+		try FileManager.default.removeItem(at: projectB)
+		let afterDelete = ProjectStore(appSupport: support)
+		check(!afterDelete.recent.contains { $0.path == projectB.path }, "已删除的目录不再出现在最近列表")
+	}
+
+	// The environment override is applied after load(), so it works on a machine
+	// that has never run AgentKit and therefore has no state file.
+	let freshSupport = fixtureRoot.appendingPathComponent("project-support-fresh")
+	try FileManager.default.createDirectory(at: freshSupport, withIntermediateDirectories: true)
+	setenv("AGENTKIT_PROJECT", projectA.path, 1)
+	try MainActor.assumeIsolated {
+		equal(ProjectStore(appSupport: freshSupport).current?.path, projectA.path,
+			  "没有 state 文件时环境变量依然生效")
+	}
+	setenv("AGENTKIT_PROJECT", fixtureRoot.appendingPathComponent("nowhere").path, 1)
+	try MainActor.assumeIsolated {
+		check(ProjectStore(appSupport: freshSupport).current == nil, "指向不存在的目录时忽略")
+	}
+	unsetenv("AGENTKIT_PROJECT")
+
+	// The count is what the panes use to warn that paths were skipped.
+	let descriptor = try JSONDecoder().decode(
+		AgentDescriptor.self,
+		from: Data(try String(contentsOf: URL(fileURLWithPath: #filePath)
+			.deletingLastPathComponent()
+			.deletingLastPathComponent()
+			.appendingPathComponent("Resources/Agents/pi.json")).utf8)
+	)
+	let mcp = descriptor.surface(id: "mcp")!
+	equal(SurfacePaths.projectPathCount(for: mcp), 2, "pi 的 MCP 有两条项目级路径")
+	check(SurfacePaths.requiresProject(mcp), "因此需要项目作用域")
+	equal(SurfacePaths.projectPathCount(for: descriptor.surface(id: "settings")!), 0, "设置面板不需要项目")
+	// Models reads only agent-root files, so it needs no project at all.
+	equal(SurfacePaths.projectPathCount(for: descriptor.surface(id: "models")!), 0, "模型面板完全不需要项目")
+	equal(SurfacePaths.projectPathCount(for: descriptor.surface(id: "skills")!), 2, "skills 有两条项目级路径")
+	equal(SurfacePaths.projectPathCount(for: descriptor.surface(id: "subagents")!), 1, "子 agents 有一条")
+}
+
 // MARK: - The shared write path
 
 group("JSONEditController（每个面板共用的写入路径）")

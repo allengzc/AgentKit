@@ -237,3 +237,39 @@ struct InfoBanner: View {
 		)
 	}
 }
+
+
+/// Tells the user when a surface's project-scoped paths are not being loaded.
+///
+/// Silently hiding them is the worst option: a project `.pi/mcp.json` that never
+/// appears looks like a bug in the project, not a missing selection.
+struct ProjectScopeBanner: View {
+	let surface: SurfaceSpec
+
+	@Environment(AppModel.self) private var model
+
+	var body: some View {
+		let count = SurfacePaths.projectPathCount(for: surface)
+		if model.projectURL == nil, count > 0 {
+			InfoBanner(
+				kind: .info,
+				title: "有 \(count) 条项目级路径没有加载",
+				detail: "这个面板会读取项目目录下的配置。当前是全局作用域，所以这些路径被跳过了。",
+				action: ("选择项目…", { model.projects.chooseWithPanel() })
+			)
+		} else if let project = model.projectURL, count > 0 {
+			HStack(spacing: 6) {
+				Image(systemName: "folder")
+					.font(.caption2)
+				Text("项目作用域：\(project.path)")
+					.font(.caption2)
+					.lineLimit(1)
+					.truncationMode(.middle)
+				Button("回到全局") { model.projects.select(nil) }
+					.buttonStyle(.link)
+					.controlSize(.mini)
+			}
+			.foregroundStyle(.secondary)
+		}
+	}
+}

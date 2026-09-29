@@ -16,6 +16,7 @@ SOURCES=()
 while IFS= read -r file; do SOURCES+=("$file"); done < <(
 	find "$HERE/Sources/Core" "$HERE/Sources/Surfaces" -name '*.swift' | sort
 	echo "$HERE/Sources/App/JSONEditController.swift"
+	echo "$HERE/Sources/App/ProjectStore.swift"
 )
 
 swiftc -swift-version 5 -target "$TARGET" \

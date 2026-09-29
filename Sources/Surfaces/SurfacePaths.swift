@@ -40,7 +40,12 @@ public enum SurfacePaths {
 	/// True when every occurrence of `$CWD` in this surface can be resolved,
 	/// i.e. either a project is selected or the surface has no project paths.
 	public static func requiresProject(_ surface: SurfaceSpec) -> Bool {
-		candidatePaths(for: surface).contains { $0.contains("$CWD") }
+		projectPathCount(for: surface) > 0
+	}
+
+	/// How many declared paths point at the current project.
+	public static func projectPathCount(for surface: SurfaceSpec) -> Int {
+		candidatePaths(for: surface).filter { $0.contains("$CWD") }.count
 	}
 
 	/// Expands a surface's templates, skipping the ones that need a project

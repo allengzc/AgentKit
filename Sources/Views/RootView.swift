@@ -20,6 +20,9 @@ struct RootView: View {
 		.navigationTitle(model.selectedAgent.map { "\($0.name) · \($0.descriptor.subtitle ?? "配置")" } ?? "AgentKit")
 		.navigationSubtitle(model.selectedAgent?.descriptor.subtitle ?? "")
 		.toolbar {
+			ToolbarItem(placement: .navigation) {
+				projectMenu
+			}
 			ToolbarItem(placement: .automatic) {
 				if model.isSelectedAgentRunning {
 					Label(
@@ -51,6 +54,44 @@ struct RootView: View {
 			model.resolveCLIIfNeeded()
 			model.startRunningPoll()
 		}
+	}
+
+	/// Project scope: without a directory selected, every `$CWD` path in the
+	/// descriptor is unreachable, and the panes that depend on them say so.
+	private var projectMenu: some View {
+		Menu {
+			Button {
+				model.projects.select(nil)
+			} label: {
+				Label(
+					"全局（不加载项目配置）",
+					systemImage: model.projectURL == nil ? "checkmark" : "globe"
+				)
+			}
+			if !model.projects.menuEntries.isEmpty {
+				Divider()
+				ForEach(model.projects.menuEntries, id: \.path) { url in
+					Button {
+						model.projects.select(url)
+					} label: {
+						Text(url.path)
+					}
+				}
+			}
+			Divider()
+			Button("选择目录…") { model.projects.chooseWithPanel() }
+			Button("在 Finder 中显示当前项目") {
+				if let project = model.projectURL { ShellActions.reveal(project) }
+			}
+			.disabled(model.projectURL == nil)
+			if model.projects.scanning {
+				Divider()
+				Text("正在从会话历史中整理项目…")
+			}
+		} label: {
+			Label(model.projects.currentLabel, systemImage: model.projectURL == nil ? "globe" : "folder")
+		}
+		.help("项目作用域：" + model.projects.currentDisplayPath)
 	}
 
 	private var diagnosticCount: Int {

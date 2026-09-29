@@ -98,6 +98,7 @@ struct MCPPane: View {
 			Text("按优先级从低到高合并全部配置层，后出现的层覆盖先出现的层。默认写入的共享层是 ~/.config/mcp/mcp.json。")
 				.font(.caption)
 				.foregroundStyle(.secondary)
+			ProjectScopeBanner(surface: surface)
 			if let banner = controller.banner {
 				InfoBanner(kind: .info, title: banner)
 			}
@@ -471,8 +472,7 @@ struct MCPPane: View {
 	}
 
 	private func editorSheet(_ draft: ServerDraft) -> some View {
-		let shape = snapshot?.shape ?? .pi
-		let error = MCPShape.validate(name: draft.name, value: buildValue(draft, shape: shape))
+		let error = MCPShape.validate(name: draft.name, value: buildValue(draft))
 		let prepared = preparedEdit(draft)
 		return VStack(alignment: .leading, spacing: 0) {
 			VStack(alignment: .leading, spacing: 10) {
@@ -575,26 +575,37 @@ struct MCPPane: View {
 		if let original = draft.originalName, original != name {
 			value.removeValue(at: [layer.shape.serverKey, original])
 		}
-		value.setValue(buildValue(draft, shape: layer.shape), at: [layer.shape.serverKey, name])
+		value.setValue(buildValue(draft), at: [layer.shape.serverKey, name])
 		return (layer.url, JSONFile.preview(value, for: document, policy: policy))
 	}
 
-	private func buildValue(_ draft: ServerDraft, shape: MCPServerShape) -> JSONValue {
-		var object = JSONObject()
-		let trimmedURL = draft.url.trimmingCharacters(in: .whitespaces)
-		if trimmedURL.isEmpty {
-			object["command"] = .string(draft.command.trimmingCharacters(in: .whitespaces))
-			let args = draft.argsText
-				.split(separator: "\n", omittingEmptySubsequences: true)
-				.map { $0.trimmingCharacters(in: .whitespaces) }
-				.filter { !$0.isEmpty }
-			if !args.isEmpty { object["args"] = .array(args.map { .string($0) }) }
-		} else {
-			object["url"] = .string(trimmedURL)
-		}
-		var value = JSONValue.object(object)
-		if draft.disabled { shape.setDisabled(true, in: &value) }
-		return value
+	/// The server object as it exists in the file right now, or nil for a new one.
+	private func existingServer(_ draft: ServerDraft) -> JSONValue? {
+		guard let snapshot,
+			let layer = snapshot.layers.first(where: { $0.id == draft.layerID }),
+			let name = draft.originalName
+		else { return nil }
+		return layer.document.value(at: [layer.shape.serverKey, name])
+	}
+
+	private func shape(for draft: ServerDraft) -> MCPServerShape {
+		snapshot?.layers.first { $0.id == draft.layerID }?.shape ?? snapshot?.shape ?? .pi
+	}
+
+	private func buildValue(_ draft: ServerDraft) -> JSONValue {
+		MCPShape.mergedServer(
+			existing: existingServer(draft),
+			draft: MCPShape.MCPServerDraft(
+				command: draft.command,
+				args: draft.argsText
+					.split(separator: "\n", omittingEmptySubsequences: true)
+					.map { $0.trimmingCharacters(in: .whitespaces) }
+					.filter { !$0.isEmpty },
+				url: draft.url,
+				disabled: draft.disabled
+			),
+			shape: shape(for: draft)
+		)
 	}
 
 	private func apply(_ draft: ServerDraft) {
@@ -607,7 +618,7 @@ struct MCPPane: View {
 		if let original = draft.originalName, original != name {
 			value.removeValue(at: [layer.shape.serverKey, original])
 		}
-		value.setValue(buildValue(draft, shape: layer.shape), at: [layer.shape.serverKey, name])
+		value.setValue(buildValue(draft), at: [layer.shape.serverKey, name])
 		do {
 			let result = try JSONFile.write(value, document: document, scope: resolver, policy: policy)
 			controller.banner = result.backupURL.map { "已写入，备份 \($0.lastPathComponent)" }

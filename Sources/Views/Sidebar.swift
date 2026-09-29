@@ -73,6 +73,27 @@ struct Sidebar: View {
 					}
 				}
 				PathChip(path: agent.rootURL.path)
+				Button {
+					model.projects.select(nil)
+				} label: {
+					HStack(spacing: 5) {
+						Image(systemName: model.projectURL == nil ? "globe" : "folder")
+							.font(.caption2)
+						Text(model.projects.currentDisplayPath)
+							.font(.caption2)
+							.lineLimit(1)
+							.truncationMode(.head)
+						if model.projectURL != nil {
+							Image(systemName: "xmark.circle.fill")
+								.font(.caption2)
+								.foregroundStyle(.tertiary)
+						}
+					}
+					.foregroundStyle(model.projectURL == nil ? Color.secondary : Color.accentColor)
+				}
+				.buttonStyle(.plain)
+				.disabled(model.projectURL == nil)
+				.help(model.projectURL == nil ? "当前是全局作用域，项目级配置不会被加载" : "点一下回到全局作用域")
 			} else {
 				Text("把一份描述文件 JSON 放进 ~/.config/agentkit/agents/ 即可接入新的 agent")
 					.font(.caption)
