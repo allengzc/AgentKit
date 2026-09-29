@@ -131,7 +131,7 @@ MCP 服务器编辑器同理：它只改表单上那四个字段，`env`、`cwd`
 对 pi，它还会指出"看起来配好了其实已经死了"的文件 —— 例如本机真实存在过的情况：
 
 ```
-/Users/dev/.pi/agent/mcp.json 已经不会被读取
+~/.pi/agent/mcp.json 已经不会被读取
 pi-mcp-adapter 已经不再读取这个文件：生效的是 ~/.config/mcp/mcp.json（共享全局层）。
 ```
 
@@ -149,7 +149,8 @@ pi-mcp-adapter 已经不再读取这个文件：生效的是 ~/.config/mcp/mcp.j
 
 ![Skills](docs/skills.png)
 
-递归查找 `SKILL.md`，**穿过符号链接**（一个链接到别处仓库的 skill 目录也能正常列出），同时剪掉 `.git` / `node_modules` / `.venv` / `logs` 这类目录并限制
+递归查找 `SKILL.md`，**穿过符号链接**（一个链接到别处仓库的 skill 目录也能正常列出），
+同时剪掉 `.git` / `node_modules` / `.venv` / `logs` 这类目录并限制
 深度。校验规则对齐规范：缺 `description` 即"不会被加载"，`name` 必须符合 Agent
 Skills 规范。
 
@@ -166,8 +167,7 @@ chip：一个 skill 带 30+ 个文件时，`HStack` 会把每个名字压到**�
 ![pi 会话](docs/sessions.png)
 
 列表只用每个文件的**第一行**（header），消息数 / token / 成本由后台流式统计并按
-`(大小, mtime)` 缓存，所以 上百个会话都能秒开 —— 尽管 Codex
-的单文件能到 88 MB。支持搜索、按项目或按时间分组、在终端恢复、导出 HTML、重命名、
+`(大小, mtime)` 缓存，所以上百个会话也能秒开 —— 尽管单个 Codex 会话文件能到 88 MB。支持搜索、按项目或按时间分组、在终端恢复、导出 HTML、重命名、
 移到废纸篓。
 
 ![Codex 会话](docs/codex-sessions.png)

@@ -1366,7 +1366,7 @@ do {
 	)
 
 	let names = snapshot.skills.map(\.name).sorted()
-	equal(names, ["demo-skill", "broken", "nested-skill", "pdf-tools"], "发现全部真正的 skill")
+	equal(names, ["broken", "demo-skill", "nested-skill", "pdf-tools"], "发现全部真正的 skill")
 	check(!names.contains("decoy"), "不进入 .venv 里的假 SKILL.md")
 	check(!names.contains("decoy2"), "不进入 node_modules 里的假 SKILL.md")
 
@@ -1507,14 +1507,14 @@ do {
 group("Markdown 预览：行内标记")
 
 do {
-	// The exact line that crashed the app. It is the second "网络搜索" bullet of
-	// a real config file: a code span nested inside bold, which made the old
-	// two-pass renderer apply stale offsets and trap in replaceSubrange.
-	let crashing = "需要查资料时，**优先使用 `demo-cli` 命令行工具**，"
+	// A code span nested inside bold, which is the shape that crashed the app:
+	// the old two-pass renderer applied stale offsets and trapped in
+	// replaceSubrange. Nested markers are the whole point of this case.
+	let crashing = "需要查资料时，**优先使用 `demo-cli` 命令行工具**，不要直接抓网页。"
 	let rendered = MarkdownText.inline(crashing)
 	equal(
 		String(rendered.characters),
-		"需要查资料时，优先使用 demo-cli 命令行工具，",
+		"需要查资料时，优先使用 demo-cli 命令行工具，不要直接抓网页。",
 		"嵌套的 code span 在粗体里被正确渲染"
 	)
 
@@ -1708,25 +1708,39 @@ do {
 	equal(SkillItem.sizeText(1024), "1.0 KB", "1KB")
 	equal(SkillItem.sizeText(5 * 1024 * 1024), "5.0 MB", "5MB")
 
-	// The real skill that exposed the problem: 32 entries, several directories.
-	let real = PathResolver.homeDirectory()
-		.appendingPathComponent(".agents/skills/big-skill")
-	if manager.fileExists(atPath: real.appendingPathComponent("SKILL.md").path) {
-		let realRoot = real.deletingLastPathComponent()
-		let realSnapshot = SkillsScanner.scan(
-			roots: [(spec: RootEntry(path: realRoot.path, scope: "user", writable: true), url: realRoot)],
-			ignore: Set(skillsSurface.ignore ?? []),
-			maxDepth: skillsSurface.maxDepth ?? 4,
-			policy: descriptor.backupPolicy
+	// A skill with many entries, which is the case the list has to stay readable
+	// for. Generated rather than read from disk, so the test does not depend on
+	// anyone's machine.
+	let wide = fixtureRoot.appendingPathComponent("bundled/skills/wide")
+	try manager.createDirectory(at: wide, withIntermediateDirectories: true)
+	try "# wide\n".write(to: wide.appendingPathComponent("SKILL.md"), atomically: true, encoding: .utf8)
+	for index in 0..<12 {
+		let folder = wide.appendingPathComponent(String(format: "section-%02d", index))
+		try manager.createDirectory(at: folder, withIntermediateDirectories: true)
+		try "x\n".write(to: folder.appendingPathComponent("page.md"), atomically: true, encoding: .utf8)
+	}
+	for index in 0..<20 {
+		try "x\n".write(
+			to: wide.appendingPathComponent(String(format: "note-%02d.md", index)),
+			atomically: true, encoding: .utf8
 		)
-		if let realEntry = realSnapshot.skills.first(where: { $0.directory.lastPathComponent == "big-skill" }) {
-			check(realEntry.topLevel.count > 20, "真实 skill 有 \(realEntry.topLevel.count) 项")
-			equal(realEntry.topLevel.first?.name, "SKILL.md", "清单排在最前")
-			check(
-				realEntry.topLevel.allSatisfy { !$0.name.isEmpty },
-				"每一项都有名字，没有空标签"
-			)
-		}
+	}
+	let wideSnapshot = SkillsScanner.scan(
+		roots: [(spec: RootEntry(path: skillsRoot.path, scope: "user", writable: true), url: skillsRoot)],
+		ignore: Set(skillsSurface.ignore ?? []),
+		maxDepth: skillsSurface.maxDepth ?? 4,
+		policy: descriptor.backupPolicy
+	)
+	if let wideEntry = wideSnapshot.skills.first(where: { $0.name == "wide" }) {
+		equal(wideEntry.topLevel.count, 33, "33 项全部列出")
+		equal(wideEntry.topLevel.first?.name, "SKILL.md", "清单仍在最前")
+		equal(wideEntry.topLevel.dropFirst().prefix(12).allSatisfy(\.isDirectory), true, "目录排在文件前面")
+		check(wideEntry.topLevel.allSatisfy { !$0.name.isEmpty }, "每一项都有名字，没有空标签")
+		check(wideEntry.topLevel.count > 7, "超过预览上限，会走「显示全部」分支")
+		check(
+			wideEntry.topLevel.filter(\.isDirectory).allSatisfy { $0.childCount == 1 },
+			"每个目录的子项数都算出来了"
+		)
 	}
 }
 

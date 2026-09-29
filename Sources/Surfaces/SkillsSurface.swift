@@ -5,8 +5,7 @@
 //  Discovering Agent Skills: directories containing `SKILL.md`, discovered
 //  recursively, including through symlinks.
 //
-//  `~/.pi/agent/skills/demo-skill` on this machine is a symlink into a whole
-//  repository that also contains `logs/`, `reference/` and a `.venv`. A naive
+//  a skill directory is often a symlink into a whole separate repository that also contains `logs/`, `reference/` and a `.venv`. A naive
 //  recursive walk would crawl all of it, so discovery prunes ignored
 //  directories, stops at a fixed depth, and stops descending as soon as a
 //  directory declares itself a skill.
