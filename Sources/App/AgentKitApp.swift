@@ -41,6 +41,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 		// A plain `swiftc`-built bundle does not get the activation treatment an
 		// Xcode build does, so bring the window forward ourselves.
 		NSApp.activate(ignoringOtherApps: true)
+		if let appearance = DocumentationState.appearance() { NSApp.appearance = appearance }
+		if let size = DocumentationState.windowSize(), let window = NSApp.windows.first {
+			window.setFrame(NSRect(origin: window.frame.origin, size: size), display: true)
+		}
 		Log.app.info("AgentKit launched")
 	}
 

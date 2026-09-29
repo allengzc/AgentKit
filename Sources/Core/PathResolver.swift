@@ -49,6 +49,18 @@ public struct PathResolver {
 	/// not sandboxed, but resolving through `getpwuid` keeps `~` correct even if
 	/// that ever changes, and matches how the tools we manage resolve it.
 	public static func homeDirectory() -> URL {
+		// `AGENTKIT_HOME` redirects `~` and `$HOME` at a throwaway tree, so the
+		// whole app — every descriptor, every shared config layer — can be run
+		// against a fixture without touching the real home. Used by
+		// Tools/make-demo.sh to produce the screenshots, and by anyone who wants
+		// to try AgentKit before pointing it at their own configuration.
+		if let override = ProcessInfo.processInfo.environment["AGENTKIT_HOME"], !override.isEmpty {
+			let url = URL(fileURLWithPath: (override as NSString).expandingTildeInPath, isDirectory: true)
+			var isDirectory: ObjCBool = false
+			if FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory), isDirectory.boolValue {
+				return url
+			}
+		}
 		if let entry = getpwuid(getuid()), let directory = entry.pointee.pw_dir {
 			let path = String(cString: directory)
 			if !path.isEmpty { return URL(fileURLWithPath: path, isDirectory: true) }

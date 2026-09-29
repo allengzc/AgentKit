@@ -27,7 +27,7 @@ struct MarkdownEditorView: View {
 	@State private var pending: PendingTextWrite?
 	@State private var status: String?
 	@State private var errorText: String?
-	@State private var showsPreview = false
+	@State private var showsPreview = DocumentationState.isOn("preview")
 	@State private var token = UUID()
 
 	private struct PendingTextWrite: Identifiable {

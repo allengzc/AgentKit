@@ -1744,6 +1744,64 @@ do {
 	}
 }
 
+group("子进程：启动失败与管道")
+
+do {
+	// Launching a missing executable used to abort the whole process: the pipe
+	// readers started first, and the failure path closed the read ends under a
+	// blocked reader, which raises an Objective-C exception Swift cannot catch.
+	let missing = AgentProcess.run(
+		executable: URL(fileURLWithPath: "/nonexistent/agentkit-does-not-exist"),
+		arguments: ["--version"],
+		timeout: 5
+	)
+	check(!missing.succeeded, "启动不存在的可执行文件返回失败而不是崩掉")
+	check(missing.launchError != nil, "并且带上失败原因", missing.launchError ?? "(nil)")
+	equal(missing.exitCode, -1, "失败时的退出码")
+	equal(missing.stdout, "", "失败时没有输出")
+
+	// A very common real case: the file exists but is not executable.
+	let notExecutable = fixtureRoot.appendingPathComponent("not-executable.sh")
+	try "#!/bin/sh\necho hi\n".write(to: notExecutable, atomically: true, encoding: .utf8)
+	let refused = AgentProcess.run(executable: notExecutable, arguments: [], timeout: 5)
+	check(!refused.succeeded, "不可执行的文件也是失败而不是崩溃")
+
+	// And the normal path still drains both pipes.
+	let echoed = AgentProcess.run(
+		executable: URL(fileURLWithPath: "/bin/echo"),
+		arguments: ["hello", "world"],
+		timeout: 10
+	)
+	check(echoed.succeeded, "正常命令成功")
+	equal(echoed.stdout.trimmingCharacters(in: .whitespacesAndNewlines), "hello world", "读到标准输出")
+
+	let failed = AgentProcess.run(
+		executable: URL(fileURLWithPath: "/bin/sh"),
+		arguments: ["-c", "echo out; echo err 1>&2; exit 3"],
+		timeout: 10
+	)
+	equal(failed.exitCode, 3, "非零退出码被如实返回")
+	equal(failed.stdout.trimmingCharacters(in: .whitespacesAndNewlines), "out", "标准输出")
+	equal(failed.stderr.trimmingCharacters(in: .whitespacesAndNewlines), "err", "标准错误")
+
+	// A command that writes more than a pipe buffer holds must not deadlock.
+	let big = AgentProcess.run(
+		executable: URL(fileURLWithPath: "/bin/sh"),
+		arguments: ["-c", "for i in $(seq 1 20000); do echo aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa; done"],
+		timeout: 20
+	)
+	check(big.succeeded, "大量输出不会死锁")
+	check(big.stdout.count > 500_000, "都读到了", "\(big.stdout.count) 字节")
+
+	// Nothing should hang forever when a command ignores being asked to stop.
+	let slow = AgentProcess.run(
+		executable: URL(fileURLWithPath: "/bin/sh"),
+		arguments: ["-c", "sleep 30"],
+		timeout: 1
+	)
+	check(slow.timedOut, "超时被标记")
+}
+
 group("指令文件路径解析")
 
 do {

@@ -10,8 +10,9 @@
 //  unavailable on macOS 26, which is why the capture itself is shelled out to
 //  `screencapture`.
 //
-//  Usage: windowid [-a] [-o] <OwnerName> [TitleSubstring]
+//  Usage: windowid [-a] [-o] [-v] <OwnerName> [TitleSubstring]
 //         -a   print every match, one per line; default is the frontmost
+//         -v   list every match with its layer, area, bounds and title
 //         -o   include windows another app is covering. `screencapture -l`
 //              reads the window's own backing store, so a covered window can
 //              still be captured — which is what lets a check run without
@@ -23,12 +24,14 @@ import CoreGraphics
 
 let arguments = Array(CommandLine.arguments.dropFirst())
 var printAll = false
+var verbose = false
 var includeCovered = false
 var positional: [String] = []
 for argument in arguments {
 	switch argument {
 	case "-a": printAll = true
 	case "-o": includeCovered = true
+	case "-v": verbose = true
 	default: positional.append(argument)
 	}
 }
@@ -52,6 +55,7 @@ struct Match {
 	let layer: Int
 	let title: String
 	let area: Double
+	let bounds: CGRect
 }
 
 var matches: [Match] = []
@@ -65,7 +69,13 @@ for window in windowList {
 	let layer = (window[kCGWindowLayer as String] as? Int) ?? 0
 	let bounds = window[kCGWindowBounds as String] as? [String: Any]
 	let rect = bounds.flatMap { CGRect(dictionaryRepresentation: $0 as CFDictionary) } ?? .zero
-	matches.append(Match(id: windowID, layer: layer, title: title, area: rect.width * rect.height))
+	matches.append(Match(
+		id: windowID,
+		layer: layer,
+		title: title,
+		area: rect.width * rect.height,
+		bounds: rect
+	))
 }
 
 // The main window is the largest one: an app also owns menu-bar strips, shadow
@@ -75,6 +85,13 @@ matches.sort { $0.area > $1.area }
 guard !matches.isEmpty else {
 	FileHandle.standardError.write(Data("no window owned by \(owner)\n".utf8))
 	exit(1)
+}
+
+if verbose {
+	for match in matches {
+		print("\(match.id)\tlayer=\(match.layer)\t\(Int(match.area))\t\(match.bounds)\t\(match.title)")
+	}
+	exit(0)
 }
 
 if printAll {

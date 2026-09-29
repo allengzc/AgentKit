@@ -58,19 +58,10 @@ public enum AgentProcess {
 		let stdoutQueue = DispatchQueue(label: "com.allengzc.agentkit.stdout")
 		let stderrQueue = DispatchQueue(label: "com.allengzc.agentkit.stderr")
 
-		group.enter()
-		stdoutQueue.async {
-			let data = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
-			lock.lock(); stdoutData = data; lock.unlock()
-			group.leave()
-		}
-		group.enter()
-		stderrQueue.async {
-			let data = stderrPipe.fileHandleForReading.readDataToEndOfFile()
-			lock.lock(); stderrData = data; lock.unlock()
-			group.leave()
-		}
-
+		// Launch before anything reads. Starting the readers first meant the
+		// failure path closed the read ends under a blocked reader, and closing a
+		// descriptor mid-read raises an Objective-C exception that Swift cannot
+		// catch — it aborted the whole app whenever a command could not launch.
 		do {
 			try process.run()
 		} catch {
@@ -84,6 +75,19 @@ public enum AgentProcess {
 				timedOut: false,
 				launchError: error.localizedDescription
 			)
+		}
+
+		group.enter()
+		stdoutQueue.async {
+			let data = AgentProcess.drain(stdoutPipe.fileHandleForReading)
+			lock.lock(); stdoutData = data; lock.unlock()
+			group.leave()
+		}
+		group.enter()
+		stderrQueue.async {
+			let data = AgentProcess.drain(stderrPipe.fileHandleForReading)
+			lock.lock(); stderrData = data; lock.unlock()
+			group.leave()
 		}
 
 		if let standardInput {
@@ -116,6 +120,22 @@ public enum AgentProcess {
 			launchError: nil
 		)
 	}
+
+	/// Reads a pipe to EOF.
+	///
+	/// `readDataToEndOfFile()` raises `NSFileHandleOperationException` when the
+	/// descriptor has gone bad, and an Objective-C exception cannot be caught in
+	/// Swift, so one dead child process took the app down with it.
+	/// `read(upToCount:)` reports the same condition as a thrown error.
+	static func drain(_ handle: FileHandle) -> Data {
+		var out = Data()
+		while true {
+			guard let chunk = try? handle.read(upToCount: 64 * 1024), !chunk.isEmpty else { break }
+			out.append(chunk)
+		}
+		return out
+	}
+
 }
 
 // MARK: - Login shell environment

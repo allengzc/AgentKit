@@ -386,7 +386,16 @@ struct SkillsPane: View {
 				self.snapshot = snapshot
 				self.scanning = false
 				if selectedID == nil || !snapshot.skills.contains(where: { $0.id == selectedID }) {
-					selectedID = snapshot.skills.first?.id
+					// Opening on a skill that pi will not load is a poor first
+					// impression when a healthy one is right there.
+					let healthy = snapshot.skills.first { $0.issues.isEmpty }
+					selectedID = (healthy ?? snapshot.skills.first)?.id
+				}
+				if let folder = DocumentationState.string("expand"), folder != "1",
+					let entry = self.selected,
+					let item = entry.topLevel.first(where: { $0.name == folder })
+				{
+					expandedFolders.insert(item.id)
 				}
 			}
 		}

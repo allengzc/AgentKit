@@ -56,7 +56,10 @@ struct SettingsPane: View {
 				ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
 			}
 		}
-		.task(id: reloadToken) { load() }
+		.task(id: reloadToken) {
+			load()
+			stageDocumentationDiff()
+		}
 		.onChange(of: model.externalChangeToken) { _, _ in load() }
 		.sheet(item: $pendingWrite) { pending in
 			DiffSheet(
@@ -69,6 +72,34 @@ struct SettingsPane: View {
 	}
 
 	// MARK: - Load / write
+
+	/// Puts the pane into the state the README's diff screenshot shows: a few
+	/// edited fields with the confirm sheet open, so the picture does not have to
+	/// be produced by hand. Off unless `AGENTKIT_DOC_STATE` asks for it.
+	private func stageDocumentationDiff() {
+		guard DocumentationState.isOn("diff"), var current = editor else { return }
+		var staged = 0
+		for section in current.schema.sections {
+			for field in section.fields {
+				guard staged < 3 else { break }
+				switch field.type {
+				case .bool, .boolOrAuto:
+					current.setBool(!current.bool(field), field)
+					staged += 1
+				case .text, .path:
+					let text = current.text(field)
+					if !text.isEmpty, current.setText(text + "-edited", field) == nil {
+						staged += 1
+					}
+				default:
+					continue
+				}
+			}
+		}
+		guard staged > 0 else { return }
+		editor = current
+		requestWrite(editor: current)
+	}
 
 	private func load() {
 		guard let fileURL else {
