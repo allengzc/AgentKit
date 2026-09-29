@@ -136,6 +136,7 @@
 
 /* Diagnostics */
 "pane.diagnostics.title" = "Diagnostics";
+"pane.diagnostics.titleWithCount" = "Diagnostics (%d issue(s))";
 "pane.diagnostics.help" = "Diagnostics for descriptors and configuration";
 "empty.noIssues" = "No problems found";
 "diagnostics.paneLabel" = "Pane: %@";

@@ -16,10 +16,13 @@ struct RootView: View {
 	var body: some View {
 		// Read here, not inside the toolbar item: this is what registers the
 		// dependency on the pane's state, so a menu entry that turns enabled or
-		// disabled while the pane loads is redrawn. It is also where the
-		// "nothing to show" decision is made — a pane that contributes no
-		// actions leaves the toolbar without the ⋯ item at all.
+		// disabled while the pane loads is redrawn.
 		let groups = paneActions.groups.filter { !$0.isEmpty }
+		// The ⋯ item exists only when it has something to offer: this pane's
+		// actions, or diagnostics that are actually complaining. A pane that
+		// contributes nothing and has nothing to report leaves the toolbar
+		// without the item at all, instead of offering an empty menu.
+		let showsOverflow = !groups.isEmpty || diagnosticCount > 0
 		return NavigationSplitView {
 			Sidebar()
 		} detail: {
@@ -30,9 +33,7 @@ struct RootView: View {
 		.navigationSubtitle(model.selectedAgent?.subtitle ?? "")
 		.toolbar {
 			ToolbarItem(placement: .navigation) {
-				if !groups.isEmpty {
-					overflowMenu(groups)
-				}
+				projectMenu
 			}
 			ToolbarItem(placement: .automatic) {
 				if model.isSelectedAgentRunning {
@@ -49,15 +50,9 @@ struct RootView: View {
 				}
 			}
 			ToolbarItem(placement: .automatic) {
-				Button {
-					showDiagnostics = true
-				} label: {
-					Label(
-						L.t("pane.diagnostics.title", "诊断"),
-						systemImage: diagnosticCount > 0 ? "exclamationmark.triangle.fill" : "checkmark.seal"
-					)
+				if showsOverflow {
+					overflowMenu(groups)
 				}
-				.help(L.t("pane.diagnostics.help", "描述文件与配置的诊断信息"))
 			}
 		}
 		.sheet(isPresented: $showDiagnostics) {
@@ -81,6 +76,12 @@ struct RootView: View {
 	/// slot is now free to be about *this pane*, which is why it can disappear
 	/// when the pane has nothing to offer instead of being a permanent button
 	/// that opens a menu of things the user rarely wants.
+	/// The overflow menu: what this pane can do, plus the app-wide extras that
+	/// used to sit in the toolbar as a button of their own.
+	///
+	/// It replaced a standalone diagnostics button at the right edge, which was a
+	/// permanent icon for something rarely needed. Nothing here is specific to a
+	/// pane except the groups, so the button stays available on every pane.
 	private func overflowMenu(_ groups: [PaneActionGroup]) -> some View {
 		Menu {
 			ForEach(groups) { group in
@@ -90,12 +91,43 @@ struct RootView: View {
 					}
 				}
 			}
+			if !groups.isEmpty { Divider() }
+			Button {
+				showDiagnostics = true
+			} label: {
+				Label(
+					diagnosticCount > 0
+						? String(
+							format: L.t("pane.diagnostics.titleWithCount", "诊断（%d 个问题）"),
+							diagnosticCount
+						)
+						: L.t("pane.diagnostics.title", "诊断"),
+					systemImage: diagnosticCount > 0 ? "exclamationmark.triangle.fill" : "checkmark.seal"
+				)
+			}
 		} label: {
 			Label(L.t("menu.paneActions", "面板操作"), systemImage: "ellipsis.circle")
 				.labelStyle(.iconOnly)
 		}
 		.menuIndicator(.hidden)
-		.help(L.t("help.paneActions", "这个面板提供的操作"))
+		.help(L.t("help.paneActions", "这个面板提供的操作，以及诊断信息"))
+	}
+
+	/// The project scope picker, back in the toolbar where it was.
+	private var projectMenu: some View {
+		Menu {
+			ProjectScopeMenu()
+		} label: {
+			Label(model.projects.currentShortLabel, systemImage: model.projectURL == nil ? "globe" : "folder")
+				.labelStyle(.titleAndIcon)
+				.lineLimit(1)
+		}
+		.help(
+			String(
+				format: L.t("help.projectScope", "项目作用域：%@"),
+				model.projects.currentDisplayPath
+			)
+		)
 	}
 
 	/// One entry, or one submenu. Nesting stops at two levels on purpose: the

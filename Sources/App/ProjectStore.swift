@@ -183,6 +183,15 @@ public final class ProjectStore {
 		return out
 	}
 
+	/// A short label for the toolbar: the folder name, or "全局".
+	///
+	/// The full `currentDisplayPath` spells out what the scope means, which is
+	/// right in the sidebar and far too long for a toolbar button.
+	public var currentShortLabel: String {
+		guard let current else { return L.t("project.scope.globalShort", "全局") }
+		return current.lastPathComponent
+	}
+
 	/// A shorter form for the sidebar: the last two path components.
 	public var currentDisplayPath: String {
 		guard let current else {

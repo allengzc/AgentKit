@@ -82,7 +82,7 @@ struct Sidebar: View {
 				// replaced: that button existed only to clear a scope that was
 				// not set, while this one is how you set it in the first place.
 				Menu {
-					projectMenu
+					ProjectScopeMenu()
 				} label: {
 					HStack(spacing: 5) {
 						Image(systemName: model.projectURL == nil ? "globe" : "folder")
@@ -144,45 +144,6 @@ struct Sidebar: View {
 	/// the middle keeps the head (which tree) and the leaf (which project) and
 	/// drops what two paths most often share; `.help` keeps the whole path one
 	/// hover away.
-	private var projectMenu: some View {
-		Group {
-			Button {
-				model.projects.select(nil)
-			} label: {
-				Label(
-					L.t("project.scope.global", "全局（不加载项目配置）"),
-					systemImage: model.projectURL == nil ? "checkmark" : "globe"
-				)
-			}
-			if !model.projects.menuEntries.isEmpty {
-				Divider()
-				ForEach(model.projects.menuEntries, id: \.path) { url in
-					Button {
-						model.projects.select(url)
-					} label: {
-						// `MenuPathText`, not a local `.frame(maxWidth:)`:
-						// inside a menu a `maxWidth` frame never gets to clamp,
-						// because nothing proposes less than the text's ideal
-						// width. Measured with this menu: `maxWidth: 260` came
-						// out 587pt wide — the same as no cap at all.
-						MenuPathText(path: url.path)
-					}
-					.help(url.path)
-				}
-			}
-			Divider()
-			Button(L.t("button.chooseDirectory", "选择目录…")) { model.projects.chooseWithPanel() }
-			Button(L.t("button.revealCurrentProject", "在 Finder 中显示当前项目")) {
-				if let project = model.projectURL { ShellActions.reveal(project) }
-			}
-			.disabled(model.projectURL == nil)
-			if model.projects.scanning {
-				Divider()
-				Text(L.t("project.scanning", "正在从会话历史中整理项目…"))
-			}
-		}
-	}
-
 	private func surfaceRow(_ surface: SurfaceSpec) -> some View {
 		HStack(spacing: 8) {
 			Image(systemName: surface.icon ?? "square.dashed")

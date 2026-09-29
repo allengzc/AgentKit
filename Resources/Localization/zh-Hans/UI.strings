@@ -135,6 +135,7 @@
 
 /* Diagnostics */
 "pane.diagnostics.title" = "诊断";
+"pane.diagnostics.titleWithCount" = "诊断（%d 个问题）";
 "pane.diagnostics.help" = "描述文件与配置的诊断信息";
 "empty.noIssues" = "没有发现问题";
 "diagnostics.paneLabel" = "面板：%@";
