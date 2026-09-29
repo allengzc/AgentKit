@@ -95,7 +95,9 @@ struct RootView: View {
 			Label(L.t("menu.paneActions", "面板操作"), systemImage: "ellipsis.circle")
 				.labelStyle(.iconOnly)
 		}
-		.menuIndicator(.hidden)
+		// No `.menuIndicator(.hidden)`: the project menu on the left shows the
+		// standard chevron, and a menu button that hides it reads as a plain
+		// button that does something on click rather than opening a list.
 		.help(L.t("help.paneActions", "这个面板提供的操作，以及诊断信息"))
 	}
 
