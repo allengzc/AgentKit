@@ -1502,6 +1502,130 @@ do {
 	equal(AtomicFile.mode(of: modelsURL), 0o600, "写回后权限仍是 0600")
 }
 
+// MARK: - Markdown preview
+
+group("Markdown 预览：行内标记")
+
+do {
+	// The exact line that crashed the app. It is the second "网络搜索" bullet of
+	// a real config file: a code span nested inside bold, which made the old
+	// two-pass renderer apply stale offsets and trap in replaceSubrange.
+	let crashing = "需要查资料时，**优先使用 `demo-cli` 命令行工具**，"
+	let rendered = MarkdownText.inline(crashing)
+	equal(
+		String(rendered.characters),
+		"需要查资料时，优先使用 demo-cli 命令行工具，",
+		"嵌套的 code span 在粗体里被正确渲染"
+	)
+
+	// Both attributes survive the nesting.
+	var sawMonospaced = false
+	var sawBold = false
+	for run in rendered.runs {
+		let piece = String(rendered[run.range].characters)
+		if piece == "demo-cli", run.font == .system(.body, design: .monospaced) { sawMonospaced = true }
+		if piece.contains("优先使用"), run.inlinePresentationIntent == .stronglyEmphasized { sawBold = true }
+	}
+	check(sawMonospaced, "嵌套的 code span 仍然是等宽字体")
+	check(sawBold, "外层的粗体仍然生效")
+
+	// Marker text must never leak into the output.
+	equal(String(MarkdownText.inline("看 `code` 就好").characters), "看 code 就好", "单独 code span")
+	equal(String(MarkdownText.inline("**重点**").characters), "重点", "单独粗体")
+	equal(String(MarkdownText.inline("`a` 和 `b` 和 `c`").characters), "a 和 b 和 c", "多个 code span")
+	equal(String(MarkdownText.inline("**a** 与 **b**").characters), "a 与 b", "多个粗体")
+
+	// Unclosed markers are literal text, not a trap.
+	equal(String(MarkdownText.inline("半个 `code").characters), "半个 `code", "未闭合的反引号按字面处理")
+	equal(String(MarkdownText.inline("半个 **bold").characters), "半个 **bold", "未闭合的粗体按字面处理")
+	equal(String(MarkdownText.inline("**").characters), "**", "孤立的 ** 按字面处理")
+	equal(String(MarkdownText.inline("").characters), "", "空字符串")
+	equal(String(MarkdownText.inline("****").characters), "", "空粗体")
+
+	// The crash was inside Swift's unicode-scalar storage, so exercise
+	// multi-scalar graphemes and markers adjacent to them.
+	let awkward = [
+		"emoji 👨‍👩‍👧‍👦 和 `code`",
+		"组合音标 é vs e\u{0301} 与 **粗**",
+		"`👨‍👩‍👧‍👦`",
+		"**👨‍👩‍👧‍👦 `x` 👨‍👩‍👧‍👦**",
+		"`a`**`b`**`c`",
+		"**`a`**",
+		"`**a**`",
+		"中文**粗体**中文`代码`中文",
+		"一行全是标记 `**` 与 `**`",
+	]
+	for text in awkward {
+		_ = MarkdownText.inline(text)
+	}
+	check(true, "多标量字素与标记相邻时不再越界（\(awkward.count) 个用例）")
+
+	// Every line of the real file must render, which is exactly what the pane does.
+	let agentInstructions = PathResolver.homeDirectory()
+		.appendingPathComponent(".pi/agent/AGENTS.md")
+	if let content = try? String(contentsOf: agentInstructions, encoding: .utf8) {
+		var lines = 0
+		for line in content.split(separator: "\n", omittingEmptySubsequences: false) {
+			_ = MarkdownText.inline(String(line))
+			lines += 1
+		}
+		check(lines > 10, "真实 AGENTS.md 的 \(lines) 行全部渲染通过")
+	}
+}
+
+group("Markdown 预览：块级解析")
+
+do {
+	let blocks = MarkdownText.parse("""
+	# 标题
+
+	一段正文，
+	折了一行。
+
+	- 顶层
+	  - 缩进一层
+	- 又一个
+
+	> 引用
+
+	```swift
+	let x = 1
+	```
+	""")
+
+	var headings = 0
+	var paragraphs: [String] = []
+	var bullets: [(String, Int)] = []
+	var quotes: [String] = []
+	var codes: [String] = []
+	for block in blocks {
+		switch block {
+		case .heading(let level, let text):
+			headings += 1
+			equal(level, 1, "标题层级")
+			equal(text, "标题", "标题正文")
+		case .paragraph(let text):
+			paragraphs.append(text)
+		case .bullet(let text, let depth):
+			bullets.append((text, depth))
+		case .quote(let text):
+			quotes.append(text)
+		case .code(let text):
+			codes.append(text)
+		}
+	}
+	equal(headings, 1, "一个标题")
+	equal(paragraphs.first, "一段正文， 折了一行。", "折行的正文合成一段")
+	equal(bullets.map(\.0), ["顶层", "缩进一层", "又一个"], "三个列表项")
+	equal(bullets.map(\.1), [0, 1, 0], "缩进层级：每两个空格一层")
+	equal(quotes, ["引用"], "引用")
+	equal(codes, ["let x = 1"], "代码块内容，且围栏不出现")
+
+	// An unterminated fence still shows its content rather than swallowing it.
+	let unterminated = MarkdownText.parse("```\nabc\n")
+	equal(unterminated.count, 1, "未闭合的代码围栏也产出代码块")
+}
+
 group("指令文件路径解析")
 
 do {

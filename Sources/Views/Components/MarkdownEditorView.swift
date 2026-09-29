@@ -190,19 +190,15 @@ struct MarkdownPreview: View {
 
 	var body: some View {
 		VStack(alignment: .leading, spacing: 6) {
-			ForEach(Array(Self.parse(text).enumerated()), id: \.offset) { _, block in
+			ForEach(Array(MarkdownText.parse(text).enumerated()), id: \.offset) { _, block in
 				block.view
 			}
 		}
 	}
 
-	enum Block {
-		case heading(Int, String)
-		case paragraph(String)
-		case bullet(String, Int)
-		case quote(String)
-		case code(String)
+}
 
+extension MarkdownText.Block {
 		@ViewBuilder
 		var view: some View {
 			switch self {
@@ -211,19 +207,19 @@ struct MarkdownPreview: View {
 					.font(level <= 1 ? .title3.weight(.bold) : level == 2 ? .headline : .subheadline.weight(.semibold))
 					.padding(.top, 6)
 			case .paragraph(let text):
-				Text(Self.inline(text))
+				Text(MarkdownText.inline(text))
 					.font(.body)
 					.fixedSize(horizontal: false, vertical: true)
 			case .bullet(let text, let depth):
 				HStack(alignment: .top, spacing: 6) {
 					Text("•").foregroundStyle(.secondary)
-					Text(Self.inline(text)).fixedSize(horizontal: false, vertical: true)
+					Text(MarkdownText.inline(text)).fixedSize(horizontal: false, vertical: true)
 				}
 				.padding(.leading, CGFloat(depth) * 14)
 			case .quote(let text):
 				HStack(alignment: .top, spacing: 8) {
 					Rectangle().frame(width: 2).foregroundStyle(.tertiary)
-					Text(Self.inline(text)).foregroundStyle(.secondary)
+					Text(MarkdownText.inline(text)).foregroundStyle(.secondary)
 						.fixedSize(horizontal: false, vertical: true)
 				}
 			case .code(let text):
@@ -235,97 +231,4 @@ struct MarkdownPreview: View {
 					.background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 6))
 			}
 		}
-
-		/// Minimal inline emphasis and link handling.
-		static func inline(_ text: String) -> AttributedString {
-			var attributed = AttributedString(text)
-			if let regex = try? NSRegularExpression(pattern: "`([^`]+)`") {
-				for match in regex.matches(in: text, range: NSRange(text.startIndex..., in: text)).reversed() {
-					guard let range = Range(match.range, in: text),
-						let inner = Range(match.range(at: 1), in: text),
-						let attributedRange = Range(range, in: attributed)
-					else { continue }
-					var replacement = AttributedString(String(text[inner]))
-					replacement.font = .system(.body, design: .monospaced)
-					attributed.replaceSubrange(attributedRange, with: replacement)
-				}
-			}
-			if let regex = try? NSRegularExpression(pattern: "\\*\\*([^*]+)\\*\\*") {
-				for match in regex.matches(in: text, range: NSRange(text.startIndex..., in: text)).reversed() {
-					guard let range = Range(match.range, in: text),
-						let inner = Range(match.range(at: 1), in: text),
-						let attributedRange = Range(range, in: attributed)
-					else { continue }
-					var replacement = AttributedString(String(text[inner]))
-					replacement.inlinePresentationIntent = .stronglyEmphasized
-					attributed.replaceSubrange(attributedRange, with: replacement)
-				}
-			}
-			return attributed
-		}
-	}
-
-	static func parse(_ text: String) -> [Block] {
-		var blocks: [Block] = []
-		var paragraph: [String] = []
-		var codeLines: [String] = []
-		var inCode = false
-
-		func flushParagraph() {
-			if !paragraph.isEmpty {
-				blocks.append(.paragraph(paragraph.joined(separator: " ")))
-				paragraph.removeAll()
-			}
-		}
-
-		for rawLine in text.split(separator: "\n", omittingEmptySubsequences: false) {
-			let line = String(rawLine)
-			if line.hasPrefix("```") {
-				if inCode {
-					blocks.append(.code(codeLines.joined(separator: "\n")))
-					codeLines.removeAll()
-					inCode = false
-				} else {
-					flushParagraph()
-					inCode = true
-				}
-				continue
-			}
-			if inCode {
-				codeLines.append(line)
-				continue
-			}
-			let trimmed = line.trimmingCharacters(in: .whitespaces)
-			if trimmed.isEmpty {
-				flushParagraph()
-				continue
-			}
-			if let match = trimmed.range(of: "^(#{1,6})\\s+", options: .regularExpression) {
-				flushParagraph()
-				let hashes = trimmed[match].filter { $0 == "#" }.count
-				blocks.append(.heading(hashes, String(trimmed[match.upperBound...])))
-				continue
-			}
-			let indent = line.prefix { $0 == " " || $0 == "\t" }.count / 2
-			if trimmed.hasPrefix("- ") || trimmed.hasPrefix("* ") {
-				flushParagraph()
-				blocks.append(.bullet(String(trimmed.dropFirst(2)), indent))
-				continue
-			}
-			if trimmed.hasPrefix("> ") {
-				flushParagraph()
-				blocks.append(.quote(String(trimmed.dropFirst(2))))
-				continue
-			}
-			if let match = trimmed.range(of: "^\\d+\\.\\s+", options: .regularExpression) {
-				flushParagraph()
-				blocks.append(.bullet(String(trimmed[match.upperBound...]), indent))
-				continue
-			}
-			paragraph.append(trimmed)
-		}
-		if inCode, !codeLines.isEmpty { blocks.append(.code(codeLines.joined(separator: "\n"))) }
-		flushParagraph()
-		return blocks
-	}
 }

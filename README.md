@@ -76,7 +76,7 @@ python3 Tools/make-icon.py     # 重新生成 Icon.svg / Icon-simple.svg / AppIc
 ```bash
 ./build.sh          # 编译到 out/AgentKit.app（只需要 swiftc）
 ./install.sh        # 再复制到 /Applications/AgentKit.app 并提示入口
-./run-tests.sh      # 500 项离线断言，不需要窗口、不需要网络
+./run-tests.sh      # 523 项离线断言，不需要窗口、不需要网络
 ```
 
 要求：macOS 14+、Xcode 命令行工具（Swift 6.x）、一个用于签名的 Apple Development
@@ -171,8 +171,9 @@ Codex 的名字来自 `session_index.jsonl`，AgentKit **只读取不代写**，
 
 ![Codex 通用设置](docs/codex-settings.png)
 
-- **全局指令**：Markdown 编辑 + 预览，列出 override / instructions / SYSTEM / APPEND_SYSTEM
-  的生效关系，并从项目目录向上发现沿途命中的 `AGENTS.md`。
+- **全局指令**：Markdown 编辑 + 预览（`MarkdownText` 在 Surfaces 层，不在视图里 ——
+  它崩过一次，整块 App 跟着一起死），列出 override / instructions / SYSTEM /
+  APPEND_SYSTEM 的生效关系，并从项目目录向上发现沿途命中的 `AGENTS.md`。
 - **子 Agents**（仅 pi）：frontmatter 表单（name / description / model / tools）+ 正文编辑，
   `model` 会对着当前模型列表校验；`tools: read, grep` 这种逗号写法原样保留。
 - **通用设置**：按官方文档逐键生成的表单，含类型、枚举、范围与默认值。pi 的字段表
@@ -350,7 +351,7 @@ Sources/App/         状态、项目作用域、写入控制器、Finder/终端�
 Sources/Views/       SwiftUI 界面
 Resources/Agents/    内置描述文件（pi.json、codex.json）
 Resources/Icon.svg   图标数据源（AppIcon.icns 由它生成）
-Tests/main.swift     500 项离线断言
+Tests/main.swift     523 项离线断言
 ```
 
 ## License

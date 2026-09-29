@@ -22,7 +22,7 @@ while IFS= read -r file; do SOURCES+=("$file"); done < <(
 swiftc -swift-version 5 -target "$TARGET" \
 	-module-cache-path "$HERE/.cache/modules" \
 	-Xcc -fmodules-cache-path="$HERE/.cache/clang" \
-	-framework Foundation -framework CryptoKit \
+	-framework Foundation -framework CryptoKit -framework SwiftUI \
 	-o "$HERE/out/agentkit-tests" \
 	"${SOURCES[@]}" \
 	"$HERE/Tests/main.swift"
