@@ -425,7 +425,11 @@ do {
 		store.select(projectB)
 		store.select(projectA)
 		equal(store.recent.map(\.lastPathComponent), ["project-a", "project-b"], "最近项目去重且最新的在前")
-		equal(store.menuEntries.map(\.path), [projectB.path], "菜单里不重复列出当前项目")
+		equal(
+			store.menuSections(for: nil).flatMap { $0.entries }.map(\.url.path),
+			[projectB.path],
+			"菜单里不重复列出当前项目"
+		)
 
 		// The state has to survive a restart, or the user re-picks every launch.
 		let reopened = ProjectStore(appSupport: support)
@@ -473,6 +477,275 @@ do {
 	equal(SurfacePaths.projectPathCount(for: descriptor.surface(id: "models")!), 0, "模型面板完全不需要项目")
 	equal(SurfacePaths.projectPathCount(for: descriptor.surface(id: "skills")!), 2, "skills 有两条项目级路径")
 	equal(SurfacePaths.projectPathCount(for: descriptor.surface(id: "subagents")!), 1, "子 agents 有一条")
+}
+
+// MARK: - Where a project came from
+
+group("项目来源：并集里每条带上用过的 agent")
+
+do {
+	// Two agents whose histories overlap on one project, plus one project the
+	// user picked by hand. The menu is the union of all of it — that stays — so
+	// what these assertions pin down is that the union says where each row came
+	// from, and that the order follows the agent on screen.
+	let originSupport = fixtureRoot.appendingPathComponent("origin-support")
+	let alphaRoot = fixtureRoot.appendingPathComponent("origin-alpha")
+	let betaRoot = fixtureRoot.appendingPathComponent("origin-beta")
+	let shared = fixtureRoot.appendingPathComponent("origin-shared")
+	let alphaOnly = fixtureRoot.appendingPathComponent("origin-alpha-only")
+	let betaOnly = fixtureRoot.appendingPathComponent("origin-beta-only")
+	let manual = fixtureRoot.appendingPathComponent("origin-manual")
+	let manualTwo = fixtureRoot.appendingPathComponent("origin-manual-two")
+	for url in [originSupport, alphaRoot, betaRoot, shared, alphaOnly, betaOnly, manual, manualTwo] {
+		try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+	}
+
+	/// The smallest descriptor that produces a sessions surface: a root and a
+	/// header that carries `cwd`.
+	func originDescriptor(id: String, root: URL) throws -> AgentDescriptor {
+		let json = """
+		{
+		  "descriptorVersion": 1,
+		  "id": "\(id)",
+		  "name": "\(id)",
+		  "root": { "default": "\(root.path)" },
+		  "surfaces": [
+		    {
+		      "id": "sessions",
+		      "kind": "sessions",
+		      "title": "Sessions",
+		      "shape": "jsonl-sessions",
+		      "root": "$ROOT/sessions",
+		      "sessions": {
+		        "recursive": false,
+		        "headerType": "session",
+		        "header": { "id": "id", "cwd": "cwd", "timestamp": "timestamp" },
+		        "message": { "type": "message", "payload": "message", "role": "role", "text": "content" }
+		      }
+		    }
+		  ]
+		}
+		"""
+		return try JSONDecoder().decode(AgentDescriptor.self, from: Data(json.utf8))
+	}
+
+	/// One session file for one agent in one project. The store orders by the
+	/// file's mtime, so it is set explicitly rather than inherited from "now".
+	func originSession(root: URL, project: String, at stamp: Date, cwd: URL) throws {
+		let directory = root.appendingPathComponent("sessions").appendingPathComponent(project)
+		try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+		let url = directory.appendingPathComponent("\(project).jsonl")
+		let line = #"{"type":"session","id":"\#(project)","timestamp":"2026-01-01T00:00:00.000Z","cwd":"\#(cwd.path)"}"# + "\n"
+		try line.write(to: url, atomically: true, encoding: .utf8)
+		try FileManager.default.setAttributes(
+			[.modificationDate: stamp],
+			ofItemAtPath: url.path
+		)
+	}
+
+	// alpha worked in `shared`, `alpha-only` and (by hand-picked coincidence)
+	// `manual`; beta worked in `shared` and `beta-only`.
+	try originSession(root: alphaRoot, project: "shared", at: Date(timeIntervalSince1970: 300), cwd: shared)
+	try originSession(root: alphaRoot, project: "alpha-only", at: Date(timeIntervalSince1970: 200), cwd: alphaOnly)
+	try originSession(root: alphaRoot, project: "manual", at: Date(timeIntervalSince1970: 500), cwd: manual)
+	try originSession(root: betaRoot, project: "shared", at: Date(timeIntervalSince1970: 400), cwd: shared)
+	try originSession(root: betaRoot, project: "beta-only", at: Date(timeIntervalSince1970: 100), cwd: betaOnly)
+
+	let agents = [
+		try LoadedAgent(
+			descriptor: originDescriptor(id: "alpha", root: alphaRoot),
+			rootURL: alphaRoot,
+			rootExists: true,
+			issues: []
+		),
+		try LoadedAgent(
+			descriptor: originDescriptor(id: "beta", root: betaRoot),
+			rootURL: betaRoot,
+			rootExists: true,
+			issues: []
+		),
+	]
+
+	try MainActor.assumeIsolated {
+		let store = ProjectStore(appSupport: originSupport)
+		store.refreshSuggestions(for: agents, appSupport: originSupport)
+
+		// The scan runs detached and lands back on the main actor, so a
+		// synchronous test has to let the main queue drain. The deadline keeps a
+		// regression from hanging the whole suite.
+		let deadline = Date().addingTimeInterval(10)
+		while store.scanning, Date() < deadline {
+			RunLoop.current.run(until: Date().addingTimeInterval(0.005))
+		}
+		check(!store.scanning, "会话扫描在超时前结束（否则下面的期望值全是旧值）")
+
+		// These read the store, so they carry the same isolation as the calls
+		// around them; a nested function does not inherit it on its own.
+		@MainActor func paths(_ agentID: String?) -> [String] {
+			store.menuSections(for: agentID).flatMap { $0.entries }.map(\.url.path)
+		}
+		@MainActor func kinds(_ agentID: String?) -> [ProjectMenuSection.Kind] {
+			store.menuSections(for: agentID).map(\.kind)
+		}
+		@MainActor func provenance(_ path: URL, _ agentID: String?) -> Set<String> {
+			store.menuSections(for: agentID)
+				.flatMap { $0.entries }
+				.first { $0.url.path == path.path }?
+				.agentIDs ?? []
+		}
+
+		equal(
+			store.suggested.map(\.url.lastPathComponent),
+			["origin-manual", "origin-shared", "origin-alpha-only", "origin-beta-only"],
+			"并集按最近活动排序，四个项目一条不少"
+		)
+		// The sighting that used to be thrown away: the path was already in the
+		// set, so the second agent's id never reached the menu.
+		equal(provenance(shared, "alpha"), ["alpha", "beta"], "两个 agent 都用过的项目，两个来源都在")
+		equal(provenance(alphaOnly, "alpha"), ["alpha"], "只有一个 agent 用过时来源只有它")
+		equal(provenance(betaOnly, "alpha"), ["beta"], "来源跟着项目走，不跟着当前 agent 走")
+
+		// No agent picked yet: nothing is claimed to be the current agent's.
+		equal(kinds(nil), [.others], "没有选中 agent 时只有一个分组，不声称任何来源")
+
+		// Two hand-picked projects, so one of them is `recent` without being the
+		// current scope — the current one is never listed, by design.
+		store.select(manual)
+		store.select(manualTwo)
+		equal(kinds("alpha"), [.picked, .mine, .others], "分组顺序：手选、当前 agent 用过、其余")
+		equal(
+			paths("alpha"),
+			[manual.path, shared.path, alphaOnly.path, betaOnly.path],
+			"手选的在最前，其次是 alpha 用过的，beta 的沉到下面但一条都不删"
+		)
+		equal(provenance(manual, "alpha"), ["alpha"], "手选的项目也带来源，来源不由列表决定")
+
+		// Same data, other agent on screen: the order follows, the set does not.
+		equal(
+			paths("beta"),
+			[manual.path, shared.path, betaOnly.path, alphaOnly.path],
+			"换一个 agent，排序跟着换，条目一个不少"
+		)
+
+		store.select(alphaOnly)
+		check(!paths("alpha").contains(alphaOnly.path), "当前项目不在菜单里重复出现")
+		equal(Set(paths("alpha")).count, paths("alpha").count, "同一路径在菜单里只出现一次")
+
+		// `state.json` is the user's file and holds hand-picked paths only;
+		// provenance lives in the scan, so nothing new may appear in it.
+		let stateURL = originSupport.appendingPathComponent("state.json")
+		let onDisk = try JSONSerialization.jsonObject(
+			with: try Data(contentsOf: stateURL)
+		) as? [String: Any]
+		equal(
+			Set(onDisk.map { Array($0.keys) } ?? []),
+			["recent", "current"],
+			"state.json 的键没有变，旧版本仍然读得动"
+		)
+		equal(
+			(onDisk?["recent"] as? [String])?.first,
+			alphaOnly.path,
+			"recent 还是纯路径数组，最新选的在前"
+		)
+	}
+
+	// The pure form, for the case the store cannot express: an agent selected,
+	// but a project no agent has ever touched.
+	let unscanned = ProjectSuggestion(
+		url: fixtureRoot,
+		last: Date(timeIntervalSince1970: 1),
+		agentIDs: []
+	)
+	equal(
+		ProjectStore.menuSections(
+			recent: [fixtureRoot], suggested: [unscanned], current: nil, agentID: "alpha"
+		).map(\.kind),
+		[.picked],
+		"手选的项目进「最近选择」，不会因为没人用过就消失"
+	)
+	equal(
+		ProjectStore.menuSections(
+			recent: [], suggested: [unscanned], current: nil, agentID: "alpha"
+		).map(\.kind),
+		[.others],
+		"没有任何 agent 用过的项目归到「其他项目」，不谎称是 alpha 用过的"
+	)
+
+	// The row string. On macOS 26 a SwiftUI menu flattens a custom label to
+	// text — measured: the fixed-width frame, the font and a second `Text` in
+	// the row are all dropped, and a 52-character path stretched the menu to
+	// 412pt. So the cap has to live in the string, and these are the numbers
+	// that keep it honest.
+	equal(ProjectSuggestion.shortenedPath("/tmp/a", columns: 40), "/tmp/a", "本来就短的路径不被缩写")
+	equal(
+		ProjectSuggestion.shortenedPath("/Users/dev/work/company/api-server", columns: 24),
+		"/Users/dev/wo…api-server",
+		"超预算时保留项目名，只丢中间那一段"
+	)
+	let abbreviated = ProjectSuggestion.shortenedPath(
+		"/Users/dev/work/company/monorepo/packages/api-server/very-long-leaf-name",
+		columns: 24
+	)
+	check(abbreviated.contains("…"), "项目名本身放不下时仍然省略中间，而不是整段截断")
+	equal(
+		ProjectSuggestion.displayColumns(abbreviated),
+		24,
+		"缩写后正好落在预算里（头 + … + 尾）"
+	)
+
+	// A Chinese project name must not get twice the width it was promised.
+	equal(ProjectSuggestion.displayColumns("项目"), 4, "中文一个字算两列")
+	equal(ProjectSuggestion.displayColumns("/tmp/项目"), 9, "混排路径按列累加：/tmp/ 五列 + 项目 四列")
+	let chinese = ProjectSuggestion.shortenedPath("/Users/dev/工作/项目名称很长的仓库", columns: 20)
+	check(
+		ProjectSuggestion.displayColumns(chinese) <= 20,
+		"中文路径也在列预算内（按字符数算会超一倍）",
+		chinese
+	)
+	check(chinese.hasSuffix("的仓库") || chinese.contains("…"), "中文路径同样保留尾部", chinese)
+
+	let threeAgents = ProjectSuggestion(
+		url: URL(fileURLWithPath: "/Users/dev/work/company/monorepo/packages/api-server"),
+		last: Date(timeIntervalSince1970: 1),
+		agentIDs: ["pi", "codex", "claude"]
+	)
+	check(threeAgents.menuLabel.hasSuffix(" · claude, codex, pi"), "行尾是来源，不会因为路径长被挤掉", threeAgents.menuLabel)
+	check(
+		ProjectSuggestion.displayColumns(threeAgents.menuLabel) <= ProjectSuggestion.menuRowBudget,
+		"三个来源 + 路径不超过行预算",
+		threeAgents.menuLabel
+	)
+	let single = ProjectSuggestion(
+		url: URL(fileURLWithPath: "/Users/dev/work/company/monorepo/packages/api-server"),
+		last: Date(timeIntervalSince1970: 1),
+		agentIDs: ["pi"]
+	)
+	check(single.menuLabel.hasSuffix(" · pi"), "单个来源同样标出来", single.menuLabel)
+	check(
+		ProjectSuggestion.displayColumns(single.menuLabel) <= ProjectSuggestion.menuRowBudget,
+		"单个来源时路径能拿到更多列，总数仍不超预算",
+		single.menuLabel
+	)
+	let manualOnly = ProjectSuggestion(
+		url: URL(fileURLWithPath: "/Users/dev/work/company/monorepo/packages/api-server"),
+		last: Date(timeIntervalSince1970: 1),
+		agentIDs: []
+	)
+	check(!manualOnly.menuLabel.contains(" · "), "没人用过的项目不加来源尾巴", manualOnly.menuLabel)
+
+	// A machine with more agents than the row can spell out must not get its
+	// menu stretched by the list of names: the extras are counted.
+	let manyAgents = ProjectSuggestion(
+		url: URL(fileURLWithPath: "/Users/dev/work/company/monorepo/packages/api-server"),
+		last: Date(timeIntervalSince1970: 1),
+		agentIDs: ["pi", "codex", "claude", "gemini", "aider", "opencode"]
+	)
+	check(manyAgents.menuLabel.hasSuffix("+3"), "超过三个来源时余下的只报数量", manyAgents.menuLabel)
+	check(
+		ProjectSuggestion.displayColumns(manyAgents.menuLabel) <= 52,
+		"六个来源的行仍然有界（否则菜单会跟着 agent 数量长）",
+		manyAgents.menuLabel
+	)
 }
 
 // MARK: - The shared write path

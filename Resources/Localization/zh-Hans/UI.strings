@@ -114,6 +114,13 @@
 "project.scanning" = "正在从会话历史中整理项目…";
 "project.choose.prompt" = "选择项目";
 "project.choose.message" = "AgentKit 会读取这个目录下的项目级配置（例如 .pi/ 或 .codex/）";
+/* Menu groups and the per-row provenance badge. The menu is the union of every
+ * agent's projects — that stays — so the headers say why a row sits where it
+ * does and the badge says which agents have run there. The badge itself is
+ * agent ids (pi / codex / claude), which are names and are not translated. */
+"project.menu.picked" = "最近选择";
+"project.menu.mine" = "%@ 用过";
+"project.menu.others" = "其他项目";
 "banner.projectScope.title" = "有 %d 条项目级路径没有加载";
 "banner.projectScope.detail" = "这个面板会读取项目目录下的配置。当前是全局作用域，所以这些路径被跳过了。";
 "banner.projectScope.current" = "项目作用域：%@";

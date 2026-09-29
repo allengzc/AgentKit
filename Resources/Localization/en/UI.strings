@@ -115,6 +115,13 @@
 "project.scanning" = "Collecting projects from session history…";
 "project.choose.prompt" = "Choose Project";
 "project.choose.message" = "AgentKit reads project-level configuration from this directory (for example .pi/ or .codex/)";
+/* Menu groups and the per-row provenance badge. The menu is the union of every
+ * agent's projects — that stays — so the headers say why a row sits where it
+ * does and the badge says which agents have run there. The badge itself is
+ * agent ids (pi / codex / claude), which are names and are not translated. */
+"project.menu.picked" = "Recently picked";
+"project.menu.mine" = "Used by %@";
+"project.menu.others" = "Other projects";
 "banner.projectScope.title" = "%d project-scoped paths are not loaded";
 "banner.projectScope.detail" = "This pane reads configuration from the project directory. The current scope is global, so those paths are skipped.";
 "banner.projectScope.current" = "Project scope: %@";

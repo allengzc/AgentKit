@@ -15,7 +15,12 @@ struct AgentKitApp: App {
 		Window("AgentKit", id: "main") {
 			RootView()
 				.environment(model)
-				.frame(minWidth: 1000, minHeight: 620)
+				// A `maxHeight` is as important as a `minHeight`: with only a
+				// minimum, the content takes its *ideal* height when the window
+				// proposes an unbounded one. See the known-limitations note in
+				// README.md — a project scope can still make the content taller
+				// than the window, which shifts every column.
+				.frame(minWidth: 1000, maxWidth: .infinity, minHeight: 620, maxHeight: .infinity)
 				// Re-creating the tree is what makes a language switch take effect:
 				// every `L.t` is read while the body is built.
 				.id(model.languages.current)
