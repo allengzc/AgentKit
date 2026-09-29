@@ -34,6 +34,15 @@ enum DocumentationState {
 	static func isOn(_ key: String) -> Bool { values[key] != nil }
 	static func string(_ key: String) -> String? { values[key] }
 
+	/// Whether a launch should bring itself to the front.
+	///
+	/// Automated runs (screenshots, layout verification) start the app many times
+	/// in a row; each activation takes focus from the user. Those runs set
+	/// `AGENTKIT_NO_ACTIVATE=1`.
+	static var shouldActivateOnLaunch: Bool {
+		ProcessInfo.processInfo.environment["AGENTKIT_NO_ACTIVATE"] == nil
+	}
+
 	/// True when any state was requested, so callers can skip the work entirely.
 	static var isActive: Bool { !values.isEmpty }
 

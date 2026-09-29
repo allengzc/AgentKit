@@ -416,12 +416,10 @@ do {
 	try MainActor.assumeIsolated {
 		let store = ProjectStore(appSupport: support)
 		check(store.current == nil, "默认是全局作用域")
-		equal(store.currentLabel, "全局", "全局时的标签")
 		check(store.currentDisplayPath.contains("全局"), "全局时的说明")
 
 		store.select(projectA)
 		equal(store.current?.path, projectA.path, "选择项目")
-		equal(store.currentLabel, projectA.lastPathComponent, "标签取目录名")
 		check(store.currentDisplayPath.hasSuffix("project-a"), "显示路径")
 
 		store.select(projectB)
@@ -1771,6 +1769,14 @@ do {
 
 	let good = scan("good-desc", "---\nname: good-desc\ndescription: Does a thing.\n---\n\n正文\n")
 	check(good?.issues.isEmpty == true, "正常的 description 没问题")
+
+	// `hasDescription` is what the list asks before drawing the description line.
+	// Rendering an empty one lays out a full 14pt line with no text in it — an
+	// invisible gap in every row whose manifest has `description:` blank.
+	check(missing?.hasDescription == false, "没有 description 时 hasDescription 为假")
+	check(empty?.hasDescription == false, "空 description 为假")
+	check(blank?.hasDescription == false, "只有空白的 description 为假")
+	check(good?.hasDescription == true, "有内容时为真")
 }
 
 group("随包文件：结构化列表数据")

@@ -22,6 +22,10 @@
 #
 # Requires the display to be awake: while it is asleep every window capture
 # fails and a full-screen capture returns a stale blank frame.
+#
+# `AGENTKIT_NO_ACTIVATE=1` keeps this from taking focus. Without it every launch
+# becomes the frontmost application — and this script launches the app a dozen
+# times in a row, which is unbearable if you are using the machine.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

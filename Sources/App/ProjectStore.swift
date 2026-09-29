@@ -183,11 +183,6 @@ public final class ProjectStore {
 		return out
 	}
 
-	public var currentLabel: String {
-		guard let current else { return L.t("project.scope.globalShort", "全局") }
-		return current.lastPathComponent.isEmpty ? current.path : current.lastPathComponent
-	}
-
 	/// A shorter form for the sidebar: the last two path components.
 	public var currentDisplayPath: String {
 		guard let current else {

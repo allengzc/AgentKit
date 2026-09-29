@@ -15,6 +15,9 @@
 "menu.reload" = "Reload Descriptors and Configuration";
 "menu.language" = "Language";
 "menu.about" = "AgentKit Help";
+/* The toolbar's ⋯ menu: one section per pane that contributes actions. */
+"menu.paneActions" = "Pane actions";
+"help.paneActions" = "Actions this pane offers";
 
 /* Sidebar */
 "sidebar.section.panels" = "Panels";
@@ -120,8 +123,8 @@
 "button.backToGlobal" = "Back to Global";
 "button.revealCurrentProject" = "Reveal Current Project in Finder";
 "help.projectScope" = "Project scope: %@";
-"help.projectGlobalScope" = "Currently global scope; project-level configuration is not loaded";
-"help.projectBackToGlobal" = "Click to go back to global scope";
+"help.projectGlobalScope" = "Currently global scope; click to choose a project";
+"help.projectScopeMenu" = "Click to switch the project scope";
 "help.needsProject" = "Select a project directory first";
 
 /* Shared agent wording */

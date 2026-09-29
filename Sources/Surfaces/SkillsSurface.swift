@@ -118,6 +118,16 @@ public struct SkillEntry: Identifiable {
 
 	public var description: String { frontmatter.string("description") ?? "" }
 
+	/// True when the manifest actually says something a user can read.
+	///
+	/// `description:` with nothing after it (or only blanks) parses to a string of
+	/// whitespace, and rendering that produced a 14pt line with no text in it — an
+	/// invisible gap between the name and the rest of the row. The view asks this
+	/// instead of testing the string itself, so the rule is testable.
+	public var hasDescription: Bool {
+		!description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+	}
+
 	public var license: String? { frontmatter.string("license") }
 	public var compatibility: String? { frontmatter.string("compatibility") }
 	public var allowedTools: [String]? { frontmatter.stringArray("allowed-tools") }

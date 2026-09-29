@@ -118,6 +118,19 @@ struct SessionsPane: View {
 			.frame(maxWidth: .infinity, maxHeight: .infinity)
 		}
 		.task(id: token) { load() }
+		// "Reload" moved to the toolbar's ⋯ menu: every pane already re-reads
+		// when the agent's files change, so this is a fallback, and it sat next
+		// to a segmented control that has to stay in the header because it shows
+		// the grouping that is currently in effect.
+		.paneActions(token: paneActionToken(agent: agent, surface: surface), title: surface.titleText) {
+			[
+				.command(
+					id: "sessions.reload",
+					title: L.t("button.reload", "重新读取"),
+					systemImage: "arrow.clockwise"
+				) { load() }
+			]
+		}
 		.sheet(item: $renaming) { record in renameSheet(record) }
 		.sheet(item: $exportTarget) { record in exportSheet(record) }
 		.alert(L.t("sessions.delete.title", "删除这个会话？"), isPresented: Binding(
@@ -185,12 +198,6 @@ struct SessionsPane: View {
 				.labelsHidden()
 				.pickerStyle(.segmented)
 				.frame(width: 150)
-				Button {
-					load()
-				} label: {
-					Label(L.t("button.reload", "重新读取"), systemImage: "arrow.clockwise")
-				}
-				.controlSize(.small)
 			}
 			HStack(spacing: 8) {
 				Image(systemName: "magnifyingglass").foregroundStyle(.tertiary)

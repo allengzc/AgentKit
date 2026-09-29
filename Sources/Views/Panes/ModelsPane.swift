@@ -89,6 +89,19 @@ struct ModelsPane: View {
 		}
 		.task(id: token) { load() }
 		.onChange(of: model.externalChangeToken) { _, _ in load() }
+		// Adding a provider is a one-time setup step, so it moved to the toolbar's
+		// ⋯ menu. "Check auth" stays in the header on purpose: its answer is a
+		// banner about the provider rows right below, and it can take a second,
+		// so the spinner next to it has to be visible.
+		.paneActions(token: paneActionToken(agent: agent, surface: surface), title: surface.titleText) {
+			[
+				.command(
+					id: "models.addProvider",
+					title: L.t("button.addProvider", "新增 provider…"),
+					systemImage: "plus"
+				) { beginNewProvider() }
+			]
+		}
 		.sheet(item: $providerDraft) { draft in providerSheet(draft) }
 		.sheet(item: $defaultsDraft) { draft in defaultsSheet(draft) }
 		.sheet(item: $settingsController.pending) { pending in
@@ -136,12 +149,6 @@ struct ModelsPane: View {
 				.controlSize(.small)
 				.disabled(agent.cliURL == nil || checkingAuth || snapshot?.providers.isEmpty != false)
 				if checkingAuth { ProgressView().controlSize(.mini) }
-				Menu {
-					Button(L.t("button.addProvider", "新增 provider…")) { beginNewProvider() }
-				} label: {
-					Label(L.t("button.add", "新增"), systemImage: "plus")
-				}
-				.controlSize(.small)
 			}
 			if let snapshot, let provider = snapshot.defaults.provider {
 				HStack(spacing: 6) {

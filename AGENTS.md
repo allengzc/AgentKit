@@ -30,7 +30,7 @@
 ## 2. 开工前
 
 ```bash
-./run-tests.sh      # 590 项离线断言，先跑它建基线
+./run-tests.sh      # 760 项离线断言，先跑它建基线（以脚本输出为准）
 ./build.sh          # swiftc → out/AgentKit.app
 ./install.sh        # 再拷到 /Applications
 ```
@@ -96,6 +96,8 @@ docs/                截图（全部由夹具生成）
 
 ## 6. 提交与文档
 
+- 格式在前面：类型前缀、范围清单、检查脚本、钩子安装都在 [`docs/commits.md`](docs/commits.md)，
+  这里只说原则、不抄那张表（抄两处必然漂移）
 - 提交信息用中文，**说清为什么这么改，而不是改了什么**（改了什么 diff 里有）；
   修 bug 的带上"根因是什么、怎么证的"
 - 一次提交一件事

@@ -75,6 +75,18 @@ struct ResourcesPane: View {
 		.task(id: token) { load() }
 		.onChange(of: model.externalChangeToken) { _, _ in load() }
 		.onChange(of: model.projectURL) { _, _ in load() }
+		// "Reload" moved to the toolbar's ⋯ menu, which leaves the header as a
+		// title, a count and the note about the `.off` convention. Enabling and
+		// disabling files stays where it is: those are row actions.
+		.paneActions(token: paneActionToken(agent: agent, surface: surface), title: surface.titleText) {
+			[
+				.command(
+					id: "resources.reload",
+					title: L.t("button.reload", "重新读取"),
+					systemImage: "arrow.clockwise"
+				) { load() }
+			]
+		}
 	}
 
 	// MARK: - Header
@@ -91,12 +103,6 @@ struct ResourcesPane: View {
 					level: .info
 				)
 				Spacer()
-				Button {
-					load()
-				} label: {
-					Label(L.t("button.reload", "重新读取"), systemImage: "arrow.clockwise")
-				}
-				.controlSize(.small)
 			}
 			Text(
 				L.t(

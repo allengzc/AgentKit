@@ -83,6 +83,20 @@ struct SkillsPane: View {
 		}
 		.onChange(of: model.externalChangeToken) { _, _ in scan() }
 		.onChange(of: model.projectURL) { _, _ in scan() }
+		// "Rescan" left the header for the toolbar's ⋯ menu: the pane already
+		// rescans when a descriptor changes and when the project scope moves, so
+		// the button was a manual fallback for a watcher that is usually right —
+		// and it took a slot next to the one action a newcomer needs to find,
+		// "new skill".
+		.paneActions(token: paneActionToken(agent: agent, surface: surface), title: surface.titleText) {
+			[
+				.command(
+					id: "skills.rescan",
+					title: L.t("button.rescan", "重新扫描"),
+					systemImage: "arrow.clockwise"
+				) { scan() }
+			]
+		}
 		.sheet(item: $creating) { request in createSheet(request) }
 		.alert(L.t("skills.delete.title", "删除这个 skill？"), isPresented: Binding(
 			get: { confirmDelete != nil },
@@ -181,12 +195,6 @@ struct SkillsPane: View {
 				}
 				.controlSize(.small)
 				.disabled(roots.filter { $0.spec.isWritable }.isEmpty)
-				Button {
-					scan()
-				} label: {
-					Label(L.t("button.rescan", "重新扫描"), systemImage: "arrow.clockwise")
-				}
-				.controlSize(.small)
 			}
 			HStack(spacing: 8) {
 				Image(systemName: "magnifyingglass").foregroundStyle(.tertiary)
@@ -211,7 +219,10 @@ struct SkillsPane: View {
 
 	private var list: some View {
 		ScrollView {
-			LazyVStack(alignment: .leading, spacing: 2) {
+			// 1pt, not 2: see the padding note in `row`. Rows are separated by
+			// their own padding now; this only keeps the selection highlights
+			// from touching.
+			LazyVStack(alignment: .leading, spacing: 1) {
 				ForEach(filtered) { entry in
 					row(entry)
 				}
@@ -241,6 +252,9 @@ struct SkillsPane: View {
 
 	private func row(_ entry: SkillEntry) -> some View {
 		let isSelected = selected?.id == entry.id
+		// `description` may be absent, empty, or a block scalar of blanks; the
+		// row renders nothing for all three. See the note at the Text below.
+		let description = entry.description.trimmingCharacters(in: .whitespacesAndNewlines)
 		return Button {
 			selectedID = entry.id
 		} label: {
@@ -266,17 +280,32 @@ struct SkillsPane: View {
 						.font(.caption2)
 						.foregroundStyle(.tertiary)
 				}
-				Text(entry.description)
-					.font(.caption2)
-					.foregroundStyle(.secondary)
-					.lineLimit(2)
-				Text(entry.directory.path)
-					.font(.system(size: 10, design: .monospaced))
-					.foregroundStyle(.tertiary)
-					.lineLimit(1)
-					.truncationMode(.head)
+				// A skill whose manifest has no `description:` (or only blanks)
+				// must not render the Text at all. `Text("")` still lays out a
+				// full line — measured: 14pt at `.caption2`, one point *more*
+				// than a real line, and 0 wide, so it is invisible. Together
+				// with the 3pt stack spacing that was 17pt of blank band
+				// between the name and the path of every such row.
+				if entry.hasDescription {
+					Text(description)
+						.font(.caption2)
+						.foregroundStyle(.secondary)
+						.lineLimit(2)
+				}
+				// The directory used to be a third text line here. It is now the
+				// row's tooltip instead: the column is 320pt wide, so
+				// `.truncationMode(.head)` left it as
+				// "…ate/tmp/kit-demo/.pi/agent/skills/pdf-tools" — 90% ellipsis —
+				// while its information is already four-deep elsewhere: the name
+				// is the leaf, the badge gives the scope, the detail pane prints
+				// the directory in full, and hovering says the rest. It cost
+				// 13pt of text plus 3pt of stack spacing, 23% of the row.
 			}
-			.padding(.vertical, 5)
+			// 3pt, not 5: the gap between two rows measured 15.5pt of ink
+			// against 3.5pt between the two lines of a description — a 4.4x
+			// contrast, which is what made the list read as airy. Removing the
+			// path line is what keeps this from getting cramped.
+			.padding(.vertical, 3)
 			.padding(.horizontal, 8)
 			.frame(maxWidth: .infinity, alignment: .leading)
 			.background(
@@ -286,6 +315,9 @@ struct SkillsPane: View {
 			.contentShape(Rectangle())
 		}
 		.buttonStyle(.plain)
+		// Where the directory line went: the whole row is the hover target now,
+		// which is a bigger one than the 10pt monospaced line it replaced.
+		.help(entry.directory.path)
 	}
 
 	// MARK: - Detail
@@ -713,6 +745,5 @@ struct SkillsPane: View {
 		default: return "doc"
 		}
 	}
-
-
 }
+

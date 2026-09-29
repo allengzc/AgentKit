@@ -72,6 +72,7 @@ CODEX_HOME=/tmp/fixture open -a AgentKit              # 换一个配置根（夹
 | `AGENTKIT_CONFIG_DIR` | 覆盖描述文件目录（默认 `~/.config/agentkit`） |
 | `AGENTKIT_HOME=/tmp/demo` | 把 `~` / `$HOME` 重定向到一次性目录，用于对着夹具跑，不碰真实配置 |
 | `AGENTKIT_OPEN=codex/mcp` | 启动直接进指定 agent 的指定面板 |
+| `AGENTKIT_NO_ACTIVATE=1` | 启动时不抢焦点（窗口照常出现，供脚本化验证用） |
 | `AGENTKIT_PROJECT=~/repo` | 指定项目作用域（等价于在工具栏里选项目） |
 | `AGENTKIT_DOC_STATE=…` | 生成文档截图用：置入预览/展开/diff、固定外观与窗口尺寸、让 App 渲染自身并退出 |
 | `AGENTKIT_SIGN_IDENTITY` | 构建时指定签名身份 |

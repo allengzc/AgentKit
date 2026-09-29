@@ -15,6 +15,9 @@
 "menu.reload" = "重新载入描述文件与配置";
 "menu.language" = "语言";
 "menu.about" = "AgentKit 说明";
+/* The toolbar's ⋯ menu: one section per pane that contributes actions. */
+"menu.paneActions" = "面板操作";
+"help.paneActions" = "这个面板提供的操作";
 
 /* Sidebar */
 "sidebar.section.panels" = "面板";
@@ -119,8 +122,8 @@
 "button.backToGlobal" = "回到全局";
 "button.revealCurrentProject" = "在 Finder 中显示当前项目";
 "help.projectScope" = "项目作用域：%@";
-"help.projectGlobalScope" = "当前是全局作用域，项目级配置不会被加载";
-"help.projectBackToGlobal" = "点一下回到全局作用域";
+"help.projectGlobalScope" = "当前是全局作用域，点一下选择项目";
+"help.projectScopeMenu" = "点一下切换项目作用域";
 "help.needsProject" = "需要先选择一个项目目录";
 
 /* Shared agent wording */

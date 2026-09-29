@@ -114,6 +114,18 @@ struct SubagentsPane: View {
 		.task(id: token) { reload() }
 		.onChange(of: model.externalChangeToken) { _, _ in reload() }
 		.onChange(of: model.projectURL) { _, _ in reload() }
+		// "Reload" moved to the toolbar's ⋯ menu. "New subagent" stays in the
+		// header: it is the pane's primary action and the only way to find out
+		// which root a new file would land in.
+		.paneActions(token: paneActionToken(agent: agent, surface: surface), title: surface.titleText) {
+			[
+				.command(
+					id: "subagents.reload",
+					title: L.t("button.reload", "重新读取"),
+					systemImage: "arrow.clockwise"
+				) { reload() }
+			]
+		}
 		.sheet(item: $pending) { write in
 			DiffSheet(
 				preview: write.preview,
@@ -174,12 +186,6 @@ struct SubagentsPane: View {
 				}
 				.controlSize(.small)
 				.disabled(roots.filter { $0.root.isWritable }.isEmpty)
-				Button {
-					reload()
-				} label: {
-					Label(L.t("button.reload", "重新读取"), systemImage: "arrow.clockwise")
-				}
-				.controlSize(.small)
 			}
 			Text(
 				L.t(

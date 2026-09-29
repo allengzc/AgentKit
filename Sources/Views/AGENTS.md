@@ -7,7 +7,7 @@ SwiftUI 界面。`8 个 Pane + 组件`，最大的层（≈5400 行）—— 也
 
 `Panes/<名字>Pane.swift` 里的逻辑应该尽量薄：计算在 `Surfaces`，这里只放布局和绑定。
 
-## 一、五个已知的布局陷阱
+## 一、六个已知的布局陷阱
 
 每条都对应一个真实发生过的 bug。
 
@@ -38,6 +38,15 @@ SwiftUI 界面。`8 个 Pane + 组件`，最大的层（≈5400 行）—— 也
 都成功**的交互。用系统的同时把状态绑成 `Binding`，既能被程序驱动、又拿到原生动画与
 无障碍。（Skills 随包文件那次。）
 
+**6. 菜单项要限宽，只能用固定 `width`，`maxWidth` 在 NSMenu 里不生效。**
+菜单宽度 = 最宽那一项的 ideal size，**没有任何人提出更小的宽度**，所以
+`.frame(maxWidth: 260)` 会和完全不设上限一模一样 —— 实测两次都是 587pt。
+→ 菜单里的路径用 `.frame(width: 260)` + `.lineLimit(1)` + `.truncationMode(.middle)`，
+并给 `.help(完整路径)`。实测 587 → 307pt（−48%）。
+（项目作用域菜单那次：一行 82 字符的路径把菜单撑到 587pt，把窗口挤变形。
+ 更值得记的是我第一次"改完"量出来还是 587pt，因为**只改了一处、漏了另一处** ——
+ 所以这条的验收方式和第 5 条一样：量，不是看。）
+
 ## 二、异步状态：先看清谁在什么时候写
 
 `scan()` 这类方法内部是 `Task.detached` + `await MainActor.run`，**调用即返回**。
@@ -53,7 +62,7 @@ SwiftUI 界面。`8 个 Pane + 组件`，最大的层（≈5400 行）—— 也
 
 ```bash
 # 1. 起 App，抓窗口
-AGENTKIT_HOME=/tmp/agentkit-demo AGENTKIT_OPEN=pi/skills \
+AGENTKIT_NO_ACTIVATE=1 AGENTKIT_HOME=/tmp/agentkit-demo AGENTKIT_OPEN=pi/skills \
   ./out/AgentKit.app/Contents/MacOS/AgentKit -ApplePersistenceIgnoreState YES &
 Tools/bin/windowid -a -o -v AgentKit          # 列出窗口及尺寸，挑最大的那个
 screencapture -x -o -l <wid> /tmp/shot.png
@@ -66,7 +75,16 @@ stat -f%z /tmp/probe.png
 `Tools/make-screenshots.sh` 已经把这条写死了：侧栏区域 < 6KB 判定失败并重试。
 **新增截图时照着加验收**，不要只看一眼就交。
 
-两个不要用：
+三个必须做：
+
+- **`AGENTKIT_NO_ACTIVATE=1`** —— 不加的话每次起 App 都会成为前台应用。验证要起很多次，
+  在你正在用机器时这是不可忍受的。它让 App 以 accessory 身份运行：窗口照常出现、
+  照常可抓，但不抢焦点。**量过**：加之前前台从别的应用变成 AgentKit，加之后不变
+- `-ApplePersistenceIgnoreState YES`（见下）
+- 清理用 `pkill -x AgentKit`，**不要用 `-f`**（`-f` 会匹配到 swiftc 的命令行，
+  把正在编译的进程一起杀掉）
+
+还要注意：
 - `-ApplePersistenceIgnoreState YES` 是必需的 —— 否则 AppKit 的"上次意外退出"弹窗
   会成为唯一的窗口，你会得到一张弹窗的截图
 - **别用 App 自渲染**（`CALayer.render` / `cacheDisplay`）代替截屏：

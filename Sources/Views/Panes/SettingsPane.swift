@@ -61,6 +61,20 @@ struct SettingsPane: View {
 			stageDocumentationDiff()
 		}
 		.onChange(of: model.externalChangeToken) { _, _ in load() }
+		// "Reload file" moved to the toolbar's ⋯ menu. It re-reads from disk and
+		// silently throws away unsaved edits, so the footer is the wrong place
+		// for it: the two buttons that belong together there are "discard" and
+		// "save", and a third control that also discards — but without asking —
+		// sat between them.
+		.paneActions(token: paneActionToken(agent: agent, surface: surface), title: surface.titleText) {
+			[
+				.command(
+					id: "settings.reloadFile",
+					title: L.t("button.reloadFile", "重新载入"),
+					systemImage: "arrow.clockwise"
+				) { load() }
+			]
+		}
 		.sheet(item: $pendingWrite) { pending in
 			DiffSheet(
 				preview: pending.preview,
@@ -468,8 +482,6 @@ struct SettingsPane: View {
 				)
 			}
 			Spacer()
-			Button(L.t("button.reloadFile", "重新载入")) { load() }
-				.controlSize(.small)
 			Button(L.t("button.discardChanges", "放弃改动")) {
 				if let document, let definition = SettingsSchema.definition(for: schemaID) {
 					editor = SettingsEditor(document: document, schema: definition)

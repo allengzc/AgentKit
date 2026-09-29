@@ -10,18 +10,29 @@ import SwiftUI
 struct RootView: View {
 	@Environment(AppModel.self) private var model
 	@State private var showDiagnostics = false
+	/// What the pane on screen contributes to the toolbar; see `PaneActions.swift`.
+	@State private var paneActions = PaneActionStore()
 
 	var body: some View {
-		NavigationSplitView {
+		// Read here, not inside the toolbar item: this is what registers the
+		// dependency on the pane's state, so a menu entry that turns enabled or
+		// disabled while the pane loads is redrawn. It is also where the
+		// "nothing to show" decision is made — a pane that contributes no
+		// actions leaves the toolbar without the ⋯ item at all.
+		let groups = paneActions.groups.filter { !$0.isEmpty }
+		return NavigationSplitView {
 			Sidebar()
 		} detail: {
 			detail
 		}
+		.environment(paneActions)
 		.navigationTitle(model.selectedAgent.map { "\($0.name) · \($0.subtitle ?? L.t("agent.subtitle.fallback", "配置"))" } ?? "AgentKit")
 		.navigationSubtitle(model.selectedAgent?.subtitle ?? "")
 		.toolbar {
 			ToolbarItem(placement: .navigation) {
-				projectMenu
+				if !groups.isEmpty {
+					overflowMenu(groups)
+				}
 			}
 			ToolbarItem(placement: .automatic) {
 				if model.isSelectedAgentRunning {
@@ -62,42 +73,74 @@ struct RootView: View {
 		}
 	}
 
-	/// Project scope: without a directory selected, every `$CWD` path in the
-	/// descriptor is unreachable, and the panes that depend on them say so.
-	private var projectMenu: some View {
+	/// The `⋯` item.
+	///
+	/// It carries pane actions only. Project scope used to live here; it moved to
+	/// the sidebar's scope chip, which already showed the current scope and the
+	/// ✕ that cleared it — the two things a scope control has to do. The toolbar
+	/// slot is now free to be about *this pane*, which is why it can disappear
+	/// when the pane has nothing to offer instead of being a permanent button
+	/// that opens a menu of things the user rarely wants.
+	private func overflowMenu(_ groups: [PaneActionGroup]) -> some View {
 		Menu {
-			Button {
-				model.projects.select(nil)
-			} label: {
-				Label(
-					L.t("project.scope.global", "全局（不加载项目配置）"),
-					systemImage: model.projectURL == nil ? "checkmark" : "globe"
-				)
-			}
-			if !model.projects.menuEntries.isEmpty {
-				Divider()
-				ForEach(model.projects.menuEntries, id: \.path) { url in
-					Button {
-						model.projects.select(url)
-					} label: {
-						Text(url.path)
+			ForEach(groups) { group in
+				Section(group.title) {
+					ForEach(group.actions) { action in
+						menuEntry(action)
 					}
 				}
 			}
-			Divider()
-			Button(L.t("button.chooseDirectory", "选择目录…")) { model.projects.chooseWithPanel() }
-			Button(L.t("button.revealCurrentProject", "在 Finder 中显示当前项目")) {
-				if let project = model.projectURL { ShellActions.reveal(project) }
-			}
-			.disabled(model.projectURL == nil)
-			if model.projects.scanning {
-				Divider()
-				Text(L.t("project.scanning", "正在从会话历史中整理项目…"))
-			}
 		} label: {
-			Label(model.projects.currentLabel, systemImage: model.projectURL == nil ? "globe" : "folder")
+			Label(L.t("menu.paneActions", "面板操作"), systemImage: "ellipsis.circle")
+				.labelStyle(.iconOnly)
 		}
-		.help(String(format: L.t("help.projectScope", "项目作用域：%@"), model.projects.currentDisplayPath))
+		.menuIndicator(.hidden)
+		.help(L.t("help.paneActions", "这个面板提供的操作"))
+	}
+
+	/// One entry, or one submenu. Nesting stops at two levels on purpose: the
+	/// only action that needs a second level today is MCP's "add server", which
+	/// has to ask which config layer to write to.
+	@ViewBuilder
+	private func menuEntry(_ action: PaneAction) -> some View {
+		if action.items.isEmpty {
+			Button {
+				action.perform()
+			} label: {
+				menuLabel(action)
+			}
+			.disabled(!action.isEnabled)
+		} else {
+			Menu {
+				ForEach(action.items) { item in
+					Button {
+						item.perform()
+					} label: {
+						menuLabel(item)
+					}
+					.disabled(!item.isEnabled)
+				}
+			} label: {
+				menuLabel(action)
+			}
+			.disabled(!action.isEnabled)
+		}
+	}
+
+	/// An entry names an SF Symbol or it does not, and it is either a human
+	/// label or a path. Project and config paths get the capped, middle-truncated
+	/// treatment and a tooltip; inventing an icon for them would be noise, and
+	/// letting them size the menu is what broke the layout.
+	@ViewBuilder
+	private func menuLabel(_ action: PaneAction) -> some View {
+		if let systemImage = action.systemImage {
+			Label(action.title, systemImage: systemImage)
+		} else if action.titleMaxWidth != nil {
+			MenuPathText(path: action.title)
+				.help(action.title)
+		} else {
+			Text(action.title)
+		}
 	}
 
 	private var diagnosticCount: Int {

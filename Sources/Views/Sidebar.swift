@@ -73,8 +73,16 @@ struct Sidebar: View {
 					}
 				}
 				PathChip(path: agent.rootURL.path)
-				Button {
-					model.projects.select(nil)
+				// The scope chip is the project menu now. It already showed which
+				// project is in scope and the ✕ that clears it, so selecting one
+				// belongs here rather than in the toolbar — and the toolbar slot
+				// is free to be about the pane instead (see `PaneActions.swift`).
+				//
+				// It is enabled in global scope too, unlike the button this
+				// replaced: that button existed only to clear a scope that was
+				// not set, while this one is how you set it in the first place.
+				Menu {
+					projectMenu
 				} label: {
 					HStack(spacing: 5) {
 						Image(systemName: model.projectURL == nil ? "globe" : "folder")
@@ -90,13 +98,25 @@ struct Sidebar: View {
 						}
 					}
 					.foregroundStyle(model.projectURL == nil ? Color.secondary : Color.accentColor)
+					.contentShape(Rectangle())
 				}
-				.buttonStyle(.plain)
-				.disabled(model.projectURL == nil)
+				.menuStyle(.borderlessButton)
+				.menuIndicator(.hidden)
+				// A Menu with a hand-built label gets no accessibility name from
+				// SwiftUI — this control came out of the AX tree unnamed, which
+				// is also how a screen reader would have met it.
+				.accessibilityLabel(
+					Text(
+						String(
+							format: L.t("help.projectScope", "项目作用域：%@"),
+							model.projects.currentDisplayPath
+						)
+					)
+				)
 				.help(
 					model.projectURL == nil
-						? L.t("help.projectGlobalScope", "当前是全局作用域，项目级配置不会被加载")
-						: L.t("help.projectBackToGlobal", "点一下回到全局作用域")
+						? L.t("help.projectGlobalScope", "当前是全局作用域，点一下选择项目")
+						: L.t("help.projectScopeMenu", "点一下切换项目作用域")
 				)
 			} else {
 				Text(
@@ -112,6 +132,55 @@ struct Sidebar: View {
 		}
 		.padding(.horizontal, 12)
 		.padding(.vertical, 10)
+	}
+
+	/// The scope menu behind the chip.
+	///
+	/// A menu is as wide as its widest row, and rows here are file paths, so the
+	/// menu followed the longest project in the list: measured at 587pt with an
+	/// 82-character path in it, against 235pt of sidebar it drops out of.
+	/// `MenuPathText` is what puts a ceiling on that; see its note for why the
+	/// ceiling has to be a fixed width rather than a `maxWidth`. Truncating in
+	/// the middle keeps the head (which tree) and the leaf (which project) and
+	/// drops what two paths most often share; `.help` keeps the whole path one
+	/// hover away.
+	private var projectMenu: some View {
+		Group {
+			Button {
+				model.projects.select(nil)
+			} label: {
+				Label(
+					L.t("project.scope.global", "全局（不加载项目配置）"),
+					systemImage: model.projectURL == nil ? "checkmark" : "globe"
+				)
+			}
+			if !model.projects.menuEntries.isEmpty {
+				Divider()
+				ForEach(model.projects.menuEntries, id: \.path) { url in
+					Button {
+						model.projects.select(url)
+					} label: {
+						// `MenuPathText`, not a local `.frame(maxWidth:)`:
+						// inside a menu a `maxWidth` frame never gets to clamp,
+						// because nothing proposes less than the text's ideal
+						// width. Measured with this menu: `maxWidth: 260` came
+						// out 587pt wide — the same as no cap at all.
+						MenuPathText(path: url.path)
+					}
+					.help(url.path)
+				}
+			}
+			Divider()
+			Button(L.t("button.chooseDirectory", "选择目录…")) { model.projects.chooseWithPanel() }
+			Button(L.t("button.revealCurrentProject", "在 Finder 中显示当前项目")) {
+				if let project = model.projectURL { ShellActions.reveal(project) }
+			}
+			.disabled(model.projectURL == nil)
+			if model.projects.scanning {
+				Divider()
+				Text(L.t("project.scanning", "正在从会话历史中整理项目…"))
+			}
+		}
 	}
 
 	private func surfaceRow(_ surface: SurfaceSpec) -> some View {

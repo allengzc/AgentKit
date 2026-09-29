@@ -50,6 +50,51 @@ struct MCPPane: View {
 		.task(id: reloadToken) { reload() }
 		.onChange(of: model.externalChangeToken) { _, _ in reload() }
 		.onChange(of: model.projectURL) { _, _ in reload() }
+		// Both header buttons moved to the toolbar's ⋯ menu. "Reload" is the
+		// same manual fallback the other panes carry, and "add server" cannot
+		// stay in the header because it needs a target: the writable config
+		// layer. That makes it a submenu, which the overflow menu can hold and
+		// a header row of six layer badges cannot. The submenu only exists once
+		// the snapshot is in, hence the signature.
+		.paneActions(
+			token: paneActionToken(agent: agent, surface: surface),
+			title: surface.titleText,
+			signature: snapshot?.writableLayers.map(\.id).joined(separator: "|") ?? ""
+		) {
+			var actions: [PaneAction] = [
+				.command(
+					id: "mcp.reload",
+					title: L.t("button.reload", "重新读取"),
+					systemImage: "arrow.clockwise"
+				) { reload() }
+			]
+			// A read-only install has nowhere to write, so the entry goes away
+			// rather than opening an empty submenu.
+			let layers = snapshot?.writableLayers ?? []
+			if !layers.isEmpty {
+				actions.append(
+					.submenu(
+						id: "mcp.addServer",
+						title: L.t("button.addServer", "新增服务器"),
+						systemImage: "plus",
+						items: layers.map { layer in
+							.path(id: "mcp.addServer.\(layer.id)", title: layer.url.path) {
+								draft = ServerDraft(
+									layerID: layer.id,
+									originalName: nil,
+									name: "",
+									command: "",
+									argsText: "",
+									url: "",
+									disabled: false
+								)
+							}
+						}
+					)
+				)
+			}
+			return actions
+		}
 		.overlay(alignment: .bottom) { statusBar }
 		.sheet(item: $controller.pending) { pending in
 			DiffSheet(
@@ -100,12 +145,6 @@ struct MCPPane: View {
 					)
 				}
 				Spacer()
-				Button {
-					reload()
-				} label: {
-					Label(L.t("button.reload", "重新读取"), systemImage: "arrow.clockwise")
-				}
-				.controlSize(.small)
 			}
 			Text(
 				L.t(
@@ -221,25 +260,6 @@ struct MCPPane: View {
 					count: snapshot.effective.count
 				)
 				Spacer()
-				Menu {
-					ForEach(snapshot.writableLayers) { layer in
-						Button(layer.url.path) {
-							draft = ServerDraft(
-								layerID: layer.id,
-								originalName: nil,
-								name: "",
-								command: "",
-								argsText: "",
-								url: "",
-								disabled: false
-							)
-						}
-					}
-				} label: {
-					Label(L.t("button.addServer", "新增服务器"), systemImage: "plus")
-				}
-				.controlSize(.small)
-				.disabled(snapshot.writableLayers.isEmpty)
 			}
 
 			if snapshot.effective.isEmpty {

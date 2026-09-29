@@ -105,6 +105,19 @@ struct InstructionsPane: View {
 		}
 		.task(id: token) { discover() }
 		.onChange(of: model.projectURL) { _, _ in discover() }
+		// "Reload" moved to the toolbar's ⋯ menu. It re-reads which instruction
+		// files exist on disk — the one thing this pane does not watch — so it
+		// is housekeeping, and with it gone the header is only a title and the
+		// note about scope.
+		.paneActions(token: paneActionToken(agent: agent, surface: surface), title: surface.titleText) {
+			[
+				.command(
+					id: "instructions.reload",
+					title: L.t("button.reload", "重新读取"),
+					systemImage: "arrow.clockwise"
+				) { discover() }
+			]
+		}
 	}
 
 	private var header: some View {
@@ -116,12 +129,6 @@ struct InstructionsPane: View {
 					level: .info
 				)
 				Spacer()
-				Button {
-					discover()
-				} label: {
-					Label(L.t("button.reload", "重新读取"), systemImage: "arrow.clockwise")
-				}
-				.controlSize(.small)
 			}
 			Text(
 				L.t("instructions.scan.note", "这些文件对所有工作目录生效。")
