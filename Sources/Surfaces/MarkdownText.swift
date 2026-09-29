@@ -28,8 +28,9 @@ enum MarkdownText {
 	/// The previous implementation ran one regex pass per construct, each one
 	/// converting a range from the *original* string into the *already mutated*
 	/// attributed string. Those offsets go stale the moment an earlier pass
-	/// changes the length, and `replaceSubrange` then traps:
-	/// `` **see `some-cli` for details** `` — a code span nested inside bold — crashed the app on 预览.
+	/// changes the length, and `replaceSubrange` then traps. The shape that hit it
+	/// is a code span nested inside bold — `` **see `some-cli` for details** `` —
+	/// which crashed the app on the preview toggle.
 	///
 	/// Walking the string once and appending runs has no offsets to go stale, and
 	/// nesting falls out of the recursion.
