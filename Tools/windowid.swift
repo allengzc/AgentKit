@@ -10,8 +10,12 @@
 //  unavailable on macOS 26, which is why the capture itself is shelled out to
 //  `screencapture`.
 //
-//  Usage: windowid [-a] <OwnerName> [TitleSubstring]
+//  Usage: windowid [-a] [-o] <OwnerName> [TitleSubstring]
 //         -a   print every match, one per line; default is the frontmost
+//         -o   include windows another app is covering. `screencapture -l`
+//              reads the window's own backing store, so a covered window can
+//              still be captured — which is what lets a check run without
+//              stealing focus from whatever the user is doing.
 //
 
 import Foundation
@@ -19,12 +23,13 @@ import CoreGraphics
 
 let arguments = Array(CommandLine.arguments.dropFirst())
 var printAll = false
+var includeCovered = false
 var positional: [String] = []
 for argument in arguments {
-	if argument == "-a" {
-		printAll = true
-	} else {
-		positional.append(argument)
+	switch argument {
+	case "-a": printAll = true
+	case "-o": includeCovered = true
+	default: positional.append(argument)
 	}
 }
 
@@ -34,7 +39,9 @@ guard let owner = positional.first else {
 }
 let titleFilter = positional.count > 1 ? positional[1] : nil
 
-let options: CGWindowListOption = [.optionOnScreenOnly, .excludeDesktopElements]
+let options: CGWindowListOption = includeCovered
+	? [.optionAll, .excludeDesktopElements]
+	: [.optionOnScreenOnly, .excludeDesktopElements]
 guard let windowList = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] else {
 	FileHandle.standardError.write(Data("could not read the window list\n".utf8))
 	exit(1)
@@ -44,6 +51,7 @@ struct Match {
 	let id: Int
 	let layer: Int
 	let title: String
+	let area: Double
 }
 
 var matches: [Match] = []
@@ -55,11 +63,14 @@ for window in windowList {
 	let title = (window[kCGWindowName as String] as? String) ?? ""
 	if let titleFilter, !title.localizedCaseInsensitiveContains(titleFilter) { continue }
 	let layer = (window[kCGWindowLayer as String] as? Int) ?? 0
-	matches.append(Match(id: windowID, layer: layer, title: title))
+	let bounds = window[kCGWindowBounds as String] as? [String: Any]
+	let rect = bounds.flatMap { CGRect(dictionaryRepresentation: $0 as CFDictionary) } ?? .zero
+	matches.append(Match(id: windowID, layer: layer, title: title, area: rect.width * rect.height))
 }
 
-// Normal windows live at layer 0; panels and shadows sit above.
-matches.sort { $0.layer < $1.layer }
+// The main window is the largest one: an app also owns menu-bar strips, shadow
+// slivers and panels, and the biggest is the one worth looking at.
+matches.sort { $0.area > $1.area }
 
 guard !matches.isEmpty else {
 	FileHandle.standardError.write(Data("no window owned by \(owner)\n".utf8))

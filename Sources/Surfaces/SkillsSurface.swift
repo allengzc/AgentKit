@@ -25,6 +25,8 @@ public struct SkillItem: Identifiable, Hashable {
 	public let bytes: Int64
 	/// Immediate children, for a directory. 0 for a file.
 	public let childCount: Int
+	/// Immediate children, filled in for top-level directories during the scan.
+	public var children: [SkillItem] = []
 
 	public var id: String { name }
 
@@ -66,6 +68,21 @@ public struct SkillItem: Identifiable, Hashable {
 			bytes: bytes,
 			childCount: childCount
 		)
+	}
+
+	/// Reads one level below `item`, so expanding a folder never has to touch
+	/// the filesystem from a click handler. Expanding a row should only be a
+	/// state change.
+	public static func fillingChildren(of item: SkillItem, in directory: URL) -> SkillItem {
+		guard item.isDirectory else { return item }
+		var filled = item
+		let url = directory.appendingPathComponent(item.name)
+		filled.children = sorted(((try? FileManager.default.contentsOfDirectory(
+			at: url,
+			includingPropertiesForKeys: [.isDirectoryKey, .fileSizeKey],
+			options: [.skipsHiddenFiles]
+		)) ?? []).map { SkillItem.item(at: $0) })
+		return filled
 	}
 
 	static func sizeText(_ bytes: Int64) -> String {
@@ -299,6 +316,7 @@ public enum SkillsScanner {
 		)) ?? [])
 			.filter { !ignore.contains($0.lastPathComponent) }
 		let topLevel = SkillItem.sorted(children.map { SkillItem.item(at: $0) })
+			.map { SkillItem.fillingChildren(of: $0, in: listingDirectory) }
 
 		return SkillEntry(
 			url: manifest,

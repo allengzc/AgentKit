@@ -28,10 +28,10 @@ TARGET="${AGENTKIT_TARGET:-arm64-apple-macosx14.0}"
 
 echo "==> building tool helpers"
 mkdir -p "$HERE/Tools/bin"
-for tool in iconpath windowid; do
+for tool in iconpath windowid click; do
 	swiftc -swift-version 5 -target "$TARGET" \
 		"${CACHE_FLAGS[@]}" \
-		-framework SwiftUI -framework CoreGraphics \
+		-framework SwiftUI -framework CoreGraphics -framework Foundation \
 		-o "$HERE/Tools/bin/$tool" "$HERE/Tools/$tool.swift"
 done
 

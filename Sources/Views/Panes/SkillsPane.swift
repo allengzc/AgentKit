@@ -27,7 +27,6 @@ struct SkillsPane: View {
 	/// files and the detail pane should stay readable.
 	@State private var showsAllBundled = false
 	@State private var expandedFolders: Set<String> = []
-	@State private var folderContents: [String: [SkillItem]] = [:]
 
 	private let bundledPreviewLimit = 7
 
@@ -81,7 +80,6 @@ struct SkillsPane: View {
 		.onChange(of: selectedID) { _, _ in
 			showsAllBundled = false
 			expandedFolders = []
-			folderContents = [:]
 		}
 		.onChange(of: model.externalChangeToken) { _, _ in scan() }
 		.onChange(of: model.projectURL) { _, _ in scan() }
@@ -483,11 +481,10 @@ struct SkillsPane: View {
 					if index > 0 {
 						Divider().padding(.leading, 34)
 					}
-					bundledRow(item, in: entry.directory, indented: false)
-					if item.isDirectory, expandedFolders.contains(item.id) {
-						ForEach(children(of: item, in: entry.directory)) { child in
-							bundledRow(child, in: entry.directory.appendingPathComponent(item.name), indented: true)
-						}
+					if item.isDirectory {
+						directoryRow(item, in: entry.directory)
+					} else {
+						fileRow(item, in: entry.directory)
 					}
 				}
 			}
@@ -512,75 +509,97 @@ struct SkillsPane: View {
 		}
 	}
 
-	private func bundledRow(_ item: SkillItem, in directory: URL, indented: Bool) -> some View {
-		let url = directory.appendingPathComponent(item.name)
-		let expanded = item.isDirectory && expandedFolders.contains(item.id)
-		return Button {
-			if item.isDirectory {
-				cacheChildren(of: item, in: directory)
-				if expanded {
-					expandedFolders.remove(item.id)
-				} else {
-					expandedFolders.insert(item.id)
+	/// A folder uses the platform's own disclosure control.
+	///
+	/// An earlier version drew its own chevron and toggled a set from a Button
+	/// action. Expansion is the one interaction that has to work every time, and
+	/// a control the system provides costs nothing here: its hit testing, its
+	/// animation and its accessibility are Apple's. The binding is still backed by
+	/// view state so the children can be driven programmatically for verification.
+	private func directoryRow(_ item: SkillItem, in directory: URL) -> some View {
+		DisclosureGroup(isExpanded: expansion(for: item)) {
+			ForEach(item.children) { child in
+				HStack(spacing: 6) {
+					Color.clear.frame(width: 9)
+					Image(systemName: fileIcon(child))
+						.font(.caption)
+						.foregroundStyle(.secondary)
+						.frame(width: 15)
+					Text(child.name)
+						.font(.system(size: 11.5, design: .monospaced))
+						.lineLimit(1)
+						.truncationMode(.middle)
+						.frame(maxWidth: .infinity, alignment: .leading)
+					Text(child.displaySize)
+						.font(.system(size: 10.5, design: .monospaced))
+						.foregroundStyle(.tertiary)
+						.lineLimit(1)
+						.layoutPriority(1)
 				}
-			} else {
-				ShellActions.reveal(url)
+				.padding(.leading, 19)
+				.padding(.trailing, 8)
+				.padding(.vertical, 2)
+				.help(directory.appendingPathComponent(item.name).appendingPathComponent(child.name).path)
 			}
 		} label: {
-			HStack(spacing: 6) {
-				Group {
-					if item.isDirectory {
-						Image(systemName: "chevron.right")
-							.font(.system(size: 8, weight: .semibold))
-							.foregroundStyle(.tertiary)
-							.rotationEffect(.degrees(expanded ? 90 : 0))
-					} else {
-						Color.clear
-					}
-				}
-				.frame(width: 9)
+			rowLabel(item, indented: false)
+		}
+		.padding(.leading, 8)
+		.padding(.trailing, 8)
+		.padding(.vertical, 1)
+		.help("\(directory.appendingPathComponent(item.name).path)（\(expandedFolders.contains(item.id) ? "已展开" : "已折叠")）")
+	}
 
-				Image(systemName: fileIcon(item))
-					.font(.caption)
-					.foregroundStyle(item.isDirectory ? Color.accentColor : Color.secondary)
-					.frame(width: 15)
-
-				// One line, middle-truncated. A name must never wrap: wrapping is
-				// what turned these into columns of single letters.
-				Text(item.name)
-					.font(.system(size: 11.5, design: .monospaced))
-					.lineLimit(1)
-					.truncationMode(.middle)
-					.frame(maxWidth: .infinity, alignment: .leading)
-
-				Text(item.displaySize)
-					.font(.system(size: 10.5, design: .monospaced))
-					.foregroundStyle(.tertiary)
-					.lineLimit(1)
-					.layoutPriority(1)
-			}
-			.padding(.leading, indented ? 26 : 8)
-			.padding(.trailing, 8)
-			.padding(.vertical, 3)
-			.contentShape(Rectangle())
+	private func fileRow(_ item: SkillItem, in directory: URL) -> some View {
+		let url = directory.appendingPathComponent(item.name)
+		return Button {
+			ShellActions.reveal(url)
+		} label: {
+			rowLabel(item, indented: false)
 		}
 		.buttonStyle(.plain)
-		.help(item.isDirectory ? "\(url.path)（点击\(expanded ? "收起" : "展开")）" : url.path)
+		.padding(.leading, 8)
+		.padding(.trailing, 8)
+		.padding(.vertical, 1)
+		.help(url.path)
 	}
 
-	private func children(of item: SkillItem, in directory: URL) -> [SkillItem] {
-		folderContents[item.id] ?? []
+	/// Leading spacing plus the icon, name and size, without any disclosure
+	/// control: the caller supplies that, so the two row kinds line up.
+	private func rowLabel(_ item: SkillItem, indented: Bool) -> some View {
+		HStack(spacing: 6) {
+			Image(systemName: fileIcon(item))
+				.font(.caption)
+				.foregroundStyle(item.isDirectory ? Color.accentColor : Color.secondary)
+				.frame(width: 15)
+			// One line, middle-truncated. A name must never wrap: wrapping is
+			// what turned these into columns of single letters.
+			Text(item.name)
+				.font(.system(size: 11.5, design: .monospaced))
+				.lineLimit(1)
+				.truncationMode(.middle)
+				.frame(maxWidth: .infinity, alignment: .leading)
+			Text(item.displaySize)
+				.font(.system(size: 10.5, design: .monospaced))
+				.foregroundStyle(.tertiary)
+				.lineLimit(1)
+				.layoutPriority(1)
+		}
+		.padding(.vertical, 3)
+		.contentShape(Rectangle())
 	}
 
-	private func cacheChildren(of item: SkillItem, in directory: URL) {
-		guard folderContents[item.id] == nil else { return }
-		let url = directory.appendingPathComponent(item.name).resolvingSymlinksInPath()
-		let children = ((try? FileManager.default.contentsOfDirectory(
-			at: url,
-			includingPropertiesForKeys: [.isDirectoryKey, .fileSizeKey],
-			options: [.skipsHiddenFiles]
-		)) ?? []).map { SkillItem.item(at: $0) }
-		folderContents[item.id] = SkillItem.sorted(children)
+	private func expansion(for item: SkillItem) -> Binding<Bool> {
+		Binding(
+			get: { expandedFolders.contains(item.id) },
+			set: { open in
+				if open {
+					expandedFolders.insert(item.id)
+				} else {
+					expandedFolders.remove(item.id)
+				}
+			}
+		)
 	}
 
 	private func fileIcon(_ item: SkillItem) -> String {

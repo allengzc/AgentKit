@@ -76,7 +76,7 @@ python3 Tools/make-icon.py     # 重新生成 Icon.svg / Icon-simple.svg / AppIc
 ```bash
 ./build.sh          # 编译到 out/AgentKit.app（只需要 swiftc）
 ./install.sh        # 再复制到 /Applications/AgentKit.app 并提示入口
-./run-tests.sh      # 544 项离线断言，不需要窗口、不需要网络
+./run-tests.sh      # 549 项离线断言，不需要窗口、不需要网络
 ```
 
 要求：macOS 14+、Xcode 命令行工具（Swift 6.x）、一个用于签名的 Apple Development
@@ -153,9 +153,13 @@ pi-mcp-adapter 已经不再读取这个文件：生效的是 ~/.config/mcp/mcp.j
 深度。校验规则对齐规范：缺 `description` 即"不会被加载"，`name` 必须符合 Agent
 Skills 规范。
 
-随包文件是一张列表（图标 + 名字 + 大小 / 子项数），目录可以就地展开，默认只显示前
-7 项。这里原来是一排 chip：一个 skill 带 30+ 个文件时，`HStack` 会把每个名字压到
-**每行只放一个字母**。文件名现在强制单行 + 中间截断 —— 列表里的名字不允许折行。
+随包文件是一张列表（图标 + 名字 + 大小 / 子项数），默认只显示前 7 项。这里原来是一排
+chip：一个 skill 带 30+ 个文件时，`HStack` 会把每个名字压到**每行只放一个字母**。
+文件名现在强制单行 + 中间截断 —— 列表里的名字不允许折行。
+
+目录用系统的 `DisclosureGroup` 展开，子项在扫描时就装好。两点都是刻意的：展开是唯一
+必须每次都成功的交互，所以命中判定交给系统而不是自绘按钮；而既然数据已经在了，
+展开就只是一次状态变更，不需要在点击回调里读文件系统。
 
 ### 会话
 
@@ -355,7 +359,7 @@ Sources/App/         状态、项目作用域、写入控制器、Finder/终端�
 Sources/Views/       SwiftUI 界面
 Resources/Agents/    内置描述文件（pi.json、codex.json）
 Resources/Icon.svg   图标数据源（AppIcon.icns 由它生成）
-Tests/main.swift     544 项离线断言
+Tests/main.swift     549 项离线断言
 ```
 
 ## License

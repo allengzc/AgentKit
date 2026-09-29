@@ -1690,6 +1690,18 @@ do {
 	check(!names.contains(".git"), "忽略隐藏目录")
 	check(!names.contains("run.py"), "只列顶层，不递归")
 
+	// Children arrive with the scan, so expanding a folder is only a state
+	// change and never touches the filesystem from a click handler.
+	equal(byName["scripts"]?.children.map(\.name), ["helper.sh", "run.py"], "目录的子项在扫描时就装好了，且按名字排序")
+	equal(byName["empty"]?.children.count, 0, "空目录的子项是空的")
+	equal(byName["notes.txt"]?.children.count, 0, "文件的子项是空的")
+
+	// And filling them by hand produces the same thing, which is the path the
+	// row would take if it ever had to load lazily.
+	let filled = SkillItem.fillingChildren(of: byName["references"]!, in: directory)
+	equal(filled.children.map(\.name), ["api.md"], "按需填充得到同样的子项")
+	equal(SkillItem.fillingChildren(of: byName["notes.txt"]!, in: directory).children.count, 0, "对文件填充不出子项")
+
 	// Every row is one line, so a long name has to survive as data.
 	equal(SkillItem.sizeText(0), "0 B", "0 字节")
 	equal(SkillItem.sizeText(1023), "1023 B", "小于 1KB 用字节")
