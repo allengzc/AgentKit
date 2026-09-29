@@ -42,8 +42,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 		// Xcode build does, so bring the window forward ourselves.
 		NSApp.activate(ignoringOtherApps: true)
 		if let appearance = DocumentationState.appearance() { NSApp.appearance = appearance }
-		if let size = DocumentationState.windowSize(), let window = NSApp.windows.first {
+		if let size = DocumentationState.windowSize(),
+			let window = NSApp.windows.first(where: { $0.contentView != nil })
+		{
 			window.setFrame(NSRect(origin: window.frame.origin, size: size), display: true)
+		}
+		if let path = DocumentationState.string("snapshot"), path != "1" {
+			DispatchQueue.main.asyncAfter(deadline: .now() + DocumentationState.snapshotDelay) {
+				DocumentationState.writeSnapshot(to: path)
+				NSApp.terminate(nil)
+			}
 		}
 		Log.app.info("AgentKit launched")
 	}

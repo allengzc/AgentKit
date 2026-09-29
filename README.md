@@ -71,6 +71,10 @@ python3 Tools/make-icon.py     # 重新生成 Icon.svg / Icon-simple.svg / AppIc
 
 ---
 
+> 本文所有截图都由 `Tools/make-demo.py` 生成的一套假配置渲染而来 ——
+> provider、会话、skill、项目路径全是编的，**不来自任何人的真实机器**。
+> 重新生成：`./Tools/make-screenshots.sh`。
+
 ## 快速开始
 
 ```bash
@@ -136,9 +140,9 @@ pi-mcp-adapter 已经不再读取这个文件：生效的是 ~/.config/mcp/mcp.j
 ```
 
 一键修复是一个**分步计划**（迁移 adapter 专属键 → 并入服务器 → 重命名旧文件），
-每一步的 diff 都展示在确认页里，任何一步失败就停下。上图是本机的真实案例（已修复）：
-`imports` 迁到了 `mcp-adapter.json`，`mcpServers` 并入共享全局层，死文件改名为
-`mcp.json.bak-agentkit-*`。之后诊断徽标消失（见 `docs/mcp-after.png`）。
+每一步的 diff 都展示在确认页里，任何一步失败就停下。修复会把 `imports` 迁到
+`mcp-adapter.json`，把 `mcpServers` 并入共享全局层，并把死文件改名为
+`mcp.json.bak-agentkit-*`，之后诊断徽标消失。
 
 对 Codex，服务器来自 `[mcp_servers.*]`，并且**开关极性按 Codex 的约定**：
 `enabled = false` 显示为「已禁用」。
@@ -178,6 +182,8 @@ Codex 的名字来自 `session_index.jsonl`，AgentKit **只读取不代写**，
 ### 全局指令 / 子 Agents / 通用设置 / 主题 · 扩展
 
 ![Codex 通用设置](docs/codex-settings.png)
+
+![全局指令](docs/instructions.png)
 
 - **全局指令**：Markdown 编辑 + 预览（`MarkdownText` 在 Surfaces 层，不在视图里 ——
   它崩过一次，整块 App 跟着一起死），列出 override / instructions / SYSTEM /
@@ -311,6 +317,8 @@ agent 没有对应的 schema，那个面板会显示"找不到 schema"并降级�
 | `CODEX_HOME` | 覆盖 Codex 的配置根 |
 | `AGENTKIT_CONFIG_DIR` | 覆盖描述文件目录（默认 `~/.config/agentkit`） |
 | `AGENTKIT_OPEN=codex/mcp` | 启动直接进指定 agent 的指定面板 |
+| `AGENTKIT_HOME=/tmp/demo` | 把 `~` / `$HOME` 重定向到一次性目录，用于对着夹具跑，不碰真实配置 |
+| `AGENTKIT_DOC_STATE=…` | 生成文档截图用：置入预览/展开/diff、固定外观与窗口尺寸、让 App 渲染自身并退出 |
 | `AGENTKIT_PROJECT=~/repo` | 指定项目作用域（等价于在工具栏里选项目） |
 | `AGENTKIT_SIGN_IDENTITY` | 构建时指定签名身份 |
 | `AGENTKIT_TARGET` | 构建目标三元组，默认 `arm64-apple-macosx14.0` |
