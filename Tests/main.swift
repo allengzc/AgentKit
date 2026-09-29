@@ -627,6 +627,52 @@ do {
 	check(condensed.count < 10, "折叠后行数很少", "实际 \(condensed.count)")
 }
 
+// MARK: - Diff line numbering
+
+group("TextDiff 行号")
+
+do {
+	// The sheet shows two gutters; a reader checks a change against the file by
+	// those numbers, so they have to line up with the real files.
+	let before = "a\nb\nc\nd\ne"
+	let after = "a\nB\nc\nd\ne\nf"
+	let diff = TextDiff(before: before, after: after)
+
+	let removed = diff.lines.filter { $0.kind == .remove }
+	let inserted = diff.lines.filter { $0.kind == .insert }
+	equal(removed.count, 1, "一处删除")
+	// Two insertions: the changed line, and `f` appended at the end.
+	equal(inserted.count, 2, "两处新增")
+	equal(removed.first?.oldNumber, 2, "删除行标的是旧文件第 2 行")
+	equal(removed.first?.newNumber, nil, "删除行没有新行号")
+	equal(inserted.first?.oldNumber, nil, "新增行没有旧行号")
+	equal(inserted.first?.newNumber, 2, "改动的行标的是新文件第 2 行")
+	equal(inserted.last?.newNumber, 6, "追加的行标的是新文件第 6 行")
+	equal(inserted.last?.text, "f", "追加的是最后一行")
+
+	// Unchanged lines carry both numbers, and they must agree with the file.
+	let equals = diff.lines.filter { $0.kind == .equal }
+	equal(equals.first?.oldNumber, 1, "第一行相同")
+	equal(equals.first?.newNumber, 1, "第一行相同")
+	equal(equals.last?.oldNumber, 5, "末行相同（旧）")
+	equal(equals.last?.newNumber, 5, "末行相同（新）")
+	equal(equals.last?.text, "e", "相同的末行是 e，f 是追加的")
+	for line in equals {
+		let old = String(before.split(separator: "\n")[line.oldNumber! - 1])
+		let new = String(after.split(separator: "\n")[line.newNumber! - 1])
+		equal(old, new, "编号相同的行内容必须一致：\(line.oldNumber!)")
+	}
+
+	// Every line of both files is accounted for exactly once.
+	equal(diff.lines.filter { $0.oldNumber != nil }.count, 5, "旧文件每行都出现一次")
+	equal(diff.lines.filter { $0.newNumber != nil }.count, 6, "新文件每行都出现一次")
+
+	// An appended key, which is what the settings form produces.
+	let appended = TextDiff(before: "{\n  \"a\": 1\n}", after: "{\n  \"a\": 1,\n  \"b\": 2\n}")
+	equal(appended.insertions + appended.removals, 3, "追加键只改动三行")
+	equal(appended.lines.last?.kind, .equal, "文件末尾的 } 保持不变")
+}
+
 // MARK: - Frontmatter
 
 group("Frontmatter")

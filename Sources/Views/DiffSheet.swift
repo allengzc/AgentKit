@@ -14,6 +14,7 @@ struct DiffSheet: View {
 	var backup: URL?
 	var errorText: String?
 	var isWriting: Bool = false
+	@State private var wrapsLongLines = false
 	let onCancel: () -> Void
 	let onConfirm: () -> Void
 
@@ -52,9 +53,14 @@ struct DiffSheet: View {
 				Text("−\(preview.diff.removals)")
 					.foregroundStyle(.red)
 					.font(.system(.caption, design: .monospaced))
-				Text("共 \(preview.diff.lines.count) 行差异")
+				Text("文件共 \(preview.diff.lines.count) 行")
 					.font(.caption)
 					.foregroundStyle(.secondary)
+				Spacer()
+				Toggle("长行换行", isOn: $wrapsLongLines)
+					.toggleStyle(.checkbox)
+					.controlSize(.small)
+					.font(.caption)
 			}
 			if let backup {
 				Label("写入前会备份为 \(backup.lastPathComponent)", systemImage: "clock.arrow.circlepath")
@@ -69,7 +75,10 @@ struct DiffSheet: View {
 	}
 
 	private var diffBody: some View {
-		ScrollView([.vertical, .horizontal]) {
+		// Deliberately a vertical-only ScrollView. A horizontal one proposes an
+		// unbounded width, so any greedy row inside it becomes infinitely wide:
+		// the gutters drift to the middle and the text is pushed off-screen.
+		ScrollView {
 			LazyVStack(alignment: .leading, spacing: 0) {
 				ForEach(Array(preview.diff.condensed().enumerated()), id: \.offset) { _, line in
 					if let line {
@@ -78,8 +87,8 @@ struct DiffSheet: View {
 						Text("⋯")
 							.font(.system(.caption, design: .monospaced))
 							.foregroundStyle(.tertiary)
+							.frame(maxWidth: .infinity)
 							.padding(.vertical, 3)
-							.padding(.horizontal, 10)
 					}
 				}
 			}
@@ -116,16 +125,21 @@ struct DiffSheet: View {
 				.frame(width: 38, alignment: .trailing)
 				.foregroundStyle(.tertiary)
 			Text(sign)
-				.frame(width: 16)
+				.frame(width: 16, alignment: .center)
 				.foregroundStyle(color)
 			Text(line.text.isEmpty ? " " : line.text)
 				.foregroundStyle(line.kind == .equal ? Color.primary : color)
+				.lineLimit(wrapsLongLines ? nil : 1)
+				.truncationMode(.tail)
+				.fixedSize(horizontal: false, vertical: true)
+				.frame(maxWidth: .infinity, alignment: .leading)
 				.textSelection(.enabled)
-			Spacer(minLength: 0)
+				.help(line.text)
 		}
 		.font(.system(size: 11.5, design: .monospaced))
 		.padding(.horizontal, 10)
-		.padding(.vertical, 0.5)
+		.padding(.vertical, 1)
+		.frame(maxWidth: .infinity, alignment: .leading)
 		.background(background)
 	}
 
