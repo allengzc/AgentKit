@@ -2,7 +2,10 @@
 
 一个原生 macOS GUI，用来配置和管理本地的 coding agent。
 
-现在支持两个 agent：
+> 改这个仓库的代码请先读 [`AGENTS.md`](AGENTS.md)（根规范 + 各目录一份）。
+> 这一页是给使用者看的。
+
+现在支持三个 agent：
 
 | Agent | 配置根 | 覆盖的面板 |
 |---|---|---|
@@ -46,9 +49,8 @@ python3 Tools/make-icon.py     # 重新生成 Icon.svg / Icon-simple.svg / AppIc
 
 ## 为什么是描述文件驱动的
 
-本地 coding agent 的配置从来不是"一个文件"。同样是"模型配置"，两个 agent 就长得完全不一样：
-
-三个 agent 的差异，同一张表看下来：
+本地 coding agent 的配置从来不是"一个文件"，而且**同一个概念在不同 agent 里形状都不一样**。
+三个 agent 摆在一张表里看：
 
 | 配置面 | pi | Codex | Claude Code |
 |---|---|---|---|
