@@ -1,0 +1,5 @@
+out/
+.cache/
+*.o
+.DS_Store
+Tools/bin/

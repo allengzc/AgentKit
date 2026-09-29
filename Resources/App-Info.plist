@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleName</key>
+	<string>AgentKit</string>
+	<key>CFBundleDisplayName</key>
+	<string>AgentKit</string>
+	<key>CFBundleExecutable</key>
+	<string>AgentKit</string>
+	<key>CFBundleIdentifier</key>
+	<string>com.allengzc.agentkit</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>0.1.0</string>
+	<key>CFBundleVersion</key>
+	<string>1</string>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>zh_CN</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>14.0</string>
+	<key>LSApplicationCategoryType</key>
+	<string>public.app-category.developer-tools</string>
+	<key>NSHighResolutionCapable</key>
+	<true/>
+	<key>NSPrincipalClass</key>
+	<string>NSApplication</string>
+	<key>NSHumanReadableCopyright</key>
+	<string>MIT License © 2026 allengzc</string>
+	<key>NSDocumentsFolderUsageDescription</key>
+	<string>AgentKit 需要读取项目目录里的 .pi 配置，才能显示和编辑项目级别的设置。</string>
+	<key>NSDesktopFolderUsageDescription</key>
+	<string>AgentKit 需要访问桌面目录，才能读取位于桌面的项目配置并把导出文件写到这里。</string>
+	<key>NSDownloadsFolderUsageDescription</key>
+	<string>AgentKit 需要访问下载目录，才能读取位于该目录的项目配置。</string>
+</dict>
+</plist>

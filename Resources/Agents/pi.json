@@ -1,0 +1,191 @@
+{
+  "descriptorVersion": 1,
+  "id": "pi",
+  "name": "Pi",
+  "subtitle": "@earendil-works/pi-coding-agent",
+  "icon": "terminal.fill",
+  "homepage": "https://github.com/earendil-works/pi",
+
+  "root": {
+    "env": "PI_CODING_AGENT_DIR",
+    "default": "~/.pi/agent"
+  },
+
+  "detect": {
+    "paths": ["~/.pi", "~/.pi-desktop"],
+    "cli": {
+      "name": "pi",
+      "package": "@earendil-works/pi-coding-agent",
+      "loginShellLookup": true,
+      "versionArgs": ["--version"],
+      "candidates": [
+        "~/.nvm/versions/node/*/bin/pi",
+        "~/.bun/bin/pi",
+        "/opt/homebrew/bin/pi",
+        "/usr/local/bin/pi"
+      ]
+    }
+  },
+
+  "projects": {
+    "trustFile": "$ROOT/trust.json",
+    "sources": ["session-headers", "trust-file", "user-added"]
+  },
+
+  "write": {
+    "backup": { "suffix": ".bak-agentkit", "keep": 10 },
+    "scopeGuard": ["$ROOT", "$HOME", "/tmp"]
+  },
+
+  "surfaces": [
+    {
+      "id": "models",
+      "kind": "models",
+      "title": "模型与 Provider",
+      "icon": "cpu",
+      "shape": "providers-map",
+      "providerFile": "$ROOT/models.json",
+      "catalogFile": "$ROOT/models-store.json",
+      "authFile": "$ROOT/auth.json",
+      "defaults": {
+        "provider": { "file": "$ROOT/settings.json", "path": "defaultProvider" },
+        "model": { "file": "$ROOT/settings.json", "path": "defaultModel" },
+        "thinking": { "file": "$ROOT/settings.json", "path": "defaultThinkingLevel" }
+      },
+      "cli": {
+        "list": ["--list-models"],
+        "authCheck": ["auth", "check"]
+      }
+    },
+    {
+      "id": "mcp",
+      "kind": "mcp",
+      "title": "MCP 服务器",
+      "icon": "point.3.connected.trianglepath.dotted",
+      "shape": "mcp-servers-map",
+      "layers": [
+        { "path": "~/.config/mcp/mcp.json", "scope": "global", "precedence": 10, "shared": true, "writable": true },
+        { "path": "~/.agents/mcp.json", "scope": "global", "precedence": 20, "shared": true, "writable": true },
+        { "path": "~/.agents/mcp/mcp.json", "scope": "global", "precedence": 30, "shared": true, "writable": true },
+        { "path": "$ROOT/mcp-adapter.json", "scope": "global", "precedence": 40, "writable": true },
+        { "path": "$CWD/.mcp.json", "scope": "project", "precedence": 60, "shared": true, "writable": true },
+        { "path": "$CWD/.pi/mcp-adapter.json", "scope": "project", "precedence": 70, "writable": true }
+      ],
+      "legacy": [
+        {
+          "path": "$ROOT/mcp.json",
+          "notice": "pi-mcp-adapter 已经不再读取这个文件：生效的是 ~/.config/mcp/mcp.json（共享全局层）。这里的 mcpServers 与 imports 都不会被加载。",
+          "fix": { "action": "rename", "to": "$ROOT/mcp-adapter.json" }
+        }
+      ],
+      "imports": {
+        "cursor": ["~/.cursor/mcp.json"],
+        "claude-code": ["~/.claude/mcp.json", "~/.claude.json", "~/.claude/claude_desktop_config.json"],
+        "claude-desktop": ["~/Library/Application Support/Claude/claude_desktop_config.json"],
+        "codex": ["~/.codex/config.toml", "~/.codex/config.json"],
+        "opencode": ["~/.config/opencode/opencode.json", "./opencode.json"],
+        "windsurf": ["~/.windsurf/mcp.json"],
+        "vscode": [".vscode/mcp.json"]
+      }
+    },
+    {
+      "id": "skills",
+      "kind": "skills",
+      "title": "Skills",
+      "icon": "puzzlepiece.extension",
+      "shape": "skill-dirs",
+      "roots": [
+        { "path": "$ROOT/skills", "scope": "user", "writable": true },
+        { "path": "~/.agents/skills", "scope": "user", "shared": true, "writable": false },
+        { "path": "$CWD/.pi/skills", "scope": "project", "writable": true },
+        { "path": "$CWD/.agents/skills", "scope": "project", "shared": true, "writable": false }
+      ],
+      "ignore": [".git", "node_modules", ".venv", "venv", "__pycache__", "dist", "build", ".cache", "logs", ".DS_Store"],
+      "maxDepth": 6,
+      "spec": "agentskills.io",
+      "settingsKeys": { "extra": "skills", "enableCommands": "enableSkillCommands" }
+    },
+    {
+      "id": "sessions",
+      "kind": "sessions",
+      "title": "会话",
+      "icon": "clock.arrow.circlepath",
+      "shape": "jsonl-sessions",
+      "root": "$ROOT/sessions",
+      "headerType": "session",
+      "nameEntryType": "session_info",
+      "cli": {
+        "export": ["--export"],
+        "resume": ["--session"]
+      }
+    },
+    {
+      "id": "instructions",
+      "kind": "instructions",
+      "title": "全局指令",
+      "icon": "text.book.closed",
+      "shape": "md",
+      "files": [
+        { "path": "$ROOT/AGENTS.override.md", "role": "override", "precedence": 0 },
+        { "path": "$ROOT/AGENTS.md", "role": "instructions", "precedence": 10 },
+        { "path": "$ROOT/AGENTS.MD", "role": "instructions", "precedence": 11 },
+        { "path": "$ROOT/CLAUDE.md", "role": "instructions", "precedence": 12 },
+        { "path": "$ROOT/SYSTEM.md", "role": "system-replace", "precedence": 20 },
+        { "path": "$ROOT/APPEND_SYSTEM.md", "role": "system-append", "precedence": 21 }
+      ],
+      "discovery": {
+        "filenames": ["AGENTS.override.md", "AGENTS.md", "AGENTS.MD", "CLAUDE.md", "CLAUDE.MD"],
+        "walkUpFromCwd": true
+      }
+    },
+    {
+      "id": "subagents",
+      "kind": "subagents",
+      "title": "子 Agents",
+      "icon": "person.2",
+      "shape": "md-frontmatter",
+      "roots": [
+        { "path": "$ROOT/agents", "scope": "user", "writable": true },
+        { "path": "$CWD/.pi/agents", "scope": "project", "writable": true }
+      ],
+      "frontmatter": {
+        "required": ["name", "description"],
+        "fields": ["name", "description", "model", "tools"]
+      }
+    },
+    {
+      "id": "settings",
+      "kind": "settings",
+      "title": "通用设置",
+      "icon": "slider.horizontal.3",
+      "shape": "typed-json",
+      "file": "$ROOT/settings.json",
+      "schema": "pi-settings-0.87"
+    },
+    {
+      "id": "resources",
+      "kind": "resources",
+      "title": "主题 · 扩展 · Packages",
+      "icon": "shippingbox",
+      "shape": "mixed",
+      "roots": [
+        { "path": "$ROOT/themes", "type": "theme", "scope": "user", "writable": true },
+        { "path": "$ROOT/extensions", "type": "extension", "scope": "user", "writable": true },
+        { "path": "$ROOT/prompts", "type": "prompt", "scope": "user", "writable": true },
+        { "path": "$CWD/.pi/themes", "type": "theme", "scope": "project", "writable": true },
+        { "path": "$CWD/.pi/extensions", "type": "extension", "scope": "project", "writable": true }
+      ],
+      "settingsKeys": {
+        "packages": "packages",
+        "extensions": "extensions",
+        "themes": "themes",
+        "prompts": "prompts"
+      },
+      "cli": {
+        "list": ["list"],
+        "install": ["install"],
+        "remove": ["remove"]
+      }
+    }
+  ]
+}
