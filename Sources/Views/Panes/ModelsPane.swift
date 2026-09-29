@@ -397,7 +397,7 @@ struct ModelsPane: View {
 				Grid(alignment: .leading, horizontalSpacing: 10, verticalSpacing: 8) {
 					GridRow {
 						Text("id").gridColumnAlignment(.trailing)
-						TextField("例如 example", text: binding(\.identifier, draft))
+						TextField("例如 openrouter", text: binding(\.identifier, draft))
 							.textFieldStyle(.roundedBorder)
 							.font(.system(.body, design: .monospaced))
 							.disabled(!draft.isNew)
