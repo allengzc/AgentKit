@@ -1,0 +1,151 @@
+{
+  "descriptorVersion": 1,
+  "id": "codex",
+  "name": "Codex",
+  "subtitle": "codex-cli (OpenAI)",
+  "icon": "chevron.left.forwardslash.chevron.right",
+  "homepage": "https://github.com/openai/codex",
+
+  "root": {
+    "env": "CODEX_HOME",
+    "default": "~/.codex"
+  },
+
+  "detect": {
+    "paths": ["~/.codex"],
+    "cli": {
+      "name": "codex",
+      "package": "@openai/codex",
+      "loginShellLookup": true,
+      "versionArgs": ["--version"],
+      "candidates": [
+        "~/.nvm/versions/node/*/bin/codex",
+        "~/.bun/bin/codex",
+        "/opt/homebrew/bin/codex",
+        "/usr/local/bin/codex",
+        "/Applications/Codex.app/Contents/Resources/codex"
+      ]
+    }
+  },
+
+  "projects": {
+    "sources": ["session-headers", "user-added"]
+  },
+
+  "write": {
+    "backup": { "suffix": ".bak-agentkit", "keep": 10 },
+    "scopeGuard": ["$ROOT", "$HOME", "/tmp"]
+  },
+
+  "surfaces": [
+    {
+      "id": "models",
+      "kind": "models",
+      "title": "模型与 Provider",
+      "icon": "cpu",
+      "shape": "providers-map",
+      "format": "toml",
+      "providerFile": "$ROOT/config.toml",
+      "providersKey": "model_providers",
+      "providerKeys": {
+        "name": "name",
+        "baseUrl": "base_url",
+        "api": "wire_api",
+        "apiKey": "env_key"
+      },
+      "catalogFile": "$ROOT/models_cache.json",
+      "authFile": "$ROOT/auth.json",
+      "defaults": {
+        "provider": { "file": "$ROOT/config.toml", "path": "model_provider" },
+        "model": { "file": "$ROOT/config.toml", "path": "model" },
+        "thinking": { "file": "$ROOT/config.toml", "path": "model_reasoning_effort" }
+      }
+    },
+    {
+      "id": "mcp",
+      "kind": "mcp",
+      "title": "MCP 服务器",
+      "icon": "point.3.connected.trianglepath.dotted",
+      "shape": "mcp-servers-map",
+      "format": "toml",
+      "serverKey": "mcp_servers",
+      "toggleKey": "enabled",
+      "toggleDisabledValue": false,
+      "layers": [
+        { "path": "$ROOT/config.toml", "scope": "global", "precedence": 10, "writable": true },
+        { "path": "$CWD/.codex/config.toml", "scope": "project", "precedence": 60, "writable": true }
+      ]
+    },
+    {
+      "id": "skills",
+      "kind": "skills",
+      "title": "Skills",
+      "icon": "puzzlepiece.extension",
+      "shape": "skill-dirs",
+      "roots": [
+        { "path": "$ROOT/skills", "scope": "user", "writable": true },
+        { "path": "~/.agents/skills", "scope": "user", "shared": true, "writable": false }
+      ],
+      "ignore": [".git", "node_modules", ".venv", "venv", "__pycache__", "dist", "build", ".cache", "logs", ".tmp"],
+      "maxDepth": 6,
+      "spec": "agentskills.io"
+    },
+    {
+      "id": "sessions",
+      "kind": "sessions",
+      "title": "会话",
+      "icon": "clock.arrow.circlepath",
+      "shape": "jsonl-sessions",
+      "root": "$ROOT/sessions",
+      "sessions": {
+        "recursive": true,
+        "headerType": "session_meta",
+        "header": {
+          "id": "payload.id",
+          "cwd": "payload.cwd",
+          "timestamp": "timestamp",
+          "model": "payload.model_provider"
+        },
+        "index": {
+          "file": "$ROOT/session_index.jsonl",
+          "key": "id",
+          "value": "thread_name"
+        },
+        "message": {
+          "type": "response_item",
+          "payload": "payload",
+          "role": "role",
+          "text": "content",
+          "usageEventType": "event_msg",
+          "usageEventPayload": "payload",
+          "usageEventTokens": "info.total_token_usage.total_tokens"
+        }
+      }
+    },
+    {
+      "id": "instructions",
+      "kind": "instructions",
+      "title": "全局指令",
+      "icon": "text.book.closed",
+      "shape": "md",
+      "files": [
+        { "path": "$ROOT/AGENTS.md", "role": "instructions", "precedence": 10 },
+        { "path": "$ROOT/instructions.md", "role": "instructions", "precedence": 11 }
+      ],
+      "discovery": {
+        "filenames": ["AGENTS.md", "AGENTS.MD"],
+        "walkUpFromCwd": true
+      }
+    },
+    {
+      "id": "settings",
+      "kind": "settings",
+      "title": "通用设置",
+      "icon": "slider.horizontal.3",
+      "shape": "typed-json",
+      "format": "toml",
+      "file": "$ROOT/config.toml",
+      "schema": "codex-0.157"
+    }
+  ]
+}

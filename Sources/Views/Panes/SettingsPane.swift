@@ -80,7 +80,11 @@ struct SettingsPane: View {
 			return
 		}
 		let policy = agent.descriptor.backupPolicy
-		let loaded = JSONFile.load(fileURL, policy: policy)
+		let loaded = JSONFile.load(
+			fileURL,
+			policy: policy,
+			format: surface.format.flatMap(ConfigFormat.init(rawValue:))
+		)
 		document = loaded
 		editor = SettingsEditor(document: loaded, schema: definition)
 		drafts = [:]

@@ -39,9 +39,18 @@ struct SessionsPane: View {
 	private var resolver: PathResolver { model.resolver(for: agent) }
 	private var policy: BackupPolicy { agent.descriptor.backupPolicy }
 
-	private var rootURL: URL? {
-		guard let template = surface.root else { return nil }
-		return try? resolver.expand(template)
+	private var config: SessionsConfig? {
+		SessionsConfig.resolve(surface: surface, resolver: resolver, policy: policy)
+	}
+
+	/// Renaming works by appending a record, which only agents that declare a
+	/// name entry type support.
+	private var supportsRename: Bool { config?.nameEntryType != nil }
+
+	private var renameHelp: String {
+		if !supportsRename { return "\(agent.name) 的会话名存在索引文件里，AgentKit 不支持在这里改写" }
+		if model.isSelectedAgentRunning { return "agent 正在运行，改写会话文件不安全" }
+		return "追加一条重命名记录"
 	}
 
 	private var filtered: [SessionRecord] {
@@ -282,7 +291,13 @@ struct SessionsPane: View {
 						detailRow("消息数", record.statsLoaded ? "\(record.messageCount)" : "统计中…")
 						detailRow("Token", record.statsLoaded ? formatTokens(record.totalTokens) : "统计中…")
 						detailRow("成本", record.statsLoaded ? String(format: "$%.4f", record.totalCost) : "统计中…")
-						detailRow("模型", record.models.isEmpty ? "—" : record.models.joined(separator: "、"), monospaced: true)
+						detailRow(
+							"模型",
+							record.models.isEmpty
+								? (record.model ?? "—")
+								: record.models.joined(separator: "、"),
+							monospaced: true
+						)
 						detailRow("文件大小", ByteCountFormatter.string(fromByteCount: Int64(record.fileSize), countStyle: .file))
 						if let parent = record.parentSession {
 							detailRow("fork 自", parent, monospaced: true)
@@ -312,8 +327,8 @@ struct SessionsPane: View {
 						} label: {
 							Label("重命名", systemImage: "pencil")
 						}
-						.disabled(model.isSelectedAgentRunning)
-						.help(model.isSelectedAgentRunning ? "pi 正在运行，改写会话文件不安全" : "追加一条 session_info 记录")
+						.disabled(model.isSelectedAgentRunning || !supportsRename)
+						.help(renameHelp)
 
 						Button {
 							ShellActions.reveal(record.url)
@@ -328,11 +343,17 @@ struct SessionsPane: View {
 						}
 					}
 
-					if model.isSelectedAgentRunning {
+					if !supportsRename {
+						InfoBanner(
+							kind: .info,
+							title: "这个 agent 的会话名不由会话文件保存",
+							detail: "它的名字来自单独的索引文件，AgentKit 只读取，不代写。"
+						)
+					} else if model.isSelectedAgentRunning {
 						InfoBanner(
 							kind: .warning,
-							title: "pi 正在运行",
-							detail: "重命名会向会话文件追加内容，运行中的 pi 可能同时写这个文件，所以这里先禁用了。"
+							title: "\(agent.name) 正在运行",
+							detail: "重命名会向会话文件追加内容，运行中的 agent 可能同时写这个文件，所以这里先禁用了。"
 						)
 					}
 				}
@@ -343,7 +364,7 @@ struct SessionsPane: View {
 			EmptyStateView(
 				icon: "clock.arrow.circlepath",
 				title: records.isEmpty ? "还没有会话" : "没有匹配的会话",
-				message: records.isEmpty ? "在 \(rootURL?.path ?? "会话目录") 下没有找到 .jsonl 会话文件。" : nil
+				message: records.isEmpty ? "在 \(config?.root.path ?? "会话目录") 下没有找到 .jsonl 会话文件。" : nil
 			)
 		}
 	}
@@ -377,11 +398,11 @@ struct SessionsPane: View {
 	// MARK: - Load / index
 
 	private func load() {
-		guard let rootURL else {
-			errorText = "描述文件没有为这个面板指定 root"
+		guard let config else {
+			errorText = "描述文件没有描述这个 agent 的会话布局（缺少 sessions 映射）"
 			return
 		}
-		records = SessionsSurface.enumerate(root: rootURL)
+		records = SessionsSurface.enumerate(config: config)
 		errorText = nil
 		if selectedID == nil || !records.contains(where: { $0.id == selectedID }) {
 			selectedID = records.first?.id
@@ -390,6 +411,7 @@ struct SessionsPane: View {
 	}
 
 	private func startIndexing() {
+		guard let config else { return }
 		let cacheURL = PathResolver.defaultAppSupport.appendingPathComponent("cache/sessions-\(agent.id).json")
 		var cache = SessionIndexCache.load(from: cacheURL)
 		var pending: [SessionRecord] = []
@@ -409,7 +431,7 @@ struct SessionsPane: View {
 			var updated: [String: SessionRecord] = [:]
 			var completed = 0
 			for var record in pending {
-				SessionsSurface.summarize(&record)
+				SessionsSurface.summarize(&record, config: config)
 				updated[record.id] = record
 				completed += 1
 				if completed % 5 == 0 || completed == pending.count {
@@ -450,11 +472,11 @@ struct SessionsPane: View {
 		let destination = record.url.deletingLastPathComponent()
 		return VStack(alignment: .leading, spacing: 12) {
 			Text("导出会话为 HTML").font(.headline)
-			Text("执行 `\(agent.descriptor.detect?.cli?.name ?? "pi") --export <会话文件>`，输出目录为：")
+			Text("执行 `\(agent.descriptor.detect?.cli?.name ?? "agent") --export <会话文件>`，输出目录为：")
 				.font(.caption)
 				.foregroundStyle(.secondary)
 			PathChip(path: destination.path)
-			Text("文件名由 pi 生成（pi-session-<时间戳>.html），导出完成后会自动在 Finder 中显示。")
+			Text("文件名由命令行工具生成，导出完成后会自动在 Finder 中显示。")
 				.font(.caption2)
 				.foregroundStyle(.tertiary)
 			HStack {
@@ -505,7 +527,7 @@ struct SessionsPane: View {
 			PathChip(path: record.url.path)
 			TextField("会话名", text: $renameText)
 				.textFieldStyle(.roundedBorder)
-			Text("pi 用一条 `session_info` 记录保存显示名，所以这里是往文件末尾追加一行，不改动已有内容。写入前会先在同目录生成一份备份。")
+			Text("这是往会话文件末尾追加一条重命名记录，不改动已有内容。写入前会先在同目录生成一份备份。")
 				.font(.caption)
 				.foregroundStyle(.secondary)
 				.fixedSize(horizontal: false, vertical: true)
@@ -522,11 +544,12 @@ struct SessionsPane: View {
 	}
 
 	private func applyRename(_ record: SessionRecord) {
+		guard let config else { return }
 		let name = renameText.trimmingCharacters(in: .whitespaces)
 		renaming = nil
 		do {
 			_ = try AtomicFile.backup(record.url, policy: policy)
-			try SessionsSurface.appendingName(name, to: record.url)
+			try SessionsSurface.appendingName(name, to: record.url, config: config)
 			banner = "已重命名为「\(name)」"
 			errorText = nil
 			load()

@@ -125,6 +125,8 @@ public struct ConfigSource: Codable {
 	public var precedence: Int
 	public var shared: Bool?
 	public var writable: Bool?
+	/// Overrides the parser chosen from the file extension.
+	public var format: String? = nil
 
 	public var isProjectScoped: Bool { scope == "project" }
 	public var isWritable: Bool { writable ?? true }
@@ -158,6 +160,69 @@ public struct DiscoverySpec: Codable {
 public struct FrontmatterSpec: Codable {
 	public var required: [String]?
 	public var fields: [String]?
+}
+
+/// Where a session's fields live inside its first JSONL line.
+///
+/// pi puts them at the top level; Codex nests them under `payload`. Paths are
+/// dot-separated and may point anywhere in the object.
+public struct SessionHeaderPaths: Codable {
+	public var id: String
+	public var cwd: String?
+	public var timestamp: String?
+	public var parent: String?
+	public var model: String?
+}
+
+/// A sidecar file that maps a session id to a display name.
+public struct SessionIndexSpec: Codable {
+	public var file: String
+	public var key: String
+	public var value: String
+}
+
+/// How to find messages and usage inside a session entry.
+public struct SessionMessageSpec: Codable {
+	public var type: String
+	/// Dotted path to the message object; nil means the entry itself is it.
+	public var payload: String?
+	public var role: String?
+	public var text: String?
+	/// Path (inside the message) to a `usage` object, and the fields worth reading.
+	public var usage: String?
+	public var tokens: String?
+	public var cost: String?
+	/// Some agents record usage on a separate event carrying a running total.
+	public var usageEventType: String?
+	public var usageEventPayload: String?
+	public var usageEventTokens: String?
+}
+
+public struct SessionsSpec: Codable {
+	/// Walk every directory under the root rather than exactly one level.
+	public var recursive: Bool?
+	public var headerType: String?
+	/// Entry type that renames the session inline (pi's `session_info`).
+	public var nameEntryType: String?
+	public var header: SessionHeaderPaths?
+	public var index: SessionIndexSpec?
+	public var message: SessionMessageSpec?
+}
+
+/// Field names inside a provider entry.
+///
+/// pi writes `baseUrl` / `api` / `apiKey`; Codex writes `base_url` / `wire_api` /
+/// `env_key`. The pane is the same either way, so the spelling is data.
+public struct ModelProviderKeys: Codable {
+	public var name: String?
+	public var baseUrl: String?
+	public var api: String?
+	public var apiKey: String?
+	public var models: String?
+
+	public static let pi = ModelProviderKeys(
+		name: "name", baseUrl: "baseUrl", api: "api", apiKey: "apiKey", models: "models"
+	)
 }
 
 /// A reference to a value inside another file, e.g. `settings.json` → `defaultModel`.
@@ -209,8 +274,21 @@ public struct SurfaceSpec: Codable {
 	public var frontmatter: FrontmatterSpec?
 
 	// Sessions
-	public var headerType: String?
-	public var nameEntryType: String?
+	public var sessions: SessionsSpec? = nil
+
+	// Shape knobs. Defaults follow pi; a descriptor only sets what differs.
+	/// MCP: the map holding servers. pi and the shared MCP files use `mcpServers`,
+	/// Codex uses `mcp_servers`.
+	public var serverKey: String? = nil
+	/// MCP: which boolean marks a server as off, and which value means off.
+	/// pi writes `disabled = true`; Codex writes `enabled = false`.
+	public var toggleKey: String? = nil
+	public var toggleDisabledValue: Bool? = nil
+	/// Models: the map holding providers. pi uses `providers`, Codex `model_providers`.
+	public var providersKey: String? = nil
+	public var providerKeys: ModelProviderKeys? = nil
+	/// Force a parser instead of inferring it from the file extension.
+	public var format: String? = nil
 
 	public var isSupported: Bool {
 		if case .unsupported = kind { return false }

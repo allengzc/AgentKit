@@ -122,7 +122,11 @@ struct MCPPane: View {
 				}
 				effectiveSection(snapshot)
 				layerSection(snapshot)
-				importSection(snapshot)
+				// Host-config imports are a pi-mcp-adapter concept; a descriptor
+				// that declares none should not show an empty section about them.
+				if !(surface.imports ?? [:]).isEmpty {
+					importSection(snapshot)
+				}
 			}
 			.padding(14)
 		}
@@ -218,7 +222,7 @@ struct MCPPane: View {
 						HStack(spacing: 7) {
 							Text(item.name).font(.callout.weight(.semibold))
 							StatusBadge(text: MCPShape.transport(item.value), level: .muted)
-							if MCPShape.isDisabled(item.value) {
+							if item.isDisabled {
 								StatusBadge(text: "已禁用", level: .warning)
 							}
 							if item.isShadowed {
@@ -240,7 +244,7 @@ struct MCPPane: View {
 					Menu {
 						if item.winner.isWritable {
 							Button("编辑…") { beginEdit(item) }
-							Button(MCPShape.isDisabled(item.value) ? "启用" : "禁用") {
+							Button(item.isDisabled ? "启用" : "禁用") {
 								toggleDisabled(item)
 							}
 							Divider()
@@ -462,12 +466,13 @@ struct MCPPane: View {
 			command: item.value.value(at: ["command"])?.stringValue ?? "",
 			argsText: (item.value.value(at: ["args"])?.stringsValue ?? []).joined(separator: "\n"),
 			url: item.value.value(at: ["url"])?.stringValue ?? "",
-			disabled: MCPShape.isDisabled(item.value)
+			disabled: item.isDisabled
 		)
 	}
 
 	private func editorSheet(_ draft: ServerDraft) -> some View {
-		let error = MCPShape.validate(name: draft.name, value: buildValue(draft))
+		let shape = snapshot?.shape ?? .pi
+		let error = MCPShape.validate(name: draft.name, value: buildValue(draft, shape: shape))
 		let prepared = preparedEdit(draft)
 		return VStack(alignment: .leading, spacing: 0) {
 			VStack(alignment: .leading, spacing: 10) {
@@ -568,13 +573,13 @@ struct MCPPane: View {
 		var value = document.editableValue
 		let name = draft.name.trimmingCharacters(in: .whitespaces)
 		if let original = draft.originalName, original != name {
-			value.removeValue(at: [MCPShape.serverKey, original])
+			value.removeValue(at: [layer.shape.serverKey, original])
 		}
-		value.setValue(buildValue(draft), at: [MCPShape.serverKey, name])
+		value.setValue(buildValue(draft, shape: layer.shape), at: [layer.shape.serverKey, name])
 		return (layer.url, JSONFile.preview(value, for: document, policy: policy))
 	}
 
-	private func buildValue(_ draft: ServerDraft) -> JSONValue {
+	private func buildValue(_ draft: ServerDraft, shape: MCPServerShape) -> JSONValue {
 		var object = JSONObject()
 		let trimmedURL = draft.url.trimmingCharacters(in: .whitespaces)
 		if trimmedURL.isEmpty {
@@ -587,8 +592,9 @@ struct MCPPane: View {
 		} else {
 			object["url"] = .string(trimmedURL)
 		}
-		if draft.disabled { object["disabled"] = .bool(true) }
-		return .object(object)
+		var value = JSONValue.object(object)
+		if draft.disabled { shape.setDisabled(true, in: &value) }
+		return value
 	}
 
 	private func apply(_ draft: ServerDraft) {
@@ -599,9 +605,9 @@ struct MCPPane: View {
 		var value = document.editableValue
 		let name = draft.name.trimmingCharacters(in: .whitespaces)
 		if let original = draft.originalName, original != name {
-			value.removeValue(at: [MCPShape.serverKey, original])
+			value.removeValue(at: [layer.shape.serverKey, original])
 		}
-		value.setValue(buildValue(draft), at: [MCPShape.serverKey, name])
+		value.setValue(buildValue(draft, shape: layer.shape), at: [layer.shape.serverKey, name])
 		do {
 			let result = try JSONFile.write(value, document: document, scope: resolver, policy: policy)
 			controller.banner = result.backupURL.map { "已写入，备份 \($0.lastPathComponent)" }
@@ -615,13 +621,16 @@ struct MCPPane: View {
 	}
 
 	private func toggleDisabled(_ item: MCPEffective) {
+		let shape = item.winner.shape
 		controller.load(url: item.winner.url, resolver: resolver, policy: policy)
 		var value = controller.editable
-		let disabled = MCPShape.isDisabled(item.value)
-		if disabled {
-			value.removeValue(at: [MCPShape.serverKey, item.name, "disabled"])
+		if item.isDisabled {
+			// Back to the default: drop the key rather than write its no-op value.
+			value.removeValue(at: [shape.serverKey, item.name, shape.toggleKey ?? "disabled"])
 		} else {
-			value.setValue(.bool(true), at: [MCPShape.serverKey, item.name, "disabled"])
+			var server = item.value
+			shape.setDisabled(true, in: &server)
+			value.setValue(server, at: [shape.serverKey, item.name])
 		}
 		controller.stage(value)
 	}
@@ -629,7 +638,7 @@ struct MCPPane: View {
 	private func deleteServer(_ item: MCPEffective) {
 		controller.load(url: item.winner.url, resolver: resolver, policy: policy)
 		var value = controller.editable
-		value.removeValue(at: [MCPShape.serverKey, item.name])
+		value.removeValue(at: [item.winner.shape.serverKey, item.name])
 		controller.stage(value)
 	}
 }

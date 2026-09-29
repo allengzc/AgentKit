@@ -49,7 +49,8 @@ if [[ ! -f "$USER_DIR/README.md" ]]; then
 
 - 文件名随意，以 .json 结尾即可。
 - `id` 与内置描述文件相同的，会**整体覆盖**内置的那一份（侧边栏会标「自定义描述」）。
-- 想加一个新 agent 又不确定怎么写，就复制 `/Applications/AgentKit.app/Contents/Resources/Agents/pi.json` 改。
+- 想加一个新 agent 又不确定怎么写，就复制 `/Applications/AgentKit.app/Contents/Resources/Agents/` 下的
+  `pi.json`（JSON 配置）或 `codex.json`（TOML 配置）改。
 - 写坏了不会导致 App 崩溃：侧边栏会给出解析失败的原因，其它 agent 照常可用。
 EOF
 	echo "    seeded $USER_DIR/README.md"

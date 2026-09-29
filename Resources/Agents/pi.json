@@ -112,8 +112,26 @@
       "icon": "clock.arrow.circlepath",
       "shape": "jsonl-sessions",
       "root": "$ROOT/sessions",
-      "headerType": "session",
-      "nameEntryType": "session_info",
+      "sessions": {
+        "recursive": false,
+        "headerType": "session",
+        "nameEntryType": "session_info",
+        "header": {
+          "id": "id",
+          "cwd": "cwd",
+          "timestamp": "timestamp",
+          "parent": "parentSession"
+        },
+        "message": {
+          "type": "message",
+          "payload": "message",
+          "role": "role",
+          "text": "content",
+          "usage": "usage",
+          "tokens": "totalTokens",
+          "cost": "cost.total"
+        }
+      },
       "cli": {
         "export": ["--export"],
         "resume": ["--session"]

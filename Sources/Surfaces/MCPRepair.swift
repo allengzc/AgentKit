@@ -86,12 +86,12 @@ public enum MCPRepair {
 				var added: [String] = []
 				var kept: [String] = []
 				for name in finding.serverNames {
-					guard let value = legacyValue?[MCPShape.serverKey]?.objectValue?[name] else { continue }
-					if merged.value(at: [MCPShape.serverKey, name]) != nil {
+					guard let value = legacyValue?[finding.shape.serverKey]?.objectValue?[name] else { continue }
+					if merged.value(at: [finding.shape.serverKey, name]) != nil {
 						kept.append(name)
 						continue
 					}
-					merged.setValue(value, at: [MCPShape.serverKey, name])
+					merged.setValue(value, at: [finding.shape.serverKey, name])
 					added.append(name)
 				}
 				let preview = JSONFile.preview(merged, for: targetDocument, policy: policy)

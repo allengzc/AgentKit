@@ -2,37 +2,44 @@
 
 一个原生 macOS GUI，用来配置和管理本地的 coding agent。
 
-现在支持 **pi**（`@earendil-works/pi-coding-agent`）：模型、MCP、Skills、会话、
-全局指令、子 agents、通用设置、主题/扩展/Packages，八个面板。
+现在支持两个 agent：
+
+| Agent | 配置根 | 覆盖的面板 |
+|---|---|---|
+| **pi**（`@earendil-works/pi-coding-agent`） | `~/.pi/agent` | 模型与 Provider、MCP、Skills、会话、全局指令、子 Agents、通用设置、主题/扩展/Packages |
+| **Codex**（`codex-cli`） | `~/.codex` | 模型与 Provider、MCP、Skills、会话、全局指令、通用设置 |
+
 **支持哪个 agent 由一份 JSON 描述文件决定** —— 加一个新 agent = 加一个 JSON，不改代码。
 
-![通用设置](docs/settings.png)
+![pi 通用设置](docs/settings.png)
 
 ---
 
 ## 为什么是描述文件驱动的
 
-本地 coding agent 的配置从来不是"一个文件"。以 pi 为例：
+本地 coding agent 的配置从来不是"一个文件"。同样是"模型配置"，两个 agent 就长得完全不一样：
 
-| 配置面 | 真实位置 |
-|---|---|
-| 设置 | `~/.pi/agent/settings.json`（约 68 个键、9 个分组） |
-| 模型 | `~/.pi/agent/models.json`（provider + model），`models-store.json` 只是缓存 |
-| MCP | **六层**配置按优先级合并，另有 7 种其它工具的配置可导入 |
-| Skills | `<根>/skills/`、`~/.agents/skills/`（含符号链接），项目 `.pi/skills/` |
-| 会话 | `<根>/sessions/<cwd 分组>/*.jsonl`（tree 结构，JSONL） |
-| 指令 | `AGENTS.override.md` / `AGENTS.md` / `SYSTEM.md` / `APPEND_SYSTEM.md`，加上沿途的项目级文件 |
-| 子 agents | `<根>/agents/*.md`（frontmatter + 正文） |
+| 配置面 | pi | Codex |
+|---|---|---|
+| 格式 | JSON | **TOML**（`config.toml`） |
+| provider 容器 | `providers` | `model_providers` |
+| 字段拼写 | `baseUrl` / `api` / `apiKey` | `base_url` / `wire_api` / `env_key` |
+| MCP 容器 | `mcpServers`（多文件分层） | `mcp_servers`（单文件） |
+| 服务器开关 | `disabled = true` | `enabled = false`（**极性相反**） |
+| 会话布局 | `sessions/<cwd 分组>/<时间戳>.jsonl` | `sessions/<年>/<月>/<日>/rollout-*.jsonl` |
+| 会话字段 | 顶层 `id` / `cwd` | 全部嵌在 `payload` 下 |
+| 会话名 | 文件里的 `session_info` 记录 | 单独的 `session_index.jsonl` |
+| token 统计 | 每条消息的 `usage`（求和） | `event_msg` 里的累计值（取最后一个） |
 
 把这些硬编码进一个 App，等于每支持一个新 agent 就重写一遍。AgentKit 的做法是：
 
-- **描述文件（数据）** 声明路径、层次、形状；
-- **面板处理器（代码）** 是一组有限且封闭的形状：`typed-json`、`providers-map`、
+- **描述文件（数据）** 声明路径、层次、字段名、形状；
+- **面板处理器（代码）** 是一组有限且封闭的文件形状：`typed-json`、`providers-map`、
   `mcp-servers-map`、`skill-dirs`、`jsonl-sessions`、`md-frontmatter`、`md`；
 - 描述文件引用到本版本不认识的 `kind`，那个面板降级成占位符，**其它面板照常可用，不崩**。
 
-内置的 `pi.json` 在 [`Resources/Agents/pi.json`](Resources/Agents/pi.json)，
-可以当作写新描述文件的模板。
+内置描述文件：[`Resources/Agents/pi.json`](Resources/Agents/pi.json)、
+[`Resources/Agents/codex.json`](Resources/Agents/codex.json)。
 
 ---
 
@@ -41,7 +48,7 @@
 ```bash
 ./build.sh          # 编译到 out/AgentKit.app（只需要 swiftc）
 ./install.sh        # 再复制到 /Applications/AgentKit.app 并提示入口
-./run-tests.sh      # 308 项离线断言，不需要窗口、不需要网络
+./run-tests.sh      # 415 项离线断言，不需要窗口、不需要网络
 ```
 
 要求：macOS 14+、Xcode 命令行工具（Swift 6.x）、一个用于签名的 Apple Development
@@ -51,69 +58,83 @@
 
 ```bash
 open -a AgentKit
-AGENTKIT_OPEN=pi/mcp open -a AgentKit          # 直接进某个面板
-PI_CODING_AGENT_DIR=/tmp/fixture open -a AgentKit   # 换一个配置根（夹具优先调试）
+AGENTKIT_OPEN=codex/mcp open -a AgentKit              # 直接进某个 agent 的某个面板
+CODEX_HOME=/tmp/fixture open -a AgentKit              # 换一个配置根（夹具优先调试）
 ```
 
 ---
 
-## 八个面板
+## 面板
 
 ### 模型与 Provider
 
-![模型](docs/models.png)
+![pi 模型](docs/models.png)
 
-从 `models.json` 读 provider 与 model；`models-store.json` 只读，用来补全上下文
-窗口等详情。`apiKey` **只显示"已配置"**：AgentKit 从不读取、显示或记录密钥明文，
-检查认证走 `pi auth check --provider X --json --no-refresh`。
-编辑 provider 是**合并**而不是替换，`compat`、`headers` 这类 AgentKit 不认识的键原样保留。
+从描述文件声明的容器里读 provider 与 model。字段名按各 agent 的拼写走（pi 的
+`baseUrl`、Codex 的 `base_url`），`apiKey` **只显示"已配置/未配置"**：AgentKit 从不
+读取、显示或记录密钥明文。pi 走 `pi auth check --provider X --json --no-refresh` 检查
+认证；Codex 没有等价的子命令，就不显示这个按钮。编辑 provider 是**合并**而不是替换，
+`compat`、`requires_openai_auth` 这类 AgentKit 不认识的键原样保留。
 
 ### MCP 服务器
 
-![MCP](docs/mcp.png)
+![pi MCP](docs/mcp.png)
 
-按优先级合并全部配置层，标出每个服务器的**来源层**与**被覆盖的层**。
-它还会指出"看起来配好了其实已经死了"的文件 —— 例如本机真实存在的情况：
+按优先级合并全部配置层，标出每个服务器的来源层与被覆盖的层。
+
+对 pi，它还会指出"看起来配好了其实已经死了"的文件 —— 例如本机真实存在过的情况：
 
 ```
 /Users/dev/.pi/agent/mcp.json 已经不会被读取
 pi-mcp-adapter 已经不再读取这个文件：生效的是 ~/.config/mcp/mcp.json（共享全局层）。
 ```
 
-上图是本机的真实案例（已修复）：`imports` 迁到了 `mcp-adapter.json`，
-`mcpServers` 并入共享全局层，死文件改名为 `mcp.json.bak-agentkit-*`。之后诊断徽标消失。
-
 一键修复是一个**分步计划**（迁移 adapter 专属键 → 并入服务器 → 重命名旧文件），
-每一步的 diff 都展示在确认页里，任何一步失败就停下。
+每一步的 diff 都展示在确认页里，任何一步失败就停下。上图是本机的真实案例（已修复）：
+`imports` 迁到了 `mcp-adapter.json`，`mcpServers` 并入共享全局层，死文件改名为
+`mcp.json.bak-agentkit-*`。之后诊断徽标消失（见 `docs/mcp-after.png`）。
+
+对 Codex，服务器来自 `[mcp_servers.*]`，并且**开关极性按 Codex 的约定**：
+`enabled = false` 显示为「已禁用」。
+
+![Codex MCP](docs/codex-mcp.png)
 
 ### Skills
 
 ![Skills](docs/skills.png)
 
 递归查找 `SKILL.md`，**穿过符号链接**（一个链接到别处仓库的 skill 目录也能正常列出），同时剪掉 `.git` / `node_modules` / `.venv` / `logs` 这类目录并限制
-深度。校验规则对齐 pi：缺 `description` 即"不会被加载"，`name` 必须符合 Agent
+深度。校验规则对齐规范：缺 `description` 即"不会被加载"，`name` 必须符合 Agent
 Skills 规范。
 
 ### 会话
 
-![会话](docs/sessions.png)
+![pi 会话](docs/sessions.png)
 
 列表只用每个文件的**第一行**（header），消息数 / token / 成本由后台流式统计并按
-`(大小, mtime)` 缓存，所以 143 个会话也能秒开。支持搜索、按项目或按时间分组、
-在终端恢复、导出 HTML、重命名、移到废纸篓。
+`(大小, mtime)` 缓存，所以 上百个会话都能秒开 —— 尽管 Codex
+的单文件能到 88 MB。支持搜索、按项目或按时间分组、在终端恢复、导出 HTML、重命名、
+移到废纸篓。
 
-### 全局指令 / 子 Agents / 通用设置 / 主题 · 扩展 · Packages
+![Codex 会话](docs/codex-sessions.png)
 
-![子 Agents](docs/subagents.png)
+Codex 的名字来自 `session_index.jsonl`，AgentKit **只读取不代写**，所以那个面板里
+「重命名」是禁用的，并且说明了原因。
+
+### 全局指令 / 子 Agents / 通用设置 / 主题 · 扩展
+
+![Codex 通用设置](docs/codex-settings.png)
 
 - **全局指令**：Markdown 编辑 + 预览，列出 override / instructions / SYSTEM / APPEND_SYSTEM
   的生效关系，并从项目目录向上发现沿途命中的 `AGENTS.md`。
-- **子 Agents**：frontmatter 表单（name / description / model / tools）+ 正文编辑，
+- **子 Agents**（仅 pi）：frontmatter 表单（name / description / model / tools）+ 正文编辑，
   `model` 会对着当前模型列表校验；`tools: read, grep` 这种逗号写法原样保留。
-- **通用设置**：按官方 settings 文档逐键生成的表单，含类型、枚举、范围与默认值，
-  标注"只能写在 agent 目录级别"的键，未收录的键进入只读的"其它键（保留）"区。
-- **主题 · 扩展 · Packages**：沿用 pi 的 `.off` 后缀约定做启用/停用，Packages 区读
-  `settings.packages` 并可运行 `pi list` 核对。
+- **通用设置**：按官方文档逐键生成的表单，含类型、枚举、范围与默认值。pi 的字段表
+  完全按其中文文档编写；Codex 的 69 项取自[上游配置参考](https://developers.openai.com/codex/config-reference)，
+  **标签是中文、说明保留上游英文原文**，方便逐条对照而不是信任翻译。未收录的键
+  （比如 Codex 的 `mcp_servers`、`model_providers`，它们有自己的面板）进入只读的
+  「其它键（保留）」区，写入时原样保留。
+- **主题 · 扩展 / Packages**（仅 pi）：沿用 `.off` 后缀约定做启用/停用。
 
 ---
 
@@ -121,33 +142,41 @@ Skills 规范。
 
 这是这个工具最不能出错的地方，所以所有写入都收敛到同一条路径：
 
-1. **读**：记下 `(大小, mtime, sha256)`。JSON 解析失败 → 该文件全部编辑入口禁用，
+1. **读**：记下 `(大小, mtime, sha256)`。解析失败 → 该文件全部编辑入口禁用，
    只提供原文视图与外部编辑器，**绝不覆盖**。
-2. **改**：在保序、保留未知键的 JSON 树上做点号路径合并。
+2. **改**：在保序、保留未知键的树上做点号路径合并。
 3. **写**：先把改动渲染成文本，再走同目录临时文件 → `fsync` → `rename` 原子替换，
-   并保留原文件权限（`models.json` / `auth.json` 是 0600，写回后仍是 0600）。
+   并保留原文件权限（`models.json` / `auth.json` / `config.toml` 是 0600，写回后仍是 0600）。
 4. **外科式修改**：改动只有一个或多个叶子值时，AgentKit 把新字面量**拼接进原始字节**，
-   不改动任何没碰过的行 —— 包括你自己写成一行的那种对象。只有结构性改动
-   （增删键、数组长度变化）才整体重写。
+   不改动任何没碰过的行 —— 包括注释，也包括你自己写成一行的那种内联表/内联对象。
 5. **备份**：写入前在同目录生成 `<文件>.bak-agentkit-YYYYMMDD-HHMMSS`，每个文件保留 10 份。
 6. **确认**：任何写入都先弹 diff，确认才落盘。
-7. **并发**：落盘前比对 sha256，不一致就中止并提示"文件已被外部（很可能是 pi）改动"。
+7. **并发**：落盘前比对 sha256，不一致就中止并提示"文件已被外部（很可能是 agent）改动"。
 8. **运行中提示**：检测到 agent CLI 在跑就提示改动需要 `/reload` 或重启；会话重命名
    这类会改写进行中文件的动作直接禁用。
 9. **护栏**：解析后的写入路径必须落在描述文件声明的 `scopeGuard` 内。
 
-会话重命名是唯一会改会话文件的操作，做法与 pi 的 `/name` 一致：追加一条
-`session_info` 记录，前置条件是 agent 未在运行 + 先生成备份。
+### 结构改动按格式分级
+
+| 改动 | JSON | TOML |
+|---|---|---|
+| 改一个值 | 按字节替换那一处 | 同左，注释与内联表全保留 |
+| 表里加/删一个键 | 整份重写（JSON 没有注释，无损） | **只重排那一张表**，其它表逐字节不动 |
+| 新增一张表 | 整份重写 | **追加新块**，原文件不动 |
+| 顶层增删键 | 整份重写 | 整份按标准格式重写，**确认页会明确提示注释会丢失** |
+
+确认页只在真的有损时才给警告 —— 纯追加一张表不会报警。
 
 ### 夹具优先
 
 开发与验收都先对着副本跑，确认无误再碰真实配置：
 
 ```bash
-rsync -a ~/.pi/agent/ /tmp/agentkit-fixture/agent/
-PI_CODING_AGENT_DIR=/tmp/agentkit-fixture/agent \
-AGENTKIT_CONFIG_DIR=/tmp/agentkit-fixture/config \
-  ./out/AgentKit.app/Contents/MacOS/AgentKit
+rsync -a ~/.pi/agent/ /tmp/fixture/agent/
+PI_CODING_AGENT_DIR=/tmp/fixture/agent ./out/AgentKit.app/Contents/MacOS/AgentKit
+
+rsync -a ~/.codex/ /tmp/fixture/codex/ --exclude '*.sqlite*'
+CODEX_HOME=/tmp/fixture/codex ./out/AgentKit.app/Contents/MacOS/AgentKit
 ```
 
 ---
@@ -160,39 +189,39 @@ AGENTKIT_CONFIG_DIR=/tmp/agentkit-fixture/config \
 ```jsonc
 {
   "descriptorVersion": 1,
-  "id": "pi",
-  "name": "Pi",
-  "subtitle": "@earendil-works/pi-coding-agent",
-  "icon": "terminal.fill",
+  "id": "codex",
+  "name": "Codex",
+  "icon": "chevron.left.forwardslash.chevron.right",
 
-  "root": { "env": "PI_CODING_AGENT_DIR", "default": "~/.pi/agent" },
-
+  "root": { "env": "CODEX_HOME", "default": "~/.codex" },
   "detect": {
-    "paths": ["~/.pi", "~/.pi-desktop"],
-    "cli": {
-      "name": "pi",
-      "package": "@earendil-works/pi-coding-agent",
-      "loginShellLookup": true,
-      "candidates": ["~/.nvm/versions/node/*/bin/pi", "/opt/homebrew/bin/pi"]
-    }
+    "paths": ["~/.codex"],
+    "cli": { "name": "codex", "loginShellLookup": true,
+             "candidates": ["~/.nvm/versions/node/*/bin/codex", "/opt/homebrew/bin/codex"] }
   },
 
-  "write": {
-    "backup": { "suffix": ".bak-agentkit", "keep": 10 },
-    "scopeGuard": ["$ROOT", "$HOME", "/tmp"]
-  },
+  "write": { "backup": { "suffix": ".bak-agentkit", "keep": 10 },
+             "scopeGuard": ["$ROOT", "$HOME", "/tmp"] },
 
   "surfaces": [
     { "id": "settings", "kind": "settings", "title": "通用设置",
-      "file": "$ROOT/settings.json", "schema": "pi-settings-0.87" },
+      "file": "$ROOT/config.toml", "format": "toml", "schema": "codex-0.157" },
 
-    { "id": "mcp", "kind": "mcp", "title": "MCP 服务器",
-      "layers": [ { "path": "~/.config/mcp/mcp.json", "precedence": 10, "shared": true, "writable": true } ],
-      "legacy": [ { "path": "$ROOT/mcp.json", "notice": "…", "fix": { "action": "rename", "to": "$ROOT/mcp-adapter.json" } } ] },
+    { "id": "mcp", "kind": "mcp", "title": "MCP 服务器", "format": "toml",
+      "serverKey": "mcp_servers",           // 容器名
+      "toggleKey": "enabled",               // 开关叫 enabled
+      "toggleDisabledValue": false,         // 而且 false 才表示停用
+      "layers": [ { "path": "$ROOT/config.toml", "precedence": 10, "writable": true } ] },
 
-    { "id": "skills", "kind": "skills", "title": "Skills",
-      "roots": [ { "path": "$ROOT/skills", "scope": "user", "writable": true } ],
-      "ignore": [".git", "node_modules", ".venv"], "maxDepth": 6 }
+    { "id": "sessions", "kind": "sessions", "title": "会话",
+      "root": "$ROOT/sessions",
+      "sessions": {
+        "recursive": true,                  // sessions/年/月/日/
+        "headerType": "session_meta",
+        "header": { "id": "payload.id", "cwd": "payload.cwd", "timestamp": "timestamp" },
+        "index": { "file": "$ROOT/session_index.jsonl", "key": "id", "value": "thread_name" },
+        "message": { "type": "response_item", "payload": "payload",
+                     "role": "role", "text": "content" } } }
   ]
 }
 ```
@@ -200,9 +229,17 @@ AGENTKIT_CONFIG_DIR=/tmp/agentkit-fixture/config \
 路径 token：`~`、`$ROOT`（agent 根）、`$CWD`（当前项目）、`$APP`（AgentKit 支持目录）、
 `$HOME`。`*` 只允许出现在 `cli.candidates`，并且按版本号取最高的那个。
 
-`settings` 面板的 `schema` 指向一份**内置的强类型字段表**（`pi-settings-0.87`，
-按 pi 官方 settings 文档逐键编写）。想更简单地接一个 agent，也可以在描述文件里用
-其它形状（`providers-map`、`md-frontmatter`、`md`、`jsonl-sessions`）而完全不写代码。
+`format` 不写就按扩展名判断（`.toml` → TOML，其余 JSON）。
+
+### 加一个新 agent 的步骤
+
+1. 复制 `Resources/Agents/pi.json` 或 `codex.json`；
+2. 改 `id` / `name` / `root`；
+3. 按目标 agent 的真实文件结构调整各面板的路径与字段名；
+4. 丢进 `~/.config/agentkit/agents/`，重启 App。
+
+不需要重新编译。`settings` 面板的 `schema` 指向一份**内置的强类型字段表**；如果目标
+agent 没有对应的 schema，那个面板会显示"找不到 schema"并降级，其它面板照常。
 
 写坏了不会崩：侧边栏会给出解析失败的原因，其它 agent 照常可用。
 
@@ -212,9 +249,10 @@ AGENTKIT_CONFIG_DIR=/tmp/agentkit-fixture/config \
 
 | 变量 | 作用 |
 |---|---|
-| `PI_CODING_AGENT_DIR` | 覆盖 pi 的配置根（描述文件里 `root.env` 声明） |
+| `PI_CODING_AGENT_DIR` | 覆盖 pi 的配置根（pi 描述文件里 `root.env` 声明） |
+| `CODEX_HOME` | 覆盖 Codex 的配置根 |
 | `AGENTKIT_CONFIG_DIR` | 覆盖描述文件目录（默认 `~/.config/agentkit`） |
-| `AGENTKIT_OPEN=pi/mcp` | 启动直接进指定 agent 的指定面板 |
+| `AGENTKIT_OPEN=codex/mcp` | 启动直接进指定 agent 的指定面板 |
 | `AGENTKIT_SIGN_IDENTITY` | 构建时指定签名身份 |
 | `AGENTKIT_TARGET` | 构建目标三元组，默认 `arm64-apple-macosx14.0` |
 
@@ -228,16 +266,21 @@ log show --last 5m --info --predicate 'subsystem == "com.allengzc.agentkit"'
 
 ## 已知限制
 
-- **只支持 pi**。架构已经为其它 agent 留好接口（描述文件 + 7 种形状 + 内置 schema
-  机制），但 v1 只内置了 pi 这一份。
+- **内置两个 agent**（pi 与 Codex）。架构为其它 agent 留好了接口，但描述文件只是数据 ——
+  如果目标 agent 用了第三种配置格式（YAML / INI），需要先给 Core 加一个解析器。
+- **TOML 的结构性改动不是逐字节的**：只重排受影响的表，其它表不动；顶层增删键会整份
+  按标准格式重写，此时注释会丢失，确认页会明确提示。
 - **Skills 的启用/停用是 AgentKit 自己的约定**（把目录移到同级 `.disabled/`），
   因为 pi 没有单个 skill 的开关，只有全局的 `enableSkillCommands`。界面里写明了这一点。
-- **不接管密钥**：`apiKey` 仍在 `models.json` / `auth.json` 里，AgentKit 只做掩码显示。
-- **会话重命名**会向会话文件追加一行；agent 在运行时会禁用这个操作。
+- **不接管密钥**：`apiKey` / `env_key` / `auth.json` 一律只做掩码显示。
+- **Codex 的会话重命名不支持**：它的名字存在单独的索引文件里，AgentKit 不代写。
+- **Codex 的 settings 字段表覆盖 69 项**（模型、审批、沙盒、终端、凭据、工具）；
+  `features.*`、`mcp_servers.*`、`model_providers.*` 等宽表键落在只读的
+  「其它键（保留）」里，原样保留但不在这里编辑。
 - **Packages 只读**：`settings.packages` 的增删请用 `pi install` / `pi remove`。
-- **不做 schema 漂移自动合并**：pi 升级后新增的设置键会落到"其它键（保留）"里，
+- **不做 schema 漂移自动合并**：agent 升级后新增的键会落到"其它键（保留）"里，
   AgentKit 不会猜它的含义。
-- App 不做沙盒（必须读写 `~/.pi`、`~/.config`、`~/.agents` 并拉起终端）；
+- App 不做沙盒（必须读写 `~/.pi`、`~/.codex`、`~/.config`、`~/.agents` 并拉起终端）；
   项目目录落在 `~/Documents`、`~/Desktop`、`~/Downloads` 时首次访问会触发系统授权弹窗。
 
 ---
@@ -245,12 +288,13 @@ log show --last 5m --info --predicate 'subsystem == "com.allengzc.agentkit"'
 ## 目录结构
 
 ```
-Sources/Core/        JSON 树与无损读写、路径解析、描述文件、Markdown/frontmatter、进程
+Sources/Core/        JSON/TOML 树与无损读写、按字节拼接与表级修补、路径解析、
+                     描述文件、Markdown/frontmatter、进程
 Sources/Surfaces/    各面板的纯逻辑（无 UI）：MCP 合并、会话解析、skills 扫描、设置 schema
 Sources/App/         状态、写入控制器、Finder/终端动作
 Sources/Views/       SwiftUI 界面
-Resources/Agents/    内置描述文件
-Tests/main.swift     离线断言
+Resources/Agents/    内置描述文件（pi.json、codex.json）
+Tests/main.swift     415 项离线断言
 ```
 
 ## License

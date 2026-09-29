@@ -12,6 +12,45 @@
 
 import Foundation
 
+/// How one agent spells "this server is off".
+///
+/// pi writes `disabled = true`; Codex writes `enabled = false`. Same idea, two
+/// conventions, so the polarity is data rather than an assumption.
+public struct MCPServerShape: Equatable {
+	public var serverKey: String
+	public var toggleKey: String?
+	/// The value of `toggleKey` that means the server is disabled.
+	public var toggleDisabledValue: Bool
+
+	public init(serverKey: String = "mcpServers", toggleKey: String? = "disabled", toggleDisabledValue: Bool = true) {
+		self.serverKey = serverKey
+		self.toggleKey = toggleKey
+		self.toggleDisabledValue = toggleDisabledValue
+	}
+
+	public static let pi = MCPServerShape()
+
+	public static func resolve(_ surface: SurfaceSpec) -> MCPServerShape {
+		MCPServerShape(
+			serverKey: surface.serverKey ?? "mcpServers",
+			toggleKey: surface.toggleKey ?? "disabled",
+			toggleDisabledValue: surface.toggleDisabledValue ?? true
+		)
+	}
+
+	public func isDisabled(_ value: JSONValue) -> Bool {
+		guard let toggleKey else { return false }
+		guard let flag = value.value(at: [toggleKey])?.boolValue else { return false }
+		return flag == toggleDisabledValue
+	}
+
+	/// Sets the toggle, removing the key when it would just restate the default.
+	public func setDisabled(_ disabled: Bool, in value: inout JSONValue) {
+		guard let toggleKey else { return }
+		value.setValue(.bool(disabled ? toggleDisabledValue : !toggleDisabledValue), at: [toggleKey])
+	}
+}
+
 public struct MCPServerEntry: Identifiable {
 	public enum Provenance: String {
 		case layer
@@ -24,12 +63,9 @@ public struct MCPServerEntry: Identifiable {
 	public let layer: MCPLayer?
 	public let provenance: Provenance
 	public let sourceDescription: String
+	public let isDisabled: Bool
 
 	public var id: String { "\(provenance.rawValue)|\(layer?.url.path ?? "-")|\(name)" }
-
-	public var isDisabled: Bool {
-		MCPShape.isDisabled(value)
-	}
 
 	public var transport: String {
 		MCPShape.transport(value)
@@ -45,6 +81,7 @@ public struct MCPLayer: Identifiable {
 	public let url: URL
 	public let document: JSONDocument
 	public let serverNames: [String]
+	public let shape: MCPServerShape
 
 	public var id: String { url.path }
 	public var exists: Bool { document.exists }
@@ -61,7 +98,8 @@ public struct MCPLayer: Identifiable {
 				value: value,
 				layer: self,
 				provenance: .layer,
-				sourceDescription: url.path
+				sourceDescription: url.path,
+				isDisabled: shape.isDisabled(value)
 			)
 		}
 	}
@@ -84,6 +122,25 @@ public struct MCPLegacyFinding: Identifiable {
 	public let adapterKeys: [String]
 	public let rawText: String
 	public let fixTarget: URL?
+	public let shape: MCPServerShape
+
+	public init(
+		url: URL,
+		notice: String,
+		serverNames: [String],
+		adapterKeys: [String],
+		rawText: String,
+		fixTarget: URL?,
+		shape: MCPServerShape = .pi
+	) {
+		self.url = url
+		self.notice = notice
+		self.serverNames = serverNames
+		self.adapterKeys = adapterKeys
+		self.rawText = rawText
+		self.fixTarget = fixTarget
+		self.shape = shape
+	}
 
 	public var id: String { url.path }
 	public var hasAnything: Bool { !serverNames.isEmpty || !adapterKeys.isEmpty }
@@ -102,12 +159,14 @@ public struct MCPEffective: Identifiable {
 	public let winner: MCPLayer
 	public let shadowed: [MCPLayer]
 	public let value: JSONValue
+	public let isDisabled: Bool
 
 	public var id: String { name }
 	public var isShadowed: Bool { !shadowed.isEmpty }
 }
 
 public struct MCPSnapshot {
+	public var shape: MCPServerShape = .pi
 	public var layers: [MCPLayer] = []
 	public var imports: [MCPImportCandidate] = []
 	public var legacy: [MCPLegacyFinding] = []
@@ -122,12 +181,6 @@ public struct MCPSnapshot {
 }
 
 public enum MCPShape {
-	public static let serverKey = "mcpServers"
-
-	public static func isDisabled(_ value: JSONValue) -> Bool {
-		value.value(at: ["disabled"])?.boolValue ?? false
-	}
-
 	public static func transport(_ value: JSONValue) -> String {
 		if value.value(at: ["url"])?.stringValue != nil { return "远程" }
 		if value.value(at: ["command"])?.stringValue != nil { return "stdio" }
@@ -143,8 +196,8 @@ public enum MCPShape {
 		return "—"
 	}
 
-	public static func serverNames(in document: JSONDocument) -> [String] {
-		document.value(at: [serverKey])?.objectValue?.keys ?? []
+	public static func serverNames(in document: JSONDocument, shape: MCPServerShape = .pi) -> [String] {
+		document.value(at: [shape.serverKey])?.objectValue?.keys ?? []
 	}
 
 	/// Empty server template, in the shape the adapter expects.
@@ -176,18 +229,25 @@ public enum MCPSurfaceLoader {
 		policy: BackupPolicy
 	) -> MCPSnapshot {
 		var snapshot = MCPSnapshot()
+		let shape = MCPServerShape.resolve(surface)
+		snapshot.shape = shape
 
 		// 1. Every declared layer, in precedence order.
 		let ordered = (surface.layers ?? []).sorted { $0.precedence < $1.precedence }
 		for spec in ordered {
 			guard let url = try? resolver.expand(spec.path) else { continue }
-			let document = JSONFile.load(url, policy: policy)
+			let document = JSONFile.load(
+				url,
+				policy: policy,
+				format: spec.format.flatMap(ConfigFormat.init(rawValue:))
+			)
 			snapshot.layers.append(
 				MCPLayer(
 					spec: spec,
 					url: url,
 					document: document,
-					serverNames: MCPShape.serverNames(in: document)
+					serverNames: MCPShape.serverNames(in: document, shape: shape),
+					shape: shape
 				)
 			)
 		}
@@ -201,9 +261,15 @@ public enum MCPSurfaceLoader {
 		for name in winners.keys.sorted() {
 			guard let winner = winners[name] else { continue }
 			let shadowed = snapshot.layers.filter { $0.serverNames.contains(name) && $0.id != winner.id }
-			let value = winner.document.value(at: [MCPShape.serverKey, name]) ?? .null
+			let value = winner.document.value(at: [shape.serverKey, name]) ?? .null
 			snapshot.effective.append(
-				MCPEffective(name: name, winner: winner, shadowed: shadowed, value: value)
+				MCPEffective(
+					name: name,
+					winner: winner,
+					shadowed: shadowed,
+					value: value,
+					isDisabled: shape.isDisabled(value)
+				)
 			)
 			if !shadowed.isEmpty {
 				snapshot.conflicts.append(
@@ -224,7 +290,7 @@ public enum MCPSurfaceLoader {
 					note = exists ? "TOML 格式，AgentKit 只做存在性检查" : nil
 				} else {
 					let document = JSONFile.load(url, policy: policy)
-					count = MCPShape.serverNames(in: document).count
+					count = MCPShape.serverNames(in: document, shape: shape).count
 				}
 				snapshot.imports.append(
 					MCPImportCandidate(kind: kind, url: url, exists: exists, serverCount: count, note: note)
@@ -237,7 +303,7 @@ public enum MCPSurfaceLoader {
 			guard let url = try? resolver.expand(legacy.path) else { continue }
 			let document = JSONFile.load(url, policy: policy)
 			guard document.exists, document.malformedReason == nil else { continue }
-			let servers = MCPShape.serverNames(in: document)
+			let servers = MCPShape.serverNames(in: document, shape: shape)
 			let adapterKeys = ["settings", "imports", "claudePlugins", "mcp-servers"]
 				.filter { document.value(at: [$0]) != nil }
 			let target = legacy.fix?.to.flatMap { try? resolver.expand($0) }
@@ -248,7 +314,8 @@ public enum MCPSurfaceLoader {
 					serverNames: servers,
 					adapterKeys: adapterKeys,
 					rawText: document.rawText,
-					fixTarget: target
+					fixTarget: target,
+					shape: shape
 				)
 			)
 		}

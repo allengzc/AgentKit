@@ -434,7 +434,7 @@ do {
 		imports: ["claude-code": [fixtureRoot.appendingPathComponent("mcp/missing-claude.json").path]],
 		defaults: nil, cli: nil, schema: nil, settingsKeys: nil,
 		ignore: nil, maxDepth: nil, spec: nil, frontmatter: nil,
-		headerType: nil, nameEntryType: nil
+		sessions: nil
 	)
 
 	let resolver = PathResolver(root: agentRoot, appSupport: support, cwd: projectRoot)
@@ -450,7 +450,7 @@ do {
 	equal(blender?.value.value(at: ["command"])?.stringValue, "/usr/local/bin/blender-mcp", "生效值是胜出层的")
 
 	let filesystem = snapshot.effective.first { $0.name == "filesystem" }
-	equal(MCPShape.isDisabled(filesystem?.value ?? .null), true, "识别 disabled 标记")
+	equal(snapshot.shape.isDisabled(filesystem?.value ?? .null), true, "识别 disabled 标记")
 	equal(MCPShape.transport(filesystem?.value ?? .null), "stdio", "识别 stdio 传输")
 
 	equal(snapshot.conflicts.count, 1, "只报告一个同名冲突")
@@ -979,10 +979,39 @@ do {
 		encoding: .utf8
 	)
 
-	let files = SessionsSurface.files(root: sessionsRoot)
+	let sessionsSurface = SurfaceSpec(
+		id: "sessions", kind: .sessions, title: "会话", icon: nil, shape: "jsonl-sessions",
+		file: nil, providerFile: nil, catalogFile: nil, authFile: nil,
+		root: sessionsRoot.path, roots: nil, files: nil, discovery: nil,
+		layers: nil, legacy: nil, imports: nil, defaults: nil, cli: nil,
+		schema: nil, settingsKeys: nil, ignore: nil, maxDepth: nil, spec: nil,
+		frontmatter: nil,
+		sessions: SessionsSpec(
+			recursive: false,
+			headerType: "session",
+			nameEntryType: "session_info",
+			header: SessionHeaderPaths(id: "id", cwd: "cwd", timestamp: "timestamp", parent: "parentSession"),
+			index: nil,
+			message: SessionMessageSpec(
+				type: "message", payload: "message", role: "role", text: "content",
+				usage: "usage", tokens: "totalTokens", cost: "cost.total",
+				usageEventType: nil, usageEventPayload: nil, usageEventTokens: nil
+			)
+		)
+	)
+	guard let sessionsConfig = SessionsConfig.resolve(
+		surface: sessionsSurface,
+		resolver: PathResolver(root: sessionsRoot, appSupport: fixtureRoot),
+		policy: BackupPolicy()
+	) else {
+		check(false, "描述文件能解析出 sessions 配置")
+		exit(1)
+	}
+
+	let files = SessionsSurface.files(config: sessionsConfig)
 	equal(files.count, 1, "跳过 .revisions.jsonl")
 
-	var records = SessionsSurface.enumerate(root: sessionsRoot)
+	var records = SessionsSurface.enumerate(config: sessionsConfig)
 	equal(records.count, 1, "枚举到一个会话")
 	equal(records[0].sessionID, "01a0c895-a412-76b2-9781-8952d8e15928", "读到会话 id")
 	equal(records[0].cwd, "/tmp/demo-project", "读到工作目录")
@@ -990,7 +1019,7 @@ do {
 	check(records[0].started != nil, "读到开始时间")
 	check(records[0].projectSlug == "--tmp-demo-project--", "记录所在分组目录")
 
-	SessionsSurface.summarize(&records[0])
+	SessionsSurface.summarize(&records[0], config: sessionsConfig)
 	equal(records[0].messageCount, 3, "统计消息数")
 	equal(records[0].totalTokens, 1500, "合计 token")
 	check(abs(records[0].totalCost - 0.0125) < 0.00001, "合计成本")
@@ -1001,7 +1030,7 @@ do {
 
 	// Renaming appends a session_info entry, exactly like `/name` does.
 	equal(SessionsSurface.lastEntryID(of: sessionURL), "dddddddd", "读到最后一个 entry 的 id")
-	try SessionsSurface.appendingName("新名字", to: sessionURL)
+	try SessionsSurface.appendingName("新名字", to: sessionURL, config: sessionsConfig)
 	let appended = try String(contentsOf: sessionURL, encoding: .utf8)
 	check(appended.hasSuffix("\n"), "追加后以换行结束")
 	let lastLine = appended.split(separator: "\n").last.map(String.init) ?? ""
@@ -1011,8 +1040,8 @@ do {
 	equal(decoded?["parentId"] as? String, "dddddddd", "parentId 指向原来的末尾")
 	check((decoded?["id"] as? String)?.count == 8, "生成 8 位 id")
 
-	var refreshed = SessionsSurface.enumerate(root: sessionsRoot)[0]
-	SessionsSurface.summarize(&refreshed)
+	var refreshed = SessionsSurface.enumerate(config: sessionsConfig)[0]
+	SessionsSurface.summarize(&refreshed, config: sessionsConfig)
 	equal(refreshed.name, "新名字", "重新读取拿到新名字")
 
 	// The cache round-trips and invalidates on size change.
@@ -1207,7 +1236,7 @@ do {
 			"thinking": PointerRef(file: settingsURL.path, path: "defaultThinkingLevel"),
 		],
 		cli: nil, schema: nil, settingsKeys: nil, ignore: nil, maxDepth: nil, spec: nil,
-		frontmatter: nil, headerType: nil, nameEntryType: nil
+		frontmatter: nil, sessions: nil
 	)
 
 	let resolver = PathResolver(root: fixtureRoot, appSupport: fixtureRoot)
@@ -1249,6 +1278,257 @@ do {
 	check(after.contains("\"compat\""), "compat 保留")
 	check(after.contains("https://new.example/v1"), "新值已写入")
 	equal(AtomicFile.mode(of: modelsURL), 0o600, "写回后权限仍是 0600")
+}
+
+// MARK: - TOML
+
+group("TOML 解析与写入")
+
+do {
+	let toml = """
+	# 这是注释
+	model = "gpt-5.4"   # 行尾注释
+	model_provider = "custom"
+	disable_response_storage = true
+	big = 1_000_000
+	hex = 0xFF
+	ratio = 1.5e3
+	infinity = inf
+	when = 1979-05-27T07:32:00Z
+	nested = [[1, 2], [3]]
+	inline = { a = 1, b = "x" }
+	"""
+	+ """
+	
+	[model_providers.custom]
+	name = "custom"
+	wire_api = "responses"
+	base_url = "http://127.0.0.1:8080/v1"
+	requires_openai_auth = true
+	
+	[mcp_servers.pencil]
+	command = "/opt/pencil"
+	args = ["--app", "code"]
+	
+	[mcp_servers.computer-use]
+	command = "helper"
+	enabled = false
+	"""
+	let url = write(toml, to: "config.toml")
+	let document = JSONFile.load(url)
+
+	equal(document.format, .toml, "扩展名决定解析器")
+	equal(document.status, .ok, "真实形态的 TOML 能解析")
+	equal(document.hasComments, true, "识别出有注释")
+	equal(document.value(at: ["model"])?.stringValue, "gpt-5.4", "顶层字符串")
+	equal(document.value(at: ["disable_response_storage"])?.boolValue, true, "布尔")
+	equal(document.value(at: ["big"])?.intValue, 1000000, "下划线分隔的整数")
+	equal(document.value(at: ["hex"])?.intValue, 255, "十六进制")
+	equal(document.value(at: ["ratio"])?.doubleValue, 1500, "指数浮点")
+	equal(document.value(at: ["infinity"])?.numberValue?.raw, "inf", "inf 保留字面量")
+	equal(document.value(at: ["when"])?.stringValue, "1979-05-27T07:32:00Z", "日期时间当字符串")
+	equal(document.value(at: ["nested"])?.arrayValue?.count, 2, "嵌套数组")
+	equal(document.value(at: ["inline", "b"])?.stringValue, "x", "内联表")
+	equal(document.value(at: ["model_providers", "custom", "base_url"])?.stringValue,
+		  "http://127.0.0.1:8080/v1", "嵌套表")
+	equal(document.value(at: ["mcp_servers", "computer-use", "enabled"])?.boolValue, false, "带连字符的表名")
+	equal(document.source?.valueText(at: ["model"]), "\"gpt-5.4\"", "值区间精确到字面量")
+
+	// A leaf change is spliced into the original bytes: comments survive.
+	var edited = document.editableValue
+	edited.setValue(.string("gpt-5.5"), at: ["model"])
+	let leaf = JSONFile.preview(edited, for: document)
+	equal(leaf.isLossy, false, "叶子改动不算有损")
+	equal(leaf.diff.insertions, 1, "叶子改动只动一行")
+	check(leaf.afterText.contains("# 这是注释"), "行首注释保留")
+	check(leaf.afterText.contains("# 行尾注释"), "行尾注释保留")
+	check(leaf.afterText.contains("\"gpt-5.5\""), "新值已写入")
+	equal(leaf.afterText.count, document.rawText.count, "长度不变，说明只是原地替换")
+
+	// A structural change stays inside the table it touches.
+	var added = document.editableValue
+	added.setValue(
+		.object(JSONObject([("command", .string("/opt/new")), ("args", .array([.string("-x")]))])),
+		at: ["mcp_servers", "newserver"]
+	)
+	let structural = JSONFile.preview(added, for: document)
+	check(!structural.afterText.contains("[inline]"), "内联表没有被展开成独立表")
+	equal(structural.isLossy, false, "纯追加一张新表不算有损")
+	check(structural.afterText.contains("# 这是注释"), "未受影响的注释仍在")
+	check(structural.afterText.contains("[mcp_servers.newserver]"), "新表已追加")
+	check(structural.afterText.contains("command = \"/opt/pencil\""), "原有表内容不变")
+	check(structural.afterText.contains("base_url = \"http://127.0.0.1:8080/v1\""), "其它表也未受影响")
+	let reparsed = try TOMLParser.parse(structural.afterText)
+	equal(reparsed.value(at: ["mcp_servers", "newserver", "command"])?.stringValue, "/opt/new", "改动能重新解析")
+	equal(reparsed.value(at: ["inline", "a"])?.intValue, 1, "内联表的值不变")
+
+	// Adding a key inside an existing table reflows that table only, which is
+	// the case that can lose a comment.
+	var insideTable = document.editableValue
+	insideTable.setValue(.object(JSONObject([("TOKEN", .string("x"))])), at: ["mcp_servers", "pencil", "env"])
+	let reflow = JSONFile.preview(insideTable, for: document)
+	equal(reflow.isLossy, true, "改动已有表会提示不是逐字节保留")
+	check(reflow.lossyNote != nil, "说明会重排哪张表")
+	check(reflow.afterText.contains("TOKEN = \"x\""), "新键写进了那张表")
+	check(reflow.afterText.contains("[mcp_servers.computer-use]"), "相邻的表还在")
+	check(reflow.afterText.contains("# 这是注释"), "文件顶部的注释仍在")
+
+	// Removing a table deletes just that table.
+	var removed = document.editableValue
+	removed.removeValue(at: ["mcp_servers", "pencil"])
+	let removal = JSONFile.preview(removed, for: document)
+	check(!removal.afterText.contains("/opt/pencil"), "被删的表不在了")
+	check(removal.afterText.contains("computer-use"), "相邻的表还在")
+
+	// It really writes, backs up, and stays parseable.
+	let result = try JSONFile.write(edited, document: document)
+	check(result.backupURL != nil, "写 TOML 也生成备份")
+	equal(try String(contentsOf: url, encoding: .utf8).contains("# 这是注释"), true, "落盘后注释仍在")
+	equal(JSONFile.load(url).value(at: ["model"])?.stringValue, "gpt-5.5", "落盘后新值生效")
+
+	// Malformed TOML is reported, not crashed on.
+	let brokenURL = write("model = \n", to: "broken.toml")
+	let broken = JSONFile.load(brokenURL)
+	equal(broken.isMalformed, true, "损坏的 TOML 被识别")
+	equal(broken.status.isWritable, false, "损坏的 TOML 不允许写入")
+}
+
+// MARK: - Codex
+
+group("Codex 描述文件")
+
+do {
+	let descriptorURL = URL(fileURLWithPath: #filePath)
+		.deletingLastPathComponent()
+		.deletingLastPathComponent()
+		.appendingPathComponent("Resources/Agents/codex.json")
+	let descriptor = try JSONDecoder().decode(
+		AgentDescriptor.self,
+		from: Data(try String(contentsOf: descriptorURL).utf8)
+	)
+	equal(descriptor.id, "codex", "描述文件可解码")
+	equal(descriptor.root.env, "CODEX_HOME", "根目录由 CODEX_HOME 覆盖")
+	equal(descriptor.surfaces.count, 6, "六个面板")
+	let errors = DescriptorValidator.validate(descriptor).filter { $0.severity == .error }
+	check(errors.isEmpty, "没有错误级诊断", errors.map(\.message).joined(separator: "; "))
+	check(descriptor.surfaces.allSatisfy(\.isSupported), "全部面板类型都被支持")
+	equal(descriptor.surfaces.map(\.id), ["models", "mcp", "skills", "sessions", "instructions", "settings"], "面板顺序")
+
+	let mcp = descriptor.surface(id: "mcp")!
+	equal(MCPServerShape.resolve(mcp).serverKey, "mcp_servers", "MCP 表名按描述文件走")
+	equal(MCPServerShape.resolve(mcp).isDisabled(.object(JSONObject([("enabled", .bool(false))]))), true,
+		  "enabled = false 表示停用")
+	equal(MCPServerShape.resolve(mcp).isDisabled(.object(JSONObject([("enabled", .bool(true))]))), false,
+		  "enabled = true 表示启用")
+	equal(MCPServerShape.pi.isDisabled(.object(JSONObject([("enabled", .bool(false))]))), false,
+		  "pi 的约定不受影响")
+
+	let models = descriptor.surface(id: "models")!
+	equal(models.providersKey, "model_providers", "provider 表名")
+	equal(models.providerKeys?.baseUrl, "base_url", "provider 字段名 base_url")
+	equal(models.providerKeys?.api, "wire_api", "provider 字段名 wire_api")
+	equal(models.providerKeys?.apiKey, "env_key", "provider 字段名 env_key")
+	equal(models.providerKeys?.models, nil, "Codex 的 provider 没有 model 列表")
+	equal(models.format, "toml", "显式声明 TOML")
+
+	equal(SettingsSchema.definition(for: "codex-0.157") != nil, true, "Codex 的 settings schema 已注册")
+	let schema = SettingsSchema.definition(for: "codex-0.157")!
+	check(schema.fields.count >= 60, "字段数量", "实际 \(schema.fields.count)")
+	for key in ["model", "model_provider", "model_reasoning_effort", "sandbox_mode", "approval_policy",
+				"web_search", "tui.notifications", "history.persistence"] {
+		check(schema.field(key: key) != nil, "包含 \(key)")
+	}
+	equal(schema.field(key: "sandbox_mode")?.type.choices,
+		  ["read-only", "workspace-write", "danger-full-access"], "沙箱模式取值")
+	equal(schema.field(key: "model_verbosity")?.type.choices, ["low", "medium", "high"], "verbosity 取值")
+	equal(Set(schema.fields.map(\.key)).count, schema.fields.count, "字段 key 唯一")
+
+	// The MCP servers and model providers must NOT be settings fields: they have
+	// their own panes, and two editors for one value is how they drift apart.
+	check(schema.field(key: "mcp_servers") == nil, "mcp_servers 不重复出现在设置里")
+	check(schema.field(key: "model_providers") == nil, "model_providers 不重复出现在设置里")
+}
+
+group("Codex 会话")
+
+do {
+	let root = fixtureRoot.appendingPathComponent("codex")
+	let day = root.appendingPathComponent("2026/09/29")
+	try FileManager.default.createDirectory(at: day, withIntermediateDirectories: true)
+
+	let sessionID = "019f180c-0e5c-7742-bca3-547894aa0065"
+	let file = day.appendingPathComponent("rollout-2026-09-29T10-21-11-\(sessionID).jsonl")
+	let lines = [
+		#"{"timestamp":"2026-09-29T10:21:11.179Z","ordinal":0,"type":"session_meta","payload":{"id":"\#(sessionID)","cwd":"/tmp/demo-project","cli_version":"0.157.1","model_provider":"custom"}}"#,
+		#"{"timestamp":"2026-09-29T10:21:11.200Z","ordinal":1,"type":"response_item","payload":{"type":"message","role":"developer","content":[{"type":"input_text","text":"<permissions instructions>"}]}}"#,
+		// Wrapper message: must not become the session title.
+		#"{"timestamp":"2026-09-29T10:21:11.210Z","ordinal":2,"type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"<environment_context>\n  <cwd>/tmp/demo-project</cwd>\n</environment_context>"}]}}"#,
+		#"{"timestamp":"2026-09-29T10:21:12.000Z","ordinal":3,"type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"帮我看看这个仓库的结构"}]}}"#,
+		#"{"timestamp":"2026-09-29T10:21:13.000Z","ordinal":4,"type":"response_item","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"好的"}]}}"#,
+		#"{"timestamp":"2026-09-29T10:21:56.878Z","ordinal":14,"type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"total_tokens":12182}}}}"#,
+		#"{"timestamp":"2026-09-29T10:22:10.000Z","ordinal":15,"type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"total_tokens":25000}}}}"#,
+		"",
+	]
+	try lines.joined(separator: "\n").write(to: file, atomically: true, encoding: .utf8)
+	try #"{"id":"\#(sessionID)","thread_name":"仓库结构梳理","updated_at":"2026-09-29T10:22:10Z"}"#
+		.appending("\n")
+		.write(to: root.appendingPathComponent("session_index.jsonl"), atomically: true, encoding: .utf8)
+
+	let surface = SurfaceSpec(
+		id: "sessions", kind: .sessions, title: "会话", icon: nil, shape: "jsonl-sessions",
+		file: nil, providerFile: nil, catalogFile: nil, authFile: nil,
+		root: root.path, roots: nil, files: nil, discovery: nil,
+		layers: nil, legacy: nil, imports: nil, defaults: nil, cli: nil,
+		schema: nil, settingsKeys: nil, ignore: nil, maxDepth: nil, spec: nil,
+		frontmatter: nil,
+		sessions: SessionsSpec(
+			recursive: true,
+			headerType: "session_meta",
+			nameEntryType: nil,
+			header: SessionHeaderPaths(
+				id: "payload.id", cwd: "payload.cwd", timestamp: "timestamp",
+				parent: nil, model: "payload.model_provider"
+			),
+			index: SessionIndexSpec(file: root.appendingPathComponent("session_index.jsonl").path,
+									key: "id", value: "thread_name"),
+			message: SessionMessageSpec(
+				type: "response_item", payload: "payload", role: "role", text: "content",
+				usage: nil, tokens: nil, cost: nil,
+				usageEventType: "event_msg", usageEventPayload: "payload",
+				usageEventTokens: "info.total_token_usage.total_tokens"
+			)
+		)
+	)
+	guard let config = SessionsConfig.resolve(
+		surface: surface,
+		resolver: PathResolver(root: root, appSupport: fixtureRoot),
+		policy: BackupPolicy()
+	) else {
+		check(false, "Codex 的 sessions 配置可解析")
+		exit(1)
+	}
+
+	var records = SessionsSurface.enumerate(config: config)
+	equal(records.count, 1, "递归四层目录后找到会话")
+	equal(records[0].sessionID, sessionID, "字段从 payload 里取")
+	equal(records[0].cwd, "/tmp/demo-project", "cwd 从 payload 里取")
+	equal(records[0].model, "custom", "provider 从 payload 里取")
+	equal(records[0].name, "仓库结构梳理", "名字来自索引文件")
+	equal(records[0].displayTitle, "仓库结构梳理", "有索引名时用它做标题")
+	check(records[0].started != nil, "开始时间可解析")
+
+	SessionsSurface.summarize(&records[0], config: config)
+	equal(records[0].messageCount, 4, "统计 response_item 消息")
+	equal(records[0].totalTokens, 25000, "累计 token 取最后一个事件而不是求和")
+	equal(records[0].firstUserText, "帮我看看这个仓库的结构", "跳过 environment_context 包装消息")
+
+	// Codex keeps names in its own index, so appending must be refused.
+	do {
+		try SessionsSurface.appendingName("改个名", to: file, config: config)
+		check(false, "Codex 不支持追加式重命名")
+	} catch {
+		check(true, "Codex 不支持追加式重命名")
+	}
 }
 
 // MARK: - Output surfaces

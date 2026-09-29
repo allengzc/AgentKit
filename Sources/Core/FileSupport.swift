@@ -197,6 +197,10 @@ public struct FilePreview {
 	public let afterText: String
 	public let diff: TextDiff
 	public let backupURL: URL?
+	/// True when producing `afterText` did not preserve the original formatting
+	/// or comments, so the confirmation sheet can say so before writing.
+	public var isLossy: Bool = false
+	public var lossyNote: String?
 
 	public var hasChanges: Bool { !diff.isEmpty }
 }

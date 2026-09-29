@@ -47,6 +47,17 @@ struct ModelsPane: View {
 	private var resolver: PathResolver { model.resolver(for: agent) }
 	private var policy: BackupPolicy { agent.descriptor.backupPolicy }
 
+	/// pi stores providers under `providers`, Codex under `model_providers`.
+	private var currentProvidersKey: String {
+		snapshot?.providersKey ?? surface.providersKey ?? "providers"
+	}
+
+	/// pi spells the fields `baseUrl` / `api` / `apiKey`, Codex `base_url` /
+	/// `wire_api` / `env_key`.
+	private var providerKeys: ModelProviderKeys {
+		snapshot?.keys ?? surface.providerKeys ?? .pi
+	}
+
 	private var providerURL: URL? {
 		guard let template = surface.providerFile else { return nil }
 		return try? resolver.expand(template)
@@ -195,6 +206,15 @@ struct ModelsPane: View {
 
 	// MARK: - Detail
 
+	private var apiSuggestions: [String] {
+		// `wire_api` is a different vocabulary from pi's `api`.
+		(providerKeys.api ?? "api") == "wire_api"
+			? ["responses", "chat"]
+			: ModelsSurfaceLoader.knownAPIs
+	}
+
+	private var apiPlaceholder: String { apiSuggestions.first ?? "" }
+
 	@ViewBuilder
 	private var providerDetail: some View {
 		if let provider = selectedProvider {
@@ -251,21 +271,29 @@ struct ModelsPane: View {
 
 					Divider()
 
-					HStack {
-						Text("Models").font(.headline)
-						Spacer()
-						Button {
-							addModel(provider)
-						} label: {
-							Label("新增 model", systemImage: "plus")
+					if providerKeys.models != nil {
+						HStack {
+							Text("Models").font(.headline)
+							Spacer()
+							Button {
+								addModel(provider)
+							} label: {
+								Label("新增 model", systemImage: "plus")
+							}
+							.controlSize(.small)
 						}
-						.controlSize(.small)
-					}
 
-					if provider.models.isEmpty {
-						Text("这个 provider 没有自定义 model 条目。")
-							.font(.callout)
-							.foregroundStyle(.secondary)
+						if provider.models.isEmpty {
+							Text("这个 provider 没有自定义 model 条目。")
+								.font(.callout)
+								.foregroundStyle(.secondary)
+						}
+					} else {
+						InfoBanner(
+							kind: .info,
+							title: "这个 agent 的 provider 不声明模型列表",
+							detail: "模型 id 由 \(providerKeys.api == nil ? "api" : "接口") 侧决定，这里只配置连接方式。"
+						)
 					}
 
 					ForEach(provider.models) { entry in
@@ -375,24 +403,24 @@ struct ModelsPane: View {
 							.disabled(!draft.isNew)
 					}
 					GridRow {
-						Text("name").gridColumnAlignment(.trailing)
+						Text(providerKeys.name ?? "name").gridColumnAlignment(.trailing)
 						TextField("显示名", text: binding(\.name, draft))
 							.textFieldStyle(.roundedBorder)
 					}
 					GridRow {
-						Text("baseUrl").gridColumnAlignment(.trailing)
+						Text(providerKeys.baseUrl ?? "baseUrl").gridColumnAlignment(.trailing)
 						TextField("https://…/v1", text: binding(\.baseUrl, draft))
 							.textFieldStyle(.roundedBorder)
 							.font(.system(.body, design: .monospaced))
 					}
 					GridRow {
-						Text("api").gridColumnAlignment(.trailing)
+						Text(providerKeys.api ?? "api").gridColumnAlignment(.trailing)
 						HStack(spacing: 6) {
-							TextField("openai-completions", text: binding(\.api, draft))
+							TextField(apiPlaceholder, text: binding(\.api, draft))
 								.textFieldStyle(.roundedBorder)
 								.font(.system(.body, design: .monospaced))
 							Menu {
-								ForEach(ModelsSurfaceLoader.knownAPIs, id: \.self) { value in
+								ForEach(apiSuggestions, id: \.self) { value in
 									Button(value) { self.providerDraft?.api = value }
 								}
 							} label: {
@@ -403,7 +431,7 @@ struct ModelsPane: View {
 						}
 					}
 					GridRow {
-						Text("apiKey").gridColumnAlignment(.trailing)
+						Text(providerKeys.apiKey ?? "apiKey").gridColumnAlignment(.trailing)
 						SecureField(
 							draft.isNew ? "可留空，改用 auth.json 或环境变量" : "留空表示不改动现有值",
 							text: binding(\.apiKey, draft)
@@ -461,7 +489,10 @@ struct ModelsPane: View {
 		let document = JSONFile.load(providerURL, policy: policy)
 		guard let problem = providerProblem(draft, existing: document) else {
 			var value = document.editableValue
-			value.setValue(buildProvider(draft, existing: document), at: ["providers", draft.identifier])
+			value.setValue(
+				buildProvider(draft, existing: document),
+				at: [currentProvidersKey, draft.identifier]
+			)
 			return (providerURL, JSONFile.preview(value, for: document, policy: policy), nil)
 		}
 		return (providerURL, JSONFile.preview(document.editableValue, for: document, policy: policy), problem)
@@ -470,7 +501,7 @@ struct ModelsPane: View {
 	private func providerProblem(_ draft: ProviderDraft, existing: JSONDocument) -> String? {
 		if draft.identifier.trimmingCharacters(in: .whitespaces).isEmpty { return "id 不能为空" }
 		if draft.baseUrl.trimmingCharacters(in: .whitespaces).isEmpty { return "baseUrl 不能为空" }
-		if draft.isNew, existing.value(at: ["providers", draft.identifier]) != nil {
+		if draft.isNew, existing.value(at: [currentProvidersKey, draft.identifier]) != nil {
 			return "providers 下已经有 \(draft.identifier) 了"
 		}
 		guard let parsed = try? JSONParser.parse(draft.modelsText), parsed.arrayValue != nil else {
@@ -482,20 +513,32 @@ struct ModelsPane: View {
 	/// Merges the form into the provider's existing object, so keys AgentKit does
 	/// not understand (`compat`, `headers`, …) survive an edit.
 	private func buildProvider(_ draft: ProviderDraft, existing: JSONDocument) -> JSONValue {
-		var object = existing.value(at: ["providers", draft.identifier])?.objectValue ?? JSONObject()
+		var object = existing.value(at: [currentProvidersKey, draft.identifier])?.objectValue ?? JSONObject()
+		let keys = providerKeys
+		let nameKey = keys.name ?? "name"
 		let name = draft.name.trimmingCharacters(in: .whitespaces)
-		if name.isEmpty { _ = object.removeValue(forKey: "name") } else { object["name"] = .string(name) }
-		object["baseUrl"] = .string(draft.baseUrl.trimmingCharacters(in: .whitespaces))
-		object["api"] = .string(draft.api.trimmingCharacters(in: .whitespaces))
-		let key = draft.apiKey.trimmingCharacters(in: .whitespaces)
-		if !key.isEmpty {
-			object["apiKey"] = .string(key)
-		} else if draft.isNew {
-			// New providers get an empty key so the shape is obvious.
-			object["apiKey"] = .string("")
+		if name.isEmpty {
+			_ = object.removeValue(forKey: nameKey)
+		} else {
+			object[nameKey] = .string(name)
 		}
-		if let models = try? JSONParser.parse(draft.modelsText) {
-			object["models"] = models
+		if let baseUrlKey = keys.baseUrl {
+			object[baseUrlKey] = .string(draft.baseUrl.trimmingCharacters(in: .whitespaces))
+		}
+		if let apiKey = keys.api, !draft.api.isEmpty {
+			object[apiKey] = .string(draft.api.trimmingCharacters(in: .whitespaces))
+		}
+		if let credentialKey = keys.apiKey {
+			let key = draft.apiKey.trimmingCharacters(in: .whitespaces)
+			if !key.isEmpty {
+				object[credentialKey] = .string(key)
+			} else if draft.isNew {
+				// New providers get an empty key so the shape is obvious.
+				object[credentialKey] = .string("")
+			}
+		}
+		if let modelsKey = keys.models, let models = try? JSONParser.parse(draft.modelsText) {
+			object[modelsKey] = models
 		}
 		return .object(object)
 	}
@@ -505,9 +548,9 @@ struct ModelsPane: View {
 		let document = JSONFile.load(providerURL, policy: policy)
 		var value = document.editableValue
 		if let original = draft.originalID, original != draft.identifier {
-			value.removeValue(at: ["providers", original])
+			value.removeValue(at: [currentProvidersKey, original])
 		}
-		value.setValue(buildProvider(draft, existing: document), at: ["providers", draft.identifier])
+		value.setValue(buildProvider(draft, existing: document), at: [currentProvidersKey, draft.identifier])
 		do {
 			let result = try JSONFile.write(value, document: document, scope: resolver, policy: policy)
 			banner = result.backupURL.map { "已写入，备份 \($0.lastPathComponent)" } ?? "已写入"
@@ -525,7 +568,7 @@ struct ModelsPane: View {
 		guard let providerURL else { return }
 		let document = JSONFile.load(providerURL, policy: policy)
 		var value = document.editableValue
-		value.removeValue(at: ["providers", provider.id])
+		value.removeValue(at: [currentProvidersKey, provider.id])
 		do {
 			let result = try JSONFile.write(value, document: document, scope: resolver, policy: policy)
 			banner = "已删除 provider \(provider.id)"
@@ -540,10 +583,10 @@ struct ModelsPane: View {
 	private func addModel(_ provider: ProviderEntry) {
 		guard let providerURL else { return }
 		let document = JSONFile.load(providerURL, policy: policy)
-		var models = document.value(at: ["providers", provider.id, "models"])?.arrayValue ?? []
+		var models = document.value(at: [currentProvidersKey, provider.id, "models"])?.arrayValue ?? []
 		models.append(ModelsSurfaceLoader.emptyModel())
 		var value = document.editableValue
-		value.setValue(.array(models), at: ["providers", provider.id, "models"])
+		value.setValue(.array(models), at: [currentProvidersKey, provider.id, "models"])
 		do {
 			let result = try JSONFile.write(value, document: document, scope: resolver, policy: policy)
 			banner = "已在 \(provider.id) 下新增一个 model 条目，请编辑它的 id"
@@ -561,10 +604,10 @@ struct ModelsPane: View {
 	private func deleteModel(_ provider: ProviderEntry, _ entry: ModelEntry) {
 		guard let providerURL else { return }
 		let document = JSONFile.load(providerURL, policy: policy)
-		var models = document.value(at: ["providers", provider.id, "models"])?.arrayValue ?? []
+		var models = document.value(at: [currentProvidersKey, provider.id, "models"])?.arrayValue ?? []
 		models.removeAll { $0.value(at: ["id"])?.stringValue == entry.id }
 		var value = document.editableValue
-		value.setValue(.array(models), at: ["providers", provider.id, "models"])
+		value.setValue(.array(models), at: [currentProvidersKey, provider.id, "models"])
 		do {
 			_ = try JSONFile.write(value, document: document, scope: resolver, policy: policy)
 			banner = "已删除 \(provider.id)/\(entry.id)"

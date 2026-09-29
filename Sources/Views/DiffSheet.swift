@@ -61,6 +61,9 @@ struct DiffSheet: View {
 					.font(.caption)
 					.foregroundStyle(.secondary)
 			}
+			if preview.isLossy, let note = preview.lossyNote {
+				InfoBanner(kind: .warning, title: "这次写入不是逐字节保留的", detail: note)
+			}
 		}
 		.padding(14)
 	}

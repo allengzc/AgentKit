@@ -39,6 +39,9 @@ public struct ProviderEntry: Identifiable {
 }
 
 public struct ModelsSnapshot {
+	/// The map holding providers. pi uses `providers`, Codex `model_providers`.
+	public var providersKey: String = "providers"
+	public var keys: ModelProviderKeys = .pi
 	public var providers: [ProviderEntry] = []
 	public var overrides: [String] = []
 	public var defaults: (provider: String?, model: String?, thinking: String?) = (nil, nil, nil)
@@ -53,15 +56,23 @@ public enum ModelsSurfaceLoader {
 		policy: BackupPolicy
 	) -> ModelsSnapshot {
 		var snapshot = ModelsSnapshot()
+		snapshot.providersKey = surface.providersKey ?? "providers"
+		let keys = surface.providerKeys ?? .pi
+		snapshot.keys = keys
 
 		if let template = surface.providerFile, let url = try? resolver.expand(template) {
-			let document = JSONFile.load(url, policy: policy)
+			let document = JSONFile.load(
+				url,
+				policy: policy,
+				format: surface.format.flatMap(ConfigFormat.init(rawValue:))
+			)
 			snapshot.malformedReason = document.malformedReason
-			if let providers = document.value(at: ["providers"])?.objectValue {
+			if let providers = document.value(at: [snapshot.providersKey])?.objectValue {
 				for key in providers.keys {
 					guard let value = providers[key], let object = value.objectValue else { continue }
+					let modelsKey = keys.models ?? "models"
 					var models: [ModelEntry] = []
-					for model in object["models"]?.arrayValue ?? [] {
+					for model in object[modelsKey]?.arrayValue ?? [] {
 						guard let modelObject = model.objectValue,
 							let id = modelObject["id"]?.stringValue
 						else { continue }
@@ -79,21 +90,21 @@ public enum ModelsSurfaceLoader {
 							)
 						)
 					}
-					let apiKey = object["apiKey"]?.stringValue
+					let apiKey = keys.apiKey.flatMap { object[$0]?.stringValue }
+					let known = [keys.name, keys.baseUrl, keys.api, keys.apiKey, modelsKey, "compat", "headers"]
+						.compactMap { $0 }
 					snapshot.providers.append(
 						ProviderEntry(
 							id: key,
-							name: object["name"]?.stringValue,
-							baseUrl: object["baseUrl"]?.stringValue,
-							api: object["api"]?.stringValue,
+							name: keys.name.flatMap { object[$0]?.stringValue },
+							baseUrl: keys.baseUrl.flatMap { object[$0]?.stringValue },
+							api: keys.api.flatMap { object[$0]?.stringValue },
 							hasKey: apiKey?.isEmpty == false,
 							keyIsEnvReference: apiKey?.hasPrefix("$") == true || apiKey?.hasPrefix("!") == true,
 							compatKeys: object["compat"]?.objectValue?.keys ?? [],
 							models: models,
 							raw: value,
-							unknownKeys: object.keys.filter {
-								!["name", "baseUrl", "api", "apiKey", "compat", "models", "headers"].contains($0)
-							}
+							unknownKeys: object.keys.filter { !known.contains($0) }
 						)
 					)
 				}

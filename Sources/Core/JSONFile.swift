@@ -40,6 +40,13 @@ public final class JSONDocument {
 	public let backups: [URL]
 	/// Byte ranges of every value in `rawText`, for surgical edits.
 	public let source: JSONSource?
+	/// Which parser produced this document.
+	public let format: ConfigFormat
+	/// For TOML: the byte range of each table, so a structural edit can replace
+	/// one table instead of rewriting the file.
+	public let tableRanges: [String: Range<Int>]
+	/// For TOML: whether the file has comments, which a rewrite would drop.
+	public let hasComments: Bool
 
 	public init(
 		url: URL,
@@ -52,7 +59,10 @@ public final class JSONDocument {
 		fingerprint: FileFingerprint?,
 		mode: mode_t?,
 		backups: [URL],
-		source: JSONSource? = nil
+		source: JSONSource? = nil,
+		format: ConfigFormat = .json,
+		tableRanges: [String: Range<Int>] = [:],
+		hasComments: Bool = false
 	) {
 		self.url = url
 		self.realURL = realURL
@@ -65,6 +75,9 @@ public final class JSONDocument {
 		self.mode = mode
 		self.backups = backups
 		self.source = source
+		self.format = format
+		self.tableRanges = tableRanges
+		self.hasComments = hasComments
 	}
 
 	public var exists: Bool {
@@ -110,8 +123,10 @@ public final class JSONDocument {
 public enum JSONFile {
 	public static func load(
 		_ url: URL,
-		policy: BackupPolicy = .default
+		policy: BackupPolicy = .default,
+		format: ConfigFormat? = nil
 	) -> JSONDocument {
+		let resolvedFormat = ConfigFormat.detect(url: url, override: format?.rawValue)
 		let realURL = PathResolver.writeTarget(for: url)
 		let isSymlink = realURL != url
 		let backups = policy.existingBackups(for: url)
@@ -165,21 +180,44 @@ public enum JSONFile {
 			)
 		}
 
-		let style = JSONStyle.detect(in: text)
 		do {
-			let parsed = try JSONParser.parseWithSource(text)
+			// Both parsers hand back the same four things, which is what lets the
+			// rest of AgentKit stay format-agnostic.
+			let parsedValue: JSONValue
+			let parsedSource: JSONSource
+			let parsedStyle: JSONStyle
+			var tableRanges: [String: Range<Int>] = [:]
+			var hasComments = false
+
+			if resolvedFormat == .toml {
+				let result = try TOMLParser.parseWithSource(text)
+				parsedValue = result.value
+				parsedSource = result.source
+				parsedStyle = result.style
+				tableRanges = result.tableRanges
+				hasComments = result.hasComments
+			} else {
+				let result = try JSONParser.parseWithSource(text)
+				parsedValue = result.value
+				parsedSource = result.source
+				parsedStyle = JSONStyle.detect(in: text)
+			}
+
 			return JSONDocument(
 				url: url,
 				realURL: realURL,
 				isSymlink: isSymlink,
 				status: .ok,
 				rawText: text,
-				value: parsed.value,
-				style: style,
+				value: parsedValue,
+				style: parsedStyle,
 				fingerprint: fingerprint,
 				mode: AtomicFile.mode(of: realURL),
 				backups: backups,
-				source: parsed.source
+				source: parsedSource,
+				format: resolvedFormat,
+				tableRanges: tableRanges,
+				hasComments: hasComments
 			)
 		} catch {
 			let reason = (error as? JSONParseError)?.description ?? error.localizedDescription
@@ -190,7 +228,7 @@ public enum JSONFile {
 				status: .malformed(reason),
 				rawText: text,
 				value: nil,
-				style: style,
+				style: JSONStyle.detect(in: text),
 				fingerprint: fingerprint,
 				mode: AtomicFile.mode(of: realURL),
 				backups: backups
@@ -220,15 +258,17 @@ public enum JSONFile {
 		for document: JSONDocument,
 		policy: BackupPolicy = .default
 	) -> FilePreview {
-		let after = JSONPatch.render(value, from: document)
+		let rendered = ConfigPatch.render(value, from: document)
 		let before = document.rawText
 		return FilePreview(
 			url: document.url,
 			existed: document.exists,
 			beforeText: before,
-			afterText: after,
-			diff: TextDiff(before: before, after: after),
-			backupURL: document.exists ? policy.backupURL(for: document.url) : nil
+			afterText: rendered.text,
+			diff: TextDiff(before: before, after: rendered.text),
+			backupURL: document.exists ? policy.backupURL(for: document.url) : nil,
+			isLossy: rendered.isLossy,
+			lossyNote: rendered.note
 		)
 	}
 
@@ -270,7 +310,7 @@ public enum JSONFile {
 			backupURL = try AtomicFile.backup(document.realURL, policy: policy)
 		}
 
-		let text = JSONPatch.render(value, from: document)
+		let text = ConfigPatch.render(value, from: document).text
 		guard let data = text.data(using: .utf8) else {
 			throw FileWriteError.io("无法把内容编码成 UTF-8")
 		}
