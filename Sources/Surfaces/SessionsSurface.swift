@@ -344,7 +344,7 @@ public enum SessionsSurface {
 	/// keeps names in its own index and has no such entry.
 	public static func appendingName(_ name: String, to url: URL, config: SessionsConfig) throws {
 		guard let entryType = config.nameEntryType else {
-			throw FileWriteError.io("这个 agent 不支持通过追加记录重命名会话")
+			throw FileWriteError.io(L.t("session.error.cannotRename", "这个 agent 不支持通过追加记录重命名会话", table: .messages))
 		}
 		let parent = lastEntryID(of: url)
 		let identifier = String(UUID().uuidString.replacingOccurrences(of: "-", with: "").prefix(8))
@@ -359,7 +359,7 @@ public enum SessionsSurface {
 
 		let data = try JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])
 		guard var text = String(data: data, encoding: .utf8) else {
-			throw FileWriteError.io("无法编码 \(entryType)")
+			throw FileWriteError.io(String(format: L.t("session.error.encodeFailed", "无法编码 %@", table: .messages), entryType))
 		}
 		text += "\n"
 

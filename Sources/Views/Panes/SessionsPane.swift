@@ -33,7 +33,11 @@ struct SessionsPane: View {
 		case project
 		case time
 		var id: String { rawValue }
-		var title: String { self == .project ? "按项目" : "按时间" }
+		var title: String {
+			self == .project
+				? L.t("sessions.grouping.project", "按项目")
+				: L.t("sessions.grouping.time", "按时间")
+		}
 	}
 
 	private var resolver: PathResolver { model.resolver(for: agent) }
@@ -47,6 +51,14 @@ struct SessionsPane: View {
 	/// name entry type support.
 	private var supportsRename: Bool { config?.nameEntryType != nil }
 
+	/// File size in the app's language. A plain `ByteCountFormatter` would follow
+	/// the system locale, which in English mode still reads "1.2 MB" in Chinese.
+	private func sizeText(_ bytes: Int) -> String {
+		Int64(bytes).formatted(
+			ByteCountFormatStyle(style: .file).locale(Locale(identifier: Localization.shared.language.rawValue))
+		)
+	}
+
 	/// True when names live in a sidecar index (Codex), rather than nowhere
 	/// (Claude Code). Both disable renaming, for different reasons.
 	private var hasIndex: Bool { config?.indexURL != nil }
@@ -54,11 +66,25 @@ struct SessionsPane: View {
 	private var renameHelp: String {
 		if !supportsRename {
 			return hasIndex
-				? "\(agent.name) 的会话名存在索引文件里，AgentKit 不支持在这里改写"
-				: "\(agent.name) 不在会话文件里保存名字，AgentKit 不支持在这里改写"
+				? String(
+					format: L.t(
+						"sessions.rename.unavailableIndex",
+						"%@ 的会话名存在索引文件里，AgentKit 不支持在这里改写"
+					),
+					agent.name
+				)
+				: String(
+					format: L.t(
+						"sessions.rename.unavailableNoName",
+						"%@ 不在会话文件里保存名字，AgentKit 不支持在这里改写"
+					),
+					agent.name
+				)
 		}
-		if model.isSelectedAgentRunning { return "agent 正在运行，改写会话文件不安全" }
-		return "追加一条重命名记录"
+		if model.isSelectedAgentRunning {
+			return L.t("sessions.rename.agentRunning", "agent 正在运行，改写会话文件不安全")
+		}
+		return L.t("sessions.rename.append", "追加一条重命名记录")
 	}
 
 	private var filtered: [SessionRecord] {
@@ -94,14 +120,17 @@ struct SessionsPane: View {
 		.task(id: token) { load() }
 		.sheet(item: $renaming) { record in renameSheet(record) }
 		.sheet(item: $exportTarget) { record in exportSheet(record) }
-		.alert("删除这个会话？", isPresented: Binding(
+		.alert(L.t("sessions.delete.title", "删除这个会话？"), isPresented: Binding(
 			get: { confirmDelete != nil },
 			set: { if !$0 { confirmDelete = nil } }
 		), presenting: confirmDelete) { record in
-			Button("移到废纸篓", role: .destructive) {
+			Button(L.t("button.moveToTrash", "移到废纸篓"), role: .destructive) {
 				do {
 					try TextFile.trash(record.url)
-					banner = "已把 \(record.url.lastPathComponent) 移到废纸篓"
+					banner = String(
+						format: L.t("banner.movedToTrash", "已把 %@ 移到废纸篓"),
+						record.url.lastPathComponent
+					)
 					confirmDelete = nil
 					load()
 				} catch {
@@ -109,9 +138,14 @@ struct SessionsPane: View {
 					confirmDelete = nil
 				}
 			}
-			Button("取消", role: .cancel) { confirmDelete = nil }
+			Button(L.t("button.cancel", "取消"), role: .cancel) { confirmDelete = nil }
 		} message: { record in
-			Text("\(record.url.path)\n\n会移到废纸篓，可以恢复。")
+			Text(
+				String(
+					format: L.t("sessions.delete.message", "%@\n\n会移到废纸篓，可以恢复。"),
+					record.url.path
+				)
+			)
 		}
 	}
 
@@ -121,11 +155,23 @@ struct SessionsPane: View {
 		VStack(alignment: .leading, spacing: 7) {
 			HStack(spacing: 8) {
 				Text(surface.titleText).font(.title3.weight(.semibold))
-				StatusBadge(text: "\(records.count) 个会话", level: .info)
+				StatusBadge(
+					text: String(
+						format: L.t(records.count == 1 ? "sessions.badge.sessionCount.one" : "sessions.badge.sessionCount", "%d 个会话"),
+						records.count
+					),
+					level: .info
+				)
 				if indexing {
 					HStack(spacing: 5) {
 						ProgressView().controlSize(.mini)
-						Text("统计中 \(indexed)/\(records.count)")
+						Text(
+							String(
+								format: L.t("sessions.indexing", "统计中 %d/%d"),
+								indexed,
+								records.count
+							)
+						)
 							.font(.caption2)
 							.foregroundStyle(.secondary)
 					}
@@ -142,13 +188,16 @@ struct SessionsPane: View {
 				Button {
 					load()
 				} label: {
-					Label("重新读取", systemImage: "arrow.clockwise")
+					Label(L.t("button.reload", "重新读取"), systemImage: "arrow.clockwise")
 				}
 				.controlSize(.small)
 			}
 			HStack(spacing: 8) {
 				Image(systemName: "magnifyingglass").foregroundStyle(.tertiary)
-				TextField("搜索会话名、首条消息、项目路径或 id", text: $query)
+				TextField(
+					L.t("sessions.searchPlaceholder", "搜索会话名、首条消息、项目路径或 id"),
+					text: $query
+				)
 					.textFieldStyle(.roundedBorder)
 			}
 			if let banner { InfoBanner(kind: .info, title: banner) }
@@ -213,7 +262,7 @@ struct SessionsPane: View {
 				.font(.system(size: 11, weight: .semibold, design: .monospaced))
 				.lineLimit(1)
 				.truncationMode(.head)
-			Text("\(group.records.count) 个会话")
+			Text(String(format: L.t(group.records.count == 1 ? "sessions.badge.sessionCount.one" : "sessions.badge.sessionCount", "%d 个会话"), group.records.count))
 				.font(.caption2)
 				.foregroundStyle(.tertiary)
 		}
@@ -237,7 +286,7 @@ struct SessionsPane: View {
 						Image(systemName: "arrow.triangle.branch")
 							.font(.caption2)
 							.foregroundStyle(.tertiary)
-							.help("从别的会话 fork 而来")
+							.help(L.t("sessions.forkedFrom", "从别的会话 fork 而来"))
 					}
 					Spacer(minLength: 0)
 					if record.statsLoaded, record.totalCost > 0 {
@@ -249,14 +298,14 @@ struct SessionsPane: View {
 				HStack(spacing: 8) {
 					Text(record.modified, format: .dateTime.month(.abbreviated).day().hour().minute())
 					if record.statsLoaded {
-						Text("\(record.messageCount) 条消息")
+						Text(String(format: L.t(record.messageCount == 1 ? "sessions.messageCount.one" : "sessions.messageCount", "%d 条消息"), record.messageCount))
 						if record.totalTokens > 0 {
 							Text("\(formatTokens(record.totalTokens)) tokens")
 						}
 					} else {
-						Text("统计中…")
+						Text(L.t("sessions.indexingShort", "统计中…"))
 					}
-					Text(ByteCountFormatter.string(fromByteCount: Int64(record.fileSize), countStyle: .file))
+					Text(sizeText(record.fileSize))
 				}
 				.font(.caption2)
 				.foregroundStyle(.tertiary)
@@ -292,23 +341,51 @@ struct SessionsPane: View {
 					}
 
 					Grid(alignment: .leading, horizontalSpacing: 14, verticalSpacing: 6) {
-						detailRow("会话 id", record.sessionID, monospaced: true)
-						detailRow("工作目录", record.cwd.isEmpty ? "—" : record.cwd, monospaced: true)
-						detailRow("开始时间", record.started.map { Self.dateFormatter.string(from: $0) } ?? "—")
-						detailRow("最后修改", Self.dateFormatter.string(from: record.modified))
-						detailRow("消息数", record.statsLoaded ? "\(record.messageCount)" : "统计中…")
-						detailRow("Token", record.statsLoaded ? formatTokens(record.totalTokens) : "统计中…")
-						detailRow("成本", record.statsLoaded ? String(format: "$%.4f", record.totalCost) : "统计中…")
+						detailRow(L.t("sessions.detail.id", "会话 id"), record.sessionID, monospaced: true)
 						detailRow(
-							"模型",
-							record.models.isEmpty
-								? (record.model ?? "—")
-								: record.models.joined(separator: "、"),
+							L.t("sessions.detail.cwd", "工作目录"),
+							record.cwd.isEmpty ? "—" : record.cwd,
 							monospaced: true
 						)
-						detailRow("文件大小", ByteCountFormatter.string(fromByteCount: Int64(record.fileSize), countStyle: .file))
+						detailRow(
+							L.t("sessions.detail.started", "开始时间"),
+							record.started.map { Self.dateFormatter.string(from: $0) } ?? "—"
+						)
+						detailRow(
+							L.t("sessions.detail.modified", "最后修改"),
+							Self.dateFormatter.string(from: record.modified)
+						)
+						detailRow(
+							L.t("sessions.detail.messages", "消息数"),
+							record.statsLoaded
+								? "\(record.messageCount)"
+								: L.t("sessions.indexingShort", "统计中…")
+						)
+						detailRow(
+							"Token",
+							record.statsLoaded
+								? formatTokens(record.totalTokens)
+								: L.t("sessions.indexingShort", "统计中…")
+						)
+						detailRow(
+							L.t("sessions.detail.cost", "成本"),
+							record.statsLoaded
+								? String(format: "$%.4f", record.totalCost)
+								: L.t("sessions.indexingShort", "统计中…")
+						)
+						detailRow(
+							L.t("sessions.detail.models", "模型"),
+							record.models.isEmpty
+								? (record.model ?? "—")
+								: record.models.joined(separator: L.t("listSeparator", "、")),
+							monospaced: true
+						)
+						detailRow(
+							L.t("sessions.detail.fileSize", "文件大小"),
+							ByteCountFormatter.string(fromByteCount: Int64(record.fileSize), countStyle: .file)
+						)
 						if let parent = record.parentSession {
-							detailRow("fork 自", parent, monospaced: true)
+							detailRow(L.t("sessions.detail.forkedFrom", "fork 自"), parent, monospaced: true)
 						}
 					}
 
@@ -318,14 +395,14 @@ struct SessionsPane: View {
 						Button {
 							resume(record)
 						} label: {
-							Label("终端", systemImage: "terminal")
+							Label(L.t("button.terminal", "终端"), systemImage: "terminal")
 						}
 						.disabled(agent.cliURL == nil)
 
 						Button {
 							exportTarget = record
 						} label: {
-							Label("导出 HTML", systemImage: "square.and.arrow.up")
+							Label(L.t("button.exportHTML", "导出 HTML"), systemImage: "square.and.arrow.up")
 						}
 						.disabled(agent.cliURL == nil)
 
@@ -333,7 +410,7 @@ struct SessionsPane: View {
 							renameText = record.name ?? ""
 							renaming = record
 						} label: {
-							Label("重命名", systemImage: "pencil")
+							Label(L.t("button.rename", "重命名"), systemImage: "pencil")
 						}
 						.disabled(model.isSelectedAgentRunning || !supportsRename)
 						.help(renameHelp)
@@ -347,7 +424,7 @@ struct SessionsPane: View {
 						Button(role: .destructive) {
 							confirmDelete = record
 						} label: {
-							Label("删除", systemImage: "trash")
+							Label(L.t("button.deleteWithConfirm", "删除"), systemImage: "trash")
 						}
 					}
 
@@ -358,16 +435,31 @@ struct SessionsPane: View {
 						// renameable name anywhere.
 						InfoBanner(
 							kind: .info,
-							title: "这个 agent 的会话名不由会话文件保存",
+							title: L.t(
+								"sessions.noRename.title",
+								"这个 agent 的会话名不由会话文件保存"
+							),
 							detail: hasIndex
-								? "它的名字来自单独的索引文件，AgentKit 只读取，不代写。"
-								: "这个 agent 不在会话文件里保存名字，所以 AgentKit 不能替你改名。"
+								? L.t(
+									"sessions.noRename.indexDetail",
+									"它的名字来自单独的索引文件，AgentKit 只读取，不代写。"
+								)
+								: L.t(
+									"sessions.noRename.noNameDetail",
+									"这个 agent 不在会话文件里保存名字，所以 AgentKit 不能替你改名。"
+								)
 						)
 					} else if model.isSelectedAgentRunning {
 						InfoBanner(
 							kind: .warning,
-							title: "\(agent.name) 正在运行",
-							detail: "重命名会向会话文件追加内容，运行中的 agent 可能同时写这个文件，所以这里先禁用了。"
+							title: String(
+								format: L.t("sessions.agentRunning.title", "%@ 正在运行"),
+								agent.name
+							),
+							detail: L.t(
+								"sessions.agentRunning.detail",
+								"重命名会向会话文件追加内容，运行中的 agent 可能同时写这个文件，所以这里先禁用了。"
+							)
 						)
 					}
 				}
@@ -377,8 +469,15 @@ struct SessionsPane: View {
 		} else {
 			EmptyStateView(
 				icon: "clock.arrow.circlepath",
-				title: records.isEmpty ? "还没有会话" : "没有匹配的会话",
-				message: records.isEmpty ? "在 \(config?.root.path ?? "会话目录") 下没有找到 .jsonl 会话文件。" : nil
+				title: records.isEmpty
+					? L.t("empty.noSessions", "还没有会话")
+					: L.t("empty.noMatchingSessions", "没有匹配的会话"),
+				message: records.isEmpty
+					? String(
+						format: L.t("empty.noSessions.message", "在 %@ 下没有找到 .jsonl 会话文件。"),
+						config?.root.path ?? L.t("sessions.directoryFallback", "会话目录")
+					)
+					: nil
 			)
 		}
 	}
@@ -413,7 +512,10 @@ struct SessionsPane: View {
 
 	private func load() {
 		guard let config else {
-			errorText = "描述文件没有描述这个 agent 的会话布局（缺少 sessions 映射）"
+			errorText = L.t(
+				"error.sessionsLayout",
+				"描述文件没有描述这个 agent 的会话布局（缺少 sessions 映射）"
+			)
 			return
 		}
 		records = SessionsSurface.enumerate(config: config)
@@ -485,18 +587,28 @@ struct SessionsPane: View {
 	private func exportSheet(_ record: SessionRecord) -> some View {
 		let destination = record.url.deletingLastPathComponent()
 		return VStack(alignment: .leading, spacing: 12) {
-			Text("导出会话为 HTML").font(.headline)
-			Text("执行 `\(agent.descriptor.detect?.cli?.name ?? "agent") --export <会话文件>`，输出目录为：")
+			Text(L.t("sessions.export.title", "导出会话为 HTML")).font(.headline)
+			Text(
+				String(
+					format: L.t("sessions.export.detail", "执行 `%@ --export <会话文件>`，输出目录为："),
+					agent.descriptor.detect?.cli?.name ?? "agent"
+				)
+			)
 				.font(.caption)
 				.foregroundStyle(.secondary)
 			PathChip(path: destination.path)
-			Text("文件名由命令行工具生成，导出完成后会自动在 Finder 中显示。")
+			Text(
+				L.t(
+					"sessions.export.note",
+					"文件名由命令行工具生成，导出完成后会自动在 Finder 中显示。"
+				)
+			)
 				.font(.caption2)
 				.foregroundStyle(.tertiary)
 			HStack {
 				Spacer()
-				Button("取消") { exportTarget = nil }
-				Button("导出") { runExport(record, to: destination) }
+				Button(L.t("button.cancel", "取消")) { exportTarget = nil }
+				Button(L.t("button.export", "导出")) { runExport(record, to: destination) }
 					.buttonStyle(.borderedProminent)
 			}
 		}
@@ -525,11 +637,14 @@ struct SessionsPane: View {
 			await MainActor.run {
 				if result.succeeded, let exported {
 					let url = destination.appendingPathComponent(exported)
-					banner = "已导出到 \(url.path)"
+					banner = String(format: L.t("sessions.export.banner", "已导出到 %@"), url.path)
 					errorText = nil
 					ShellActions.reveal(url)
 				} else {
-					errorText = "导出失败：\(output.trimmingCharacters(in: .whitespacesAndNewlines))"
+					errorText = String(
+						format: L.t("sessions.export.error", "导出失败：%@"),
+						output.trimmingCharacters(in: .whitespacesAndNewlines)
+					)
 				}
 			}
 		}
@@ -537,18 +652,23 @@ struct SessionsPane: View {
 
 	private func renameSheet(_ record: SessionRecord) -> some View {
 		VStack(alignment: .leading, spacing: 12) {
-			Text("重命名会话").font(.headline)
+			Text(L.t("sessions.rename.title", "重命名会话")).font(.headline)
 			PathChip(path: record.url.path)
-			TextField("会话名", text: $renameText)
+			TextField(L.t("sessions.rename.placeholder", "会话名"), text: $renameText)
 				.textFieldStyle(.roundedBorder)
-			Text("这是往会话文件末尾追加一条重命名记录，不改动已有内容。写入前会先在同目录生成一份备份。")
+			Text(
+				L.t(
+					"sessions.rename.detail",
+					"这是往会话文件末尾追加一条重命名记录，不改动已有内容。写入前会先在同目录生成一份备份。"
+				)
+			)
 				.font(.caption)
 				.foregroundStyle(.secondary)
 				.fixedSize(horizontal: false, vertical: true)
 			HStack {
 				Spacer()
-				Button("取消") { renaming = nil }
-				Button("保存") { applyRename(record) }
+				Button(L.t("button.cancel", "取消")) { renaming = nil }
+				Button(L.t("button.saveImmediate", "保存")) { applyRename(record) }
 					.buttonStyle(.borderedProminent)
 					.disabled(renameText.trimmingCharacters(in: .whitespaces).isEmpty)
 			}
@@ -564,7 +684,7 @@ struct SessionsPane: View {
 		do {
 			_ = try AtomicFile.backup(record.url, policy: policy)
 			try SessionsSurface.appendingName(name, to: record.url, config: config)
-			banner = "已重命名为「\(name)」"
+			banner = String(format: L.t("sessions.rename.banner", "已重命名为「%@」"), name)
 			errorText = nil
 			load()
 		} catch {

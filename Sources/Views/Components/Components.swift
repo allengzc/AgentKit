@@ -135,7 +135,7 @@ struct FieldRow<Content: View>: View {
 				Text(label)
 					.font(.callout.weight(.medium))
 				if isDefault {
-					Text("默认")
+					Text(L.t("badge.default", "默认"))
 						.font(.caption2)
 						.foregroundStyle(.tertiary)
 						.padding(.horizontal, 5)
@@ -253,19 +253,25 @@ struct ProjectScopeBanner: View {
 		if model.projectURL == nil, count > 0 {
 			InfoBanner(
 				kind: .info,
-				title: "有 \(count) 条项目级路径没有加载",
-				detail: "这个面板会读取项目目录下的配置。当前是全局作用域，所以这些路径被跳过了。",
-				action: ("选择项目…", { model.projects.chooseWithPanel() })
+				title: String(
+					format: L.t("banner.projectScope.title", "有 %d 条项目级路径没有加载"),
+					count
+				),
+				detail: L.t(
+					"banner.projectScope.detail",
+					"这个面板会读取项目目录下的配置。当前是全局作用域，所以这些路径被跳过了。"
+				),
+				action: (L.t("button.chooseProject", "选择项目…"), { model.projects.chooseWithPanel() })
 			)
 		} else if let project = model.projectURL, count > 0 {
 			HStack(spacing: 6) {
 				Image(systemName: "folder")
 					.font(.caption2)
-				Text("项目作用域：\(project.path)")
+				Text(String(format: L.t("banner.projectScope.current", "项目作用域：%@"), project.path))
 					.font(.caption2)
 					.lineLimit(1)
 					.truncationMode(.middle)
-				Button("回到全局") { model.projects.select(nil) }
+				Button(L.t("button.backToGlobal", "回到全局")) { model.projects.select(nil) }
 					.buttonStyle(.link)
 					.controlSize(.mini)
 			}

@@ -111,16 +111,32 @@ struct InstructionsPane: View {
 		VStack(alignment: .leading, spacing: 6) {
 			HStack(spacing: 8) {
 				Text(surface.titleText).font(.title3.weight(.semibold))
-				StatusBadge(text: "同目录下 override 覆盖 instructions", level: .info)
+				StatusBadge(
+					text: L.t("badge.overrideRole", "同目录下 override 覆盖 instructions"),
+					level: .info
+				)
 				Spacer()
 				Button {
 					discover()
 				} label: {
-					Label("重新读取", systemImage: "arrow.clockwise")
+					Label(L.t("button.reload", "重新读取"), systemImage: "arrow.clockwise")
 				}
 				.controlSize(.small)
 			}
-			Text("这些文件对所有工作目录生效。\(resolver.cwd == nil ? "选中一个项目后，还会列出沿途命中的项目级指令。" : "当前项目：\(resolver.cwd!.path)")")
+			Text(
+				L.t("instructions.scan.note", "这些文件对所有工作目录生效。")
+					+ (
+						resolver.cwd == nil
+							? L.t(
+								"instructions.scan.noProject",
+								"选中一个项目后，还会列出沿途命中的项目级指令。"
+							)
+							: String(
+								format: L.t("instructions.scan.project", "当前项目：%@"),
+								resolver.cwd!.path
+							)
+					)
+			)
 				.font(.caption)
 				.foregroundStyle(.secondary)
 		}
@@ -130,12 +146,12 @@ struct InstructionsPane: View {
 	private var fileList: some View {
 		ScrollView {
 			LazyVStack(alignment: .leading, spacing: 1) {
-				sectionLabel("全局")
+				sectionLabel(L.t("instructions.section.global", "全局"))
 				ForEach(declared, id: \.spec.path) { item in
 					declaredRow(item)
 				}
 				if !discovered.isEmpty {
-					sectionLabel("项目（只读展示）")
+					sectionLabel(L.t("instructions.section.project", "项目（只读展示）"))
 					ForEach(discovered) { item in
 						projectRow(item)
 					}
@@ -178,9 +194,12 @@ struct InstructionsPane: View {
 				}
 				Spacer(minLength: 0)
 				if let duplicate = item.duplicateOf {
-					StatusBadge(text: "同 \(duplicate)", level: .muted)
+					StatusBadge(
+						text: String(format: L.t("badge.sameFileAs", "同 %@"), duplicate),
+						level: .muted
+					)
 				} else if !exists {
-					Text("缺失").font(.caption2).foregroundStyle(.tertiary)
+					Text(L.t("instructions.row.missing", "缺失")).font(.caption2).foregroundStyle(.tertiary)
 				}
 			}
 			.padding(.vertical, 4)
@@ -232,11 +251,11 @@ struct InstructionsPane: View {
 
 	private func roleLabel(_ role: String) -> String {
 		switch role {
-		case "override": return "覆盖同目录的 AGENTS.md / CLAUDE.md"
-		case "instructions": return "全局指令"
-		case "system-replace": return "替换系统提示"
-		case "system-append": return "追加到系统提示"
-		case "project": return "项目级指令（只读）"
+		case "override": return L.t("instructions.role.override", "覆盖同目录的 AGENTS.md / CLAUDE.md")
+		case "instructions": return L.t("instructions.role.instructions", "全局指令")
+		case "system-replace": return L.t("instructions.role.systemReplace", "替换系统提示")
+		case "system-append": return L.t("instructions.role.systemAppend", "追加到系统提示")
+		case "project": return L.t("instructions.role.project", "项目级指令（只读）")
 		default: return role
 		}
 	}
@@ -250,8 +269,14 @@ struct InstructionsPane: View {
 				if let duplicate = item.duplicateOf {
 					InfoBanner(
 						kind: .info,
-						title: "和 \(duplicate) 是同一个文件",
-						detail: "描述文件里声明了两个名字，但这个卷不区分大小写，它们指向同一个文件。改哪一个都一样。"
+						title: String(
+							format: L.t("instructions.duplicate.title", "和 %@ 是同一个文件"),
+							duplicate
+						),
+						detail: L.t(
+							"instructions.duplicate.detail",
+							"描述文件里声明了两个名字，但这个卷不区分大小写，它们指向同一个文件。改哪一个都一样。"
+						)
 					)
 					.padding(.horizontal, 14)
 					.padding(.top, 12)
@@ -264,12 +289,15 @@ struct InstructionsPane: View {
 			VStack(alignment: .leading, spacing: 8) {
 				InfoBanner(
 					kind: .info,
-					title: "项目级指令只读展示",
-					detail: "它属于项目本身，AgentKit 不在这里改它。需要修改请用下面的按钮。"
+					title: L.t("instructions.projectReadOnly.title", "项目级指令只读展示"),
+					detail: L.t(
+						"instructions.projectReadOnly.detail",
+						"它属于项目本身，AgentKit 不在这里改它。需要修改请用下面的按钮。"
+					)
 				)
 				HStack {
-					Button("用默认应用打开") { ShellActions.openExternally(item.url) }
-					Button("在 Finder 中显示") { ShellActions.reveal(item.url) }
+					Button(L.t("button.openInDefaultApp", "用默认应用打开")) { ShellActions.openExternally(item.url) }
+					Button(L.t("button.revealInFinder", "在 Finder 中显示")) { ShellActions.reveal(item.url) }
 					Spacer()
 				}
 				ScrollView {
@@ -281,7 +309,7 @@ struct InstructionsPane: View {
 			}
 			.padding(14)
 		} else {
-			EmptyStateView(icon: "text.book.closed", title: "没有可编辑的指令文件")
+			EmptyStateView(icon: "text.book.closed", title: L.t("empty.noInstructionFiles", "没有可编辑的指令文件"))
 		}
 	}
 

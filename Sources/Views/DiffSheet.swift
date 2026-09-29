@@ -10,7 +10,7 @@ import SwiftUI
 
 struct DiffSheet: View {
 	let preview: FilePreview
-	var title: String = "确认写入"
+	var title: String = L.t("sheet.confirmWrite.title", "确认写入")
 	var backup: URL?
 	var errorText: String?
 	var isWriting: Bool = false
@@ -40,9 +40,9 @@ struct DiffSheet: View {
 					.font(.headline)
 				Spacer()
 				if preview.existed {
-					StatusBadge(text: "已存在", level: .info)
+					StatusBadge(text: L.t("badge.exists", "已存在"), level: .info)
 				} else {
-					StatusBadge(text: "新建文件", level: .ok)
+					StatusBadge(text: L.t("badge.newFile", "新建文件"), level: .ok)
 				}
 			}
 			PathChip(path: preview.url.path)
@@ -53,22 +53,32 @@ struct DiffSheet: View {
 				Text("−\(preview.diff.removals)")
 					.foregroundStyle(.red)
 					.font(.system(.caption, design: .monospaced))
-				Text("文件共 \(preview.diff.lines.count) 行")
+				Text(String(format: L.t(preview.diff.lines.count == 1 ? "diff.lineCount.one" : "diff.lineCount", "文件共 %d 行"), preview.diff.lines.count))
 					.font(.caption)
 					.foregroundStyle(.secondary)
 				Spacer()
-				Toggle("长行换行", isOn: $wrapsLongLines)
+				Toggle(L.t("diff.wrapLongLines", "长行换行"), isOn: $wrapsLongLines)
 					.toggleStyle(.checkbox)
 					.controlSize(.small)
 					.font(.caption)
 			}
 			if let backup {
-				Label("写入前会备份为 \(backup.lastPathComponent)", systemImage: "clock.arrow.circlepath")
+				Label(
+					String(
+						format: L.t("diff.backupNotice", "写入前会备份为 %@"),
+						backup.lastPathComponent
+					),
+					systemImage: "clock.arrow.circlepath"
+				)
 					.font(.caption)
 					.foregroundStyle(.secondary)
 			}
 			if preview.isLossy, let note = preview.lossyNote {
-				InfoBanner(kind: .warning, title: "这次写入不是逐字节保留的", detail: note)
+				InfoBanner(
+					kind: .warning,
+					title: L.t("diff.lossy.title", "这次写入不是逐字节保留的"),
+					detail: note
+				)
 			}
 		}
 		.padding(14)
@@ -151,13 +161,13 @@ struct DiffSheet: View {
 				.lineLimit(1)
 				.truncationMode(.middle)
 			Spacer()
-			Button("取消", action: onCancel)
+			Button(L.t("button.cancel", "取消"), action: onCancel)
 				.keyboardShortcut(.cancelAction)
 			Button(action: onConfirm) {
 				if isWriting {
 					ProgressView().controlSize(.small)
 				} else {
-					Text("写入")
+					Text(L.t("button.write", "写入"))
 				}
 			}
 			.buttonStyle(.borderedProminent)

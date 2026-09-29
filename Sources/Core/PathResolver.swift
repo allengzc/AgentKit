@@ -17,11 +17,15 @@ public enum PathError: Error, CustomStringConvertible {
 	public var description: String {
 		switch self {
 		case .unknownToken(let token, let template):
-			return "描述文件里的路径模板 \(template) 含有无法识别的记号 \(token)"
+			return String(format: L.t("path.error.unknownToken", "描述文件里的路径模板 %@ 含有无法识别的记号 %@", table: .messages), template, token)
 		case .outsideScope(let path, let scope):
-			return "拒绝写入 \(path)：不在允许范围内（\(scope.joined(separator: "、"))）"
+			return String(
+				format: L.t("path.error.outsideScope", "拒绝写入 %@：不在允许范围内（%@）", table: .messages),
+				path,
+				scope.joined(separator: L.t("list.separator", "、", table: .messages))
+			)
 		case .notFound(let path):
-			return "找不到路径：\(path)"
+			return String(format: L.t("path.error.notFound", "找不到路径：%@", table: .messages), path)
 		}
 	}
 }

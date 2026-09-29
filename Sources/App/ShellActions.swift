@@ -71,6 +71,11 @@ public enum ShellActions {
 		guard let attributes = try? FileManager.default.attributesOfItem(atPath: url.path),
 			let size = attributes[.size] as? NSNumber
 		else { return "—" }
-		return ByteCountFormatter.string(fromByteCount: size.int64Value, countStyle: .file)
+		// `ByteCountFormatter` has no locale to set, and this runs outside a view
+		// so it cannot inherit the environment — the system locale would leak the
+		// wrong unit names into the interface. `ByteCountFormatStyle` takes one.
+		return Int64(size.int64Value).formatted(
+			ByteCountFormatStyle(style: .file).locale(Locale(identifier: Localization.shared.language.rawValue))
+		)
 	}
 }

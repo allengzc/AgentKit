@@ -255,7 +255,7 @@ public struct JSONParseError: Error, CustomStringConvertible {
 	public let column: Int
 
 	public var description: String {
-		"\(message) (第 \(line) 行第 \(column) 列)"
+		String(format: L.t("parse.error.position", "%@ (第 %d 行第 %d 列)", table: .messages), message, line, column)
 	}
 }
 
@@ -308,7 +308,7 @@ public enum JSONParser {
 		let value = try scanner.parseValue(path: [])
 		scanner.skipWhitespace()
 		guard scanner.isAtEnd else {
-			throw scanner.error("JSON 结尾存在多余内容")
+			throw scanner.error(L.t("parse.json.trailingContent", "JSON 结尾存在多余内容", table: .messages))
 		}
 		return JSONParseResult(
 			value: value,
@@ -362,7 +362,7 @@ public enum JSONParser {
 		}
 
 		mutating func parseValueBody(path: [String]) throws -> JSONValue {
-			guard index < bytes.count else { throw error("意外的文件结尾") }
+			guard index < bytes.count else { throw error(L.t("parse.json.unexpectedEnd", "意外的文件结尾", table: .messages)) }
 			switch bytes[index] {
 			case UInt8(ascii: "{"):
 				return try parseObject(path: path)
@@ -386,9 +386,9 @@ public enum JSONParser {
 
 		mutating func expect(_ literal: String) throws {
 			let expected = Array(literal.utf8)
-			guard index + expected.count <= bytes.count else { throw error("期望 \(literal)") }
+			guard index + expected.count <= bytes.count else { throw error(String(format: L.t("parse.expected", "期望 %@", table: .messages), literal)) }
 			for (offset, byte) in expected.enumerated() where bytes[index + offset] != byte {
-				throw error("期望 \(literal)")
+				throw error(String(format: L.t("parse.expected", "期望 %@", table: .messages), literal))
 			}
 			index += expected.count
 		}
@@ -404,18 +404,18 @@ public enum JSONParser {
 			while true {
 				skipWhitespace()
 				guard index < bytes.count, bytes[index] == UInt8(ascii: "\"") else {
-					throw error("对象的键必须是字符串")
+					throw error(L.t("parse.json.keyNotString", "对象的键必须是字符串", table: .messages))
 				}
 				let key = try parseString()
 				skipWhitespace()
 				guard index < bytes.count, bytes[index] == UInt8(ascii: ":") else {
-					throw error("键 \"\(key)\" 后面缺少冒号")
+					throw error(String(format: L.t("parse.json.missingColon", "键 \"%@\" 后面缺少冒号", table: .messages), key))
 				}
 				index += 1
 				skipWhitespace()
 				object[key] = try parseValue(path: path + [key])
 				skipWhitespace()
-				guard index < bytes.count else { throw error("对象没有闭合") }
+				guard index < bytes.count else { throw error(L.t("parse.object.unclosed", "对象没有闭合", table: .messages)) }
 				if bytes[index] == UInt8(ascii: ",") {
 					index += 1
 					continue
@@ -424,7 +424,7 @@ public enum JSONParser {
 					index += 1
 					return .object(object)
 				}
-				throw error("对象里期望 , 或 }")
+				throw error(L.t("parse.object.expectedCommaOrBrace", "对象里期望 , 或 }", table: .messages))
 			}
 		}
 
@@ -440,7 +440,7 @@ public enum JSONParser {
 				skipWhitespace()
 				items.append(try parseValue(path: path + [String(items.count)]))
 				skipWhitespace()
-				guard index < bytes.count else { throw error("数组没有闭合") }
+				guard index < bytes.count else { throw error(L.t("parse.array.unclosed", "数组没有闭合", table: .messages)) }
 				if bytes[index] == UInt8(ascii: ",") {
 					index += 1
 					continue
@@ -449,7 +449,7 @@ public enum JSONParser {
 					index += 1
 					return .array(items)
 				}
-				throw error("数组里期望 , 或 ]")
+				throw error(L.t("parse.array.expectedCommaOrBracket", "数组里期望 , 或 ]", table: .messages))
 			}
 		}
 
@@ -461,13 +461,13 @@ public enum JSONParser {
 				if byte == UInt8(ascii: "\"") {
 					index += 1
 					guard let string = String(bytes: out, encoding: .utf8) else {
-						throw error("字符串不是合法的 UTF-8")
+						throw error(L.t("parse.string.notUTF8", "字符串不是合法的 UTF-8", table: .messages))
 					}
 					return string
 				}
 				if byte == UInt8(ascii: "\\") {
 					index += 1
-					guard index < bytes.count else { throw error("转义序列不完整") }
+					guard index < bytes.count else { throw error(L.t("parse.escape.incomplete", "转义序列不完整", table: .messages)) }
 					let escape = bytes[index]
 					index += 1
 					switch escape {
@@ -483,17 +483,17 @@ public enum JSONParser {
 						let scalar = try parseUnicodeEscape()
 						out.append(contentsOf: Array(String(scalar).utf8))
 					default:
-						throw error("无法识别的转义 \\\(Character(UnicodeScalar(escape)))")
+						throw error(String(format: L.t("parse.escape.unknown", "无法识别的转义 \\%@", table: .messages), String(Character(UnicodeScalar(escape)))))
 					}
 					continue
 				}
 				if byte < 0x20 {
-					throw error("字符串里出现了未转义的控制字符")
+					throw error(L.t("parse.string.control", "字符串里出现了未转义的控制字符", table: .messages))
 				}
 				out.append(byte)
 				index += 1
 			}
-			throw error("字符串没有闭合")
+			throw error(L.t("parse.string.unclosed", "字符串没有闭合", table: .messages))
 		}
 
 		/// Reads the four hex digits after `\u` and, for a high surrogate,
@@ -504,30 +504,30 @@ public enum JSONParser {
 				guard index + 1 < bytes.count,
 					bytes[index] == UInt8(ascii: "\\"),
 					bytes[index + 1] == UInt8(ascii: "u")
-				else { throw error("高位代理项后面缺少低位代理项") }
+				else { throw error(L.t("parse.surrogate.missingLow", "高位代理项后面缺少低位代理项", table: .messages)) }
 				index += 2
 				let second = try readHex4()
 				guard second >= 0xDC00, second <= 0xDFFF else {
-					throw error("低位代理项不合法")
+					throw error(L.t("parse.surrogate.badLow", "低位代理项不合法", table: .messages))
 				}
 				let combined = 0x10000 + ((first - 0xD800) << 10) + (second - 0xDC00)
 				guard let scalar = Unicode.Scalar(combined) else {
-					throw error("代理对无法组成合法字符")
+					throw error(L.t("parse.surrogate.badPair", "代理对无法组成合法字符", table: .messages))
 				}
 				return scalar
 			}
 			guard let scalar = Unicode.Scalar(first) else {
-				throw error("不合法的 \\u 转义")
+				throw error(L.t("parse.escape.badUnicode", "不合法的 \\u 转义", table: .messages))
 			}
 			return scalar
 		}
 
 		mutating func readHex4() throws -> UInt32 {
-			guard index + 4 <= bytes.count else { throw error("\\u 转义不完整") }
+			guard index + 4 <= bytes.count else { throw error(L.t("parse.escape.unicodeIncomplete", "\\u 转义不完整", table: .messages)) }
 			var value: UInt32 = 0
 			for _ in 0..<4 {
 				guard let digit = hexDigit(bytes[index]) else {
-					throw error("\\u 转义里出现了非十六进制字符")
+					throw error(L.t("parse.escape.unicodeNonHex", "\\u 转义里出现了非十六进制字符", table: .messages))
 				}
 				value = value << 4 | UInt32(digit)
 				index += 1
@@ -560,9 +560,9 @@ public enum JSONParser {
 				while index < bytes.count, isDigit(bytes[index]) { index += 1 }
 			}
 			guard index > start, let raw = String(bytes: bytes[start..<index], encoding: .utf8) else {
-				throw error("不是合法的数字")
+				throw error(L.t("parse.number.invalid", "不是合法的数字", table: .messages))
 			}
-			guard Double(raw) != nil else { throw error("数字 \(raw) 超出范围") }
+			guard Double(raw) != nil else { throw error(String(format: L.t("parse.number.outOfRange", "数字 %@ 超出范围", table: .messages), raw)) }
 			return JSONNumber(raw: raw)
 		}
 

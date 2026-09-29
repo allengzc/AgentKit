@@ -58,13 +58,13 @@ public enum DescriptorLoader {
 			} catch let error as DecodingError {
 				issues.append(DescriptorIssue(
 					severity: .error,
-					message: "描述文件 \(url.lastPathComponent) 无法解析",
+					message: String(format: L.t("descriptor.load.parseFailed", "描述文件 %@ 无法解析", table: .messages), url.lastPathComponent),
 					detail: DescriptorLoader.describe(error)
 				))
 			} catch {
 				issues.append(DescriptorIssue(
 					severity: .error,
-					message: "描述文件 \(url.lastPathComponent) 读取失败",
+					message: String(format: L.t("descriptor.load.readFailed", "描述文件 %@ 读取失败", table: .messages), url.lastPathComponent),
 					detail: error.localizedDescription
 				))
 			}
@@ -136,7 +136,7 @@ public enum DescriptorLoader {
 				issues.append(DescriptorIssue(
 					severity: .warning,
 					agentID: id,
-					message: "无法解析根目录模板 \(rootTemplate)",
+					message: String(format: L.t("descriptor.load.rootTemplate", "无法解析根目录模板 %@", table: .messages), rootTemplate),
 					detail: error.localizedDescription
 				))
 			}
@@ -145,7 +145,7 @@ public enum DescriptorLoader {
 				issues.append(DescriptorIssue(
 					severity: .info,
 					agentID: id,
-					message: "根目录由环境变量 \(descriptor.root.env ?? "") 覆盖",
+					message: String(format: L.t("descriptor.load.rootOverride", "根目录由环境变量 %@ 覆盖", table: .messages), descriptor.root.env ?? ""),
 					detail: rootURL.path
 				))
 			}
@@ -155,7 +155,7 @@ public enum DescriptorLoader {
 				issues.append(DescriptorIssue(
 					severity: .warning,
 					agentID: id,
-					message: "根目录不存在",
+					message: L.t("descriptor.load.rootMissing", "根目录不存在", table: .messages),
 					detail: rootURL.path
 				))
 			}
@@ -169,8 +169,11 @@ public enum DescriptorLoader {
 					issues.append(DescriptorIssue(
 						severity: .warning,
 						agentID: id,
-						message: "在本机没有检测到 \(descriptor.name)",
-						detail: "已检查：" + detectPaths.joined(separator: "、")
+						message: String(format: L.t("descriptor.load.notDetected", "在本机没有检测到 %@", table: .messages), descriptor.name.current),
+						detail: String(
+							format: L.t("descriptor.load.checkedPaths", "已检查：%@", table: .messages),
+							detectPaths.joined(separator: L.t("list.separator", "、", table: .messages))
+						)
 					))
 				}
 			}
@@ -195,8 +198,11 @@ public enum DescriptorLoader {
 					agent.issues.append(DescriptorIssue(
 						severity: .warning,
 						agentID: id,
-						message: "找不到 \(spec.name) 可执行文件",
-						detail: "已尝试：(PATH) " + (spec.candidates ?? []).joined(separator: "、")
+						message: String(format: L.t("descriptor.load.cliMissing", "找不到 %@ 可执行文件", table: .messages), spec.name),
+						detail: String(
+							format: L.t("descriptor.load.triedPaths", "已尝试：(PATH) %@", table: .messages),
+							(spec.candidates ?? []).joined(separator: L.t("list.separator", "、", table: .messages))
+						)
 					))
 				}
 			}
@@ -208,21 +214,40 @@ public enum DescriptorLoader {
 		return outcome
 	}
 
+	/// How a coding path reads in an error: the root has no path at all, so it
+	/// gets a name instead of an empty string.
+	static func fieldLabel(_ path: String) -> String {
+		path.isEmpty ? L.t("descriptor.decode.root", "(根)", table: .messages) : path
+	}
+
 	/// Turns a `DecodingError` into something a human can act on.
 	public static func describe(_ error: DecodingError) -> String {
 		switch error {
 		case .keyNotFound(let key, let context):
 			let path = context.codingPath.map(\.stringValue).joined(separator: ".")
-			return "缺少字段 \(path.isEmpty ? key.stringValue : path + "." + key.stringValue)"
+			let field = path.isEmpty ? key.stringValue : path + "." + key.stringValue
+			return String(format: L.t("descriptor.decode.missingField", "缺少字段 %@", table: .messages), field)
 		case .typeMismatch(let type, let context):
 			let path = context.codingPath.map(\.stringValue).joined(separator: ".")
-			return "字段 \(path.isEmpty ? "(根)" : path) 的类型不是 \(type)"
+			return String(
+				format: L.t("descriptor.decode.typeMismatch", "字段 %@ 的类型不是 %@", table: .messages),
+				fieldLabel(path),
+				String(describing: type)
+			)
 		case .valueNotFound(let type, let context):
 			let path = context.codingPath.map(\.stringValue).joined(separator: ".")
-			return "字段 \(path.isEmpty ? "(根)" : path) 缺少 \(type) 值"
+			return String(
+				format: L.t("descriptor.decode.valueMissing", "字段 %@ 缺少 %@ 值", table: .messages),
+				fieldLabel(path),
+				String(describing: type)
+			)
 		case .dataCorrupted(let context):
 			let path = context.codingPath.map(\.stringValue).joined(separator: ".")
-			return "字段 \(path.isEmpty ? "(根)" : path) 损坏：\(context.debugDescription)"
+			return String(
+				format: L.t("descriptor.decode.corrupted", "字段 %@ 损坏：%@", table: .messages),
+				fieldLabel(path),
+				context.debugDescription
+			)
 		@unknown default:
 			return error.localizedDescription
 		}

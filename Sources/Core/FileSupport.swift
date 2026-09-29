@@ -221,13 +221,21 @@ public enum FileWriteError: Error, CustomStringConvertible {
 	public var description: String {
 		switch self {
 		case .concurrentModification(let expected, let actual):
-			return "文件在读取之后被外部改动（读到时 \(expected)，现在是 \(actual)）。已中止写入，未丢失任何内容。"
+			return String(
+				format: L.t(
+					"write.error.concurrent",
+					"文件在读取之后被外部改动（读到时 %@，现在是 %@）。已中止写入，未丢失任何内容。",
+					table: .messages
+				),
+				expected,
+				actual
+			)
 		case .malformedSource(let path):
-			return "\(path) 的内容不合法，AgentKit 不会覆盖它。请先修复或用外部编辑器处理。"
+			return String(format: L.t("write.error.malformedSource", "%@ 的内容不合法，AgentKit 不会覆盖它。请先修复或用外部编辑器处理。", table: .messages), path)
 		case .outsideScope(let error):
 			return error.description
 		case .io(let message):
-			return "写入失败：\(message)"
+			return String(format: L.t("write.error.io", "写入失败：%@", table: .messages), message)
 		}
 	}
 }
@@ -251,7 +259,7 @@ public enum AtomicFile {
 		let permissions = mode ?? 0o644
 		let descriptor = open(temporary.path, O_WRONLY | O_CREAT | O_TRUNC, permissions)
 		guard descriptor >= 0 else {
-			throw FileWriteError.io("open(\(temporary.path)) 失败：\(String(cString: strerror(errno)))")
+			throw FileWriteError.io(String(format: L.t("write.error.tempFile", "open(%@) 失败：%@", table: .messages), temporary.path, String(cString: strerror(errno))))
 		}
 
 		var failure: String?
@@ -261,14 +269,14 @@ public enum AtomicFile {
 			while written < raw.count {
 				let result = Darwin.write(descriptor, base.advanced(by: written), raw.count - written)
 				if result <= 0 {
-					failure = "write 失败：\(String(cString: strerror(errno)))"
+					failure = String(format: L.t("write.error.writeFailed", "write 失败：%@", table: .messages), String(cString: strerror(errno)))
 					return
 				}
 				written += result
 			}
 		}
 		if failure == nil, fsync(descriptor) != 0 {
-			failure = "fsync 失败：\(String(cString: strerror(errno)))"
+			failure = String(format: L.t("write.error.fsyncFailed", "fsync 失败：%@", table: .messages), String(cString: strerror(errno)))
 		}
 		close(descriptor)
 
@@ -281,7 +289,7 @@ public enum AtomicFile {
 		guard rename(temporary.path, url.path) == 0 else {
 			let message = String(cString: strerror(errno))
 			try? FileManager.default.removeItem(at: temporary)
-			throw FileWriteError.io("rename 失败：\(message)")
+			throw FileWriteError.io(String(format: L.t("write.error.renameFailed", "rename 失败：%@", table: .messages), message))
 		}
 
 		// Flush the directory entry so the rename survives a power loss.
@@ -310,7 +318,7 @@ public enum AtomicFile {
 		do {
 			try FileManager.default.copyItem(at: url, to: destination)
 		} catch {
-			throw FileWriteError.io("备份到 \(destination.lastPathComponent) 失败：\(error.localizedDescription)")
+			throw FileWriteError.io(String(format: L.t("write.error.backupFailed", "备份到 %@ 失败：%@", table: .messages), destination.lastPathComponent, error.localizedDescription))
 		}
 		for stale in policy.existingBackups(for: url).dropFirst(max(policy.keep, 1)) {
 			try? FileManager.default.removeItem(at: stale)

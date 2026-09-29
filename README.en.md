@@ -36,6 +36,12 @@ adding a JSON file. How one table absorbs three different on-disk formats → [D
 ./run-tests.sh      # all offline assertions — no window, no network
 ```
 
+The interface is available in **Chinese and English**: switch it from the
+**Language** menu in the menu bar and the choice is remembered. It follows the
+system language by default. Panel names, buttons, prompts, the reasons a
+write was refused, and the labels in descriptors and settings schemas all
+follow it; log messages and command line switch names do not.
+
 Requirements: macOS 14+, Xcode command line tools (Swift 6.x), and an Apple Development
 certificate for signing (override with `AGENTKIT_SIGN_IDENTITY`).
 

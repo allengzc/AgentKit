@@ -108,7 +108,7 @@ public enum TextFile {
 				url: url,
 				realURL: realURL,
 				isSymlink: isSymlink,
-				status: .unreadable("文件不是合法的 UTF-8"),
+				status: .unreadable(L.t("file.notUTF8", "文件不是合法的 UTF-8", table: .messages)),
 				text: "",
 				fingerprint: fingerprint,
 				mode: AtomicFile.mode(of: realURL),
@@ -160,7 +160,7 @@ public enum TextFile {
 
 		if let expected = document.fingerprint {
 			guard FileManager.default.fileExists(atPath: document.realURL.path) else {
-				throw FileWriteError.concurrentModification(expected: expected.shortHash, actual: "文件已被删除")
+				throw FileWriteError.concurrentModification(expected: expected.shortHash, actual: L.t("file.deleted", "文件已被删除", table: .messages))
 			}
 			let current = (try? Data(contentsOf: document.realURL)) ?? Data()
 			let actual = FileFingerprint.of(current, at: document.realURL)
@@ -175,7 +175,7 @@ public enum TextFile {
 		}
 
 		guard let data = text.data(using: .utf8) else {
-			throw FileWriteError.io("无法把内容编码成 UTF-8")
+			throw FileWriteError.io(L.t("write.error.encodeUTF8", "无法把内容编码成 UTF-8", table: .messages))
 		}
 		try AtomicFile.write(data, to: document.realURL, mode: document.mode)
 		return FileWriteResult(url: document.realURL, backupURL: backupURL)
@@ -187,7 +187,7 @@ public enum TextFile {
 		do {
 			try FileManager.default.trashItem(at: url, resultingItemURL: &resulting)
 		} catch {
-			throw FileWriteError.io("移到废纸篓失败：\(error.localizedDescription)")
+			throw FileWriteError.io(String(format: L.t("write.error.trashFailed", "移到废纸篓失败：%@", table: .messages), error.localizedDescription))
 		}
 	}
 }

@@ -67,7 +67,11 @@ public enum MCPRepair {
 			let preview = JSONFile.preview(merged, for: targetDocument, policy: policy)
 			steps.append(
 				MCPRepairPlan.Step(
-					title: "把 \(carried.joined(separator: "、")) 迁到 \(target.lastPathComponent)",
+					title: String(
+						format: L.t("mcp.repair.step.carryKeys", "把 %@ 迁到 %@", table: .messages),
+						carried.joined(separator: L.t("list.separator", "、", table: .messages)),
+						target.lastPathComponent
+					),
 					url: target,
 					kind: .writeJSON,
 					value: merged,
@@ -75,7 +79,12 @@ public enum MCPRepair {
 				)
 			)
 		} else if !finding.adapterKeys.isEmpty {
-			notes.append("描述文件没有给出这些键的去处，已跳过：\(finding.adapterKeys.joined(separator: "、"))")
+			notes.append(
+				String(
+					format: L.t("mcp.repair.note.noTargetForKey", "描述文件没有给出这些键的去处，已跳过：%@", table: .messages),
+					finding.adapterKeys.joined(separator: L.t("list.separator", "、", table: .messages))
+				)
+			)
 		}
 
 		// 2. The servers themselves belong in a layer that is actually read.
@@ -97,7 +106,11 @@ public enum MCPRepair {
 				let preview = JSONFile.preview(merged, for: targetDocument, policy: policy)
 				steps.append(
 					MCPRepairPlan.Step(
-						title: "把 \(added.count) 个服务器并入 \(sharedLayerURL.path)（合并时已存在的以目标文件为准）",
+						title: String(
+							format: L.t("mcp.repair.step.mergeServers", "把 %d 个服务器并入 %@（合并时已存在的以目标文件为准）", table: .messages),
+							added.count,
+							sharedLayerURL.path
+						),
 						url: sharedLayerURL,
 						kind: .writeJSON,
 						value: merged,
@@ -105,12 +118,23 @@ public enum MCPRepair {
 					)
 				)
 				if !kept.isEmpty {
-					notes.append("目标层里已有同名服务器，保留目标层的定义：\(kept.joined(separator: "、"))")
+					notes.append(
+						String(
+							format: L.t("mcp.repair.note.targetWins", "目标层里已有同名服务器，保留目标层的定义：%@", table: .messages),
+							kept.joined(separator: L.t("list.separator", "、", table: .messages))
+						)
+					)
 				}
 			} else if !includeServers {
-				notes.append("\(finding.serverNames.count) 个服务器（\(finding.serverNames.joined(separator: "、"))）不会被搬运，它们会随文件一起被重命名。")
+				notes.append(
+					String(
+						format: L.t("mcp.repair.note.serversNotMoved", "%d 个服务器（%@）不会被搬运，它们会随文件一起被重命名。", table: .messages),
+						finding.serverNames.count,
+						finding.serverNames.joined(separator: L.t("list.separator", "、", table: .messages))
+					)
+				)
 			} else {
-				notes.append("找不到可用的共享层，服务器不会被搬运。")
+				notes.append(L.t("mcp.repair.note.noSharedLayer", "找不到可用的共享层，服务器不会被搬运。", table: .messages))
 			}
 		}
 
@@ -118,7 +142,11 @@ public enum MCPRepair {
 		let destination = renameDestination(for: finding.url, policy: policy, stamp: stamp)
 		steps.append(
 			MCPRepairPlan.Step(
-				title: "把 \(finding.url.lastPathComponent) 重命名为 \(destination.lastPathComponent)",
+				title: String(
+					format: L.t("mcp.repair.step.rename", "把 %@ 重命名为 %@", table: .messages),
+					finding.url.lastPathComponent,
+					destination.lastPathComponent
+				),
 				url: finding.url,
 				kind: .rename(to: destination),
 				value: nil,
@@ -160,7 +188,13 @@ public enum MCPRepair {
 					guard let value = step.value else { continue }
 					let document = JSONFile.load(step.url, policy: policy)
 					_ = try JSONFile.write(value, document: document, scope: scope, policy: policy)
-					outcomes.append(Outcome(step: step.title, succeeded: true, detail: "已写入"))
+					outcomes.append(
+						Outcome(
+							step: step.title,
+							succeeded: true,
+							detail: L.t("mcp.repair.outcome.written", "已写入", table: .messages)
+						)
+					)
 				case .rename(let destination):
 					try FileManager.default.moveItem(at: step.url, to: destination)
 					outcomes.append(Outcome(step: step.title, succeeded: true, detail: destination.lastPathComponent))

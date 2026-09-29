@@ -144,7 +144,10 @@ public final class AppModel {
 				}
 				self.cliResolving = false
 				if let agent = self.selectedAgent, agent.cliURL == nil {
-					self.statusMessage = "找不到 \(agent.descriptor.detect?.cli?.name ?? "CLI")，依赖命令行的功能已停用"
+					self.statusMessage = String(
+						format: L.t("app.cliMissing", "找不到 %@，依赖命令行的功能已停用"),
+						agent.descriptor.detect?.cli?.name ?? "CLI"
+					)
 				}
 				self.projects.refreshSuggestions(for: self.agents, appSupport: support)
 			}

@@ -30,7 +30,13 @@ public struct SkillItem: Identifiable, Hashable {
 	public var id: String { name }
 
 	public var displaySize: String {
-		guard !isDirectory else { return childCount == 0 ? "空" : "\(childCount) 项" }
+		guard !isDirectory else {
+			if childCount == 0 { return L.t("skills.item.empty", "空", table: .messages) }
+			// English needs a singular form and Chinese does not, so the two keys
+			// carry the same Chinese text and only the English table differs.
+			let key = childCount == 1 ? "skills.item.count.one" : "skills.item.count"
+			return String(format: L.t(key, "%d 项", table: .messages), childCount)
+		}
 		return SkillItem.sizeText(bytes)
 	}
 
@@ -128,28 +134,34 @@ public struct SkillEntry: Identifiable {
 	/// description means the skill is not loaded at all.
 	public var issues: [String] {
 		var out: [String] = []
-		if !document.isReadable { out.append(document.problemReason ?? "文件无法读取") }
+		if !document.isReadable { out.append(document.problemReason ?? L.t("skills.issue.unreadable", "文件无法读取", table: .messages)) }
 		// An empty value is as unusable as an absent one: `description:` with
 		// nothing after it parses to "", and pi has nothing to match a request
 		// against. Treating that as valid meant a broken skill was picked as the
 		// healthy default.
 		if frontmatter.string("description")?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true {
-			out.append("缺少 description：pi 不会加载这个 skill")
+			out.append(L.t("skills.issue.missingDescription", "缺少 description：pi 不会加载这个 skill", table: .messages))
 		} else if description.count > 1024 {
-			out.append("description 超过 1024 字符")
+			out.append(L.t("skills.issue.descriptionTooLong", "description 超过 1024 字符", table: .messages))
 		}
 		let name = self.name
 		if !SkillsScanner.isValidName(name) {
-			out.append("name \(name) 不符合规范：只能用小写字母、数字和连字符")
+			out.append(String(format: L.t("skills.issue.nameInvalid", "name %@ 不符合规范：只能用小写字母、数字和连字符", table: .messages), name))
 		}
-		if name.count > 64 { out.append("name 超过 64 字符") }
+		if name.count > 64 { out.append(L.t("skills.issue.nameTooLong", "name 超过 64 字符", table: .messages)) }
 		return out
 	}
 
 	public var warnings: [String] {
 		var out: [String] = []
 		if !directoryNameMatches {
-			out.append("声明名 \(name) 与目录名 \(directory.lastPathComponent) 不一致；AgentKit 与其它实现都接受，但目录名一致更便于移植")
+			out.append(
+				String(
+					format: L.t("skills.warning.nameMismatch", "声明名 %@ 与目录名 %@ 不一致；AgentKit 与其它实现都接受，但目录名一致更便于移植", table: .messages),
+					name,
+					directory.lastPathComponent
+				)
+			)
 		}
 		return out
 	}
@@ -338,7 +350,7 @@ public enum SkillsScanner {
 	public static func createSkill(named name: String, in root: URL, description: String) throws -> URL {
 		let directory = root.appendingPathComponent(name, isDirectory: true)
 		guard !FileManager.default.fileExists(atPath: directory.path) else {
-			throw FileWriteError.io("\(directory.path) 已经存在")
+			throw FileWriteError.io(String(format: L.t("skills.error.exists", "%@ 已经存在", table: .messages), directory.path))
 		}
 		try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
 		try FileManager.default.createDirectory(
@@ -350,18 +362,17 @@ public enum SkillsScanner {
 		document.hasFrontmatter = true
 		document.setRaw(FrontmatterDocument.literal(for: .string(name)), forKey: "name")
 		document.setRaw(FrontmatterDocument.literal(for: .string(description)), forKey: "description")
-		document.body = """
-
-		# \(name)
-
-		在这里写这个 skill 做什么、什么时候用，以及需要先读哪些 bundled 文件。
-
-		脚本请用相对于本目录的路径引用，例如 `scripts/example.sh`。
-
-		"""
+		document.body = String(
+			format: L.t(
+				"skills.template.body",
+				"\n# %@\n\n在这里写这个 skill 做什么、什么时候用，以及需要先读哪些 bundled 文件。\n\n脚本请用相对于本目录的路径引用，例如 `scripts/example.sh`。\n",
+				table: .messages
+			),
+			name
+		)
 		let manifest = directory.appendingPathComponent("SKILL.md")
 		guard let data = document.render().data(using: .utf8) else {
-			throw FileWriteError.io("无法编码 SKILL.md")
+			throw FileWriteError.io(L.t("skills.error.encodeFailed", "无法编码 SKILL.md", table: .messages))
 		}
 		try AtomicFile.write(data, to: manifest, mode: 0o644)
 		return manifest
@@ -378,7 +389,7 @@ public enum SkillsScanner {
 			? root.appendingPathComponent(entry.directory.lastPathComponent)
 			: disabledRoot.appendingPathComponent(entry.directory.lastPathComponent)
 		guard !FileManager.default.fileExists(atPath: destination.path) else {
-			throw FileWriteError.io("\(destination.path) 已经存在")
+			throw FileWriteError.io(String(format: L.t("skills.error.exists", "%@ 已经存在", table: .messages), destination.path))
 		}
 		if !enabled {
 			try FileManager.default.createDirectory(at: disabledRoot, withIntermediateDirectories: true)

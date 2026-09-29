@@ -52,7 +52,7 @@ struct Sidebar: View {
 					.labelsHidden()
 					.pickerStyle(.menu)
 				} else {
-					Text(model.selectedAgent?.name ?? "未检测到 Agent")
+					Text(model.selectedAgent?.name ?? L.t("sidebar.noAgent", "未检测到 Agent"))
 						.font(.headline)
 				}
 				Spacer(minLength: 0)
@@ -61,15 +61,15 @@ struct Sidebar: View {
 			if let agent = model.selectedAgent {
 				HStack(spacing: 5) {
 					if agent.origin == .user {
-						StatusBadge(text: "自定义描述", level: .info)
+						StatusBadge(text: L.t("badge.customDescriptor", "自定义描述"), level: .info)
 					}
 					if !agent.rootExists {
-						StatusBadge(text: "未安装", level: .warning)
+						StatusBadge(text: L.t("badge.notInstalled", "未安装"), level: .warning)
 					}
 					if let version = agent.cliVersion {
 						StatusBadge(text: version, level: .muted)
 					} else if model.cliResolving {
-						StatusBadge(text: "查找 CLI…", level: .muted)
+						StatusBadge(text: L.t("badge.lookingUpCLI", "查找 CLI…"), level: .muted)
 					}
 				}
 				PathChip(path: agent.rootURL.path)
@@ -93,9 +93,18 @@ struct Sidebar: View {
 				}
 				.buttonStyle(.plain)
 				.disabled(model.projectURL == nil)
-				.help(model.projectURL == nil ? "当前是全局作用域，项目级配置不会被加载" : "点一下回到全局作用域")
+				.help(
+					model.projectURL == nil
+						? L.t("help.projectGlobalScope", "当前是全局作用域，项目级配置不会被加载")
+						: L.t("help.projectBackToGlobal", "点一下回到全局作用域")
+				)
 			} else {
-				Text("把一份描述文件 JSON 放进 ~/.config/agentkit/agents/ 即可接入新的 agent")
+				Text(
+					L.t(
+						"sidebar.addAgentHint",
+						"把一份描述文件 JSON 放进 ~/.config/agentkit/agents/ 即可接入新的 agent"
+					)
+				)
 					.font(.caption)
 					.foregroundStyle(.secondary)
 					.fixedSize(horizontal: false, vertical: true)
@@ -117,13 +126,13 @@ struct Sidebar: View {
 				Image(systemName: "questionmark.circle")
 					.font(.caption2)
 					.foregroundStyle(.orange)
-					.help("本版本不支持这个面板类型")
+					.help(L.t("help.unsupportedPane", "本版本不支持这个面板类型"))
 			}
 			if SurfacePaths.requiresProject(surface) && model.projectURL == nil {
 				Image(systemName: "folder.badge.questionmark")
 					.font(.caption2)
 					.foregroundStyle(.tertiary)
-					.help("需要先选择一个项目目录")
+					.help(L.t("help.needsProject", "需要先选择一个项目目录"))
 			}
 		}
 	}
@@ -131,20 +140,29 @@ struct Sidebar: View {
 	private var footer: some View {
 		VStack(alignment: .leading, spacing: 6) {
 			if model.isSelectedAgentRunning {
-				Label("\(model.selectedAgent?.descriptor.detect?.cli?.name ?? "CLI") 正在运行", systemImage: "bolt.horizontal.circle")
+				Label(
+					String(
+						format: L.t("agent.running", "%@ 正在运行"),
+						model.selectedAgent?.descriptor.detect?.cli?.name ?? "CLI"
+					),
+					systemImage: "bolt.horizontal.circle"
+				)
 					.font(.caption2)
 					.foregroundStyle(.orange)
-					.help("配置改动需要 /reload 或重启才会生效")
+					.help(L.t("help.reloadNeeded", "配置改动需要 /reload 或重启才会生效"))
 			}
 			let issues = (model.selectedAgent?.issues ?? []) + model.globalIssues
 			let problems = issues.filter { $0.severity >= .warning }
 			if !problems.isEmpty {
-				Label("\(problems.count) 条诊断", systemImage: "exclamationmark.triangle")
+				Label(
+					String(format: L.t(problems.count == 1 ? "sidebar.diagnosticsCount.one" : "sidebar.diagnosticsCount", "%d 条诊断"), problems.count),
+					systemImage: "exclamationmark.triangle"
+				)
 					.font(.caption2)
 					.foregroundStyle(.orange)
 			}
 			HStack {
-				Text("重新载入于 \(model.lastReload, style: .time)")
+				Text("\(L.t("sidebar.reloadedAt", "重新载入于")) \(model.lastReload, style: .time)")
 					.font(.caption2)
 					.foregroundStyle(.tertiary)
 				Spacer()
@@ -154,7 +172,7 @@ struct Sidebar: View {
 					Image(systemName: "arrow.clockwise")
 				}
 				.buttonStyle(.borderless)
-				.help("重新读取描述文件与配置")
+				.help(L.t("menu.reload", "重新载入描述文件与配置"))
 			}
 		}
 		.padding(.horizontal, 12)

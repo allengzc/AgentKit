@@ -47,10 +47,15 @@ struct ResourcesPane: View {
 
 	private var sections: [(id: String, title: String, icon: String, type: String)] {
 		[
-			("theme", "主题", "paintpalette", "theme"),
-			("extension", "扩展", "puzzlepiece", "extension"),
-			("prompt", "Prompt 模板", "text.badge.plus", "prompt"),
-			("package", "Packages", "shippingbox", "package"),
+			("theme", L.t("resources.section.themes", "主题"), "paintpalette", "theme"),
+			("extension", L.t("resources.section.extensions", "扩展"), "puzzlepiece", "extension"),
+			("prompt", L.t("resources.section.prompts", "Prompt 模板"), "text.badge.plus", "prompt"),
+			(
+				"package",
+				L.t("resources.section.packages", "Packages"),
+				"shippingbox",
+				"package"
+			),
 		]
 	}
 
@@ -78,16 +83,27 @@ struct ResourcesPane: View {
 		VStack(alignment: .leading, spacing: 7) {
 			HStack(spacing: 8) {
 				Text(surface.titleText).font(.title3.weight(.semibold))
-				StatusBadge(text: "\(entries.count) 个资源文件", level: .info)
+				StatusBadge(
+					text: String(
+						format: L.t(entries.count == 1 ? "resources.badge.fileCount.one" : "resources.badge.fileCount", "%d 个资源文件"),
+						entries.count
+					),
+					level: .info
+				)
 				Spacer()
 				Button {
 					load()
 				} label: {
-					Label("重新读取", systemImage: "arrow.clockwise")
+					Label(L.t("button.reload", "重新读取"), systemImage: "arrow.clockwise")
 				}
 				.controlSize(.small)
 			}
-			Text("扩展的启用/停用沿用 pi 的约定：文件名以 .off 结尾即不加载。这里的改动是直接重命名文件，会先征求确认。")
+			Text(
+				L.t(
+					"resources.note.extensions",
+					"扩展的启用/停用沿用 pi 的约定：文件名以 .off 结尾即不加载。这里的改动是直接重命名文件，会先征求确认。"
+				)
+			)
 				.font(.caption)
 				.foregroundStyle(.secondary)
 			ProjectScopeBanner(surface: surface)
@@ -131,10 +147,10 @@ struct ResourcesPane: View {
 			VStack(alignment: .leading, spacing: 6) {
 				if items.isEmpty {
 					VStack(alignment: .leading, spacing: 6) {
-						Text("这个分类下没有资源文件。")
+						Text(L.t("empty.noResources", "这个分类下没有资源文件。"))
 							.font(.callout)
 							.foregroundStyle(.secondary)
-						Text("已扫描：")
+						Text(L.t("resources.scannedRoots", "已扫描："))
 							.font(.caption)
 							.foregroundStyle(.tertiary)
 						ForEach(scannedRoots(for: selectedSection), id: \.path) { url in
@@ -144,7 +160,7 @@ struct ResourcesPane: View {
 								.textSelection(.enabled)
 						}
 						if scannedRoots(for: selectedSection).isEmpty {
-							Text("描述文件里没有为这个分类声明根目录")
+							Text(L.t("resources.noRoots", "描述文件里没有为这个分类声明根目录"))
 								.font(.caption)
 								.foregroundStyle(.tertiary)
 						}
@@ -163,13 +179,13 @@ struct ResourcesPane: View {
 									.font(.callout)
 									.lineLimit(1)
 								if entry.isDisabled {
-									StatusBadge(text: "已停用", level: .muted)
+									StatusBadge(text: L.t("badge.disabled", "已停用"), level: .muted)
 								}
 								if entry.type == "theme", entry.displayName == activeThemeName {
-									StatusBadge(text: "当前主题", level: .ok)
+									StatusBadge(text: L.t("resources.badge.currentTheme", "当前主题"), level: .ok)
 								}
 								if entry.scope == "project" {
-									StatusBadge(text: "项目", level: .muted)
+									StatusBadge(text: L.t("badge.scopeProject", "项目"), level: .muted)
 								}
 							}
 							Text(entry.url.path)
@@ -180,7 +196,11 @@ struct ResourcesPane: View {
 						}
 						Spacer(minLength: 6)
 						if entry.type == "extension", entry.writable {
-							Button(entry.isDisabled ? "启用" : "停用") {
+							Button(
+								entry.isDisabled
+									? L.t("button.enable", "启用")
+									: L.t("button.disable", "停用")
+							) {
 								toggleExtension(entry)
 							}
 							.controlSize(.small)
@@ -210,18 +230,18 @@ struct ResourcesPane: View {
 		ScrollView {
 			VStack(alignment: .leading, spacing: 10) {
 				HStack {
-					Text("settings.json 里声明的包").font(.headline)
+					Text(L.t("resources.packages.title", "settings.json 里声明的包")).font(.headline)
 					Spacer()
 					Button {
 						runCLI(["list"])
 					} label: {
-						Label("运行 pi list", systemImage: "play")
+						Label(L.t("button.runPiList", "运行 pi list"), systemImage: "play")
 					}
 					.controlSize(.small)
 					.disabled(agent.cliURL == nil || runningCLI)
 				}
 				if packages.isEmpty {
-					Text("没有声明任何 package。")
+					Text(L.t("empty.noPackages", "没有声明任何 package。"))
 						.font(.callout)
 						.foregroundStyle(.secondary)
 				}
@@ -231,7 +251,7 @@ struct ResourcesPane: View {
 							.font(.system(.callout, design: .monospaced))
 							.textSelection(.enabled)
 						if !package.filters.isEmpty {
-							Text(package.filters.joined(separator: "、"))
+							Text(package.filters.joined(separator: L.t("listSeparator", "、")))
 								.font(.caption2)
 								.foregroundStyle(.tertiary)
 						}
@@ -245,7 +265,7 @@ struct ResourcesPane: View {
 				}
 				if let cliOutput {
 					VStack(alignment: .leading, spacing: 4) {
-						Text("pi list 输出").font(.caption.weight(.semibold))
+						Text(L.t("resources.piListOutput", "pi list 输出")).font(.caption.weight(.semibold))
 						Text(cliOutput)
 							.font(.system(size: 11, design: .monospaced))
 							.textSelection(.enabled)
@@ -254,7 +274,12 @@ struct ResourcesPane: View {
 							.background(Color(nsColor: .textBackgroundColor), in: RoundedRectangle(cornerRadius: 6))
 					}
 				}
-				Text("安装与卸载请用命令行：`pi install <source>` / `pi remove <source>`。AgentKit 只读取声明，不替你改 packages 数组。")
+				Text(
+					L.t(
+						"resources.packages.note",
+						"安装与卸载请用命令行：`pi install <source>` / `pi remove <source>`。AgentKit 只读取声明，不替你改 packages 数组。"
+					)
+				)
 					.font(.caption2)
 					.foregroundStyle(.tertiary)
 			}
@@ -286,11 +311,19 @@ struct ResourcesPane: View {
 		}
 		do {
 			guard !FileManager.default.fileExists(atPath: destination.path) else {
-				errorText = "\(destination.lastPathComponent) 已经存在"
+				errorText = String(
+					format: L.t("error.fileExists", "%@ 已经存在"),
+					destination.lastPathComponent
+				)
 				return
 			}
 			try FileManager.default.moveItem(at: entry.url, to: destination)
-			banner = "已\(entry.isDisabled ? "启用" : "停用") \(entry.displayName)"
+			banner = String(
+				format: entry.isDisabled
+					? L.t("banner.enabled", "已启用 %@")
+					: L.t("banner.disabled", "已停用 %@"),
+				entry.displayName
+			)
 			errorText = nil
 			load()
 		} catch {

@@ -1,8 +1,11 @@
 {
   "descriptorVersion": 1,
   "id": "claude",
-  "name": "Claude Code",
-  "subtitle": "claude (Anthropic)",
+  "name": { "zh-Hans": "Claude Code", "en": "Claude Code" },
+  "subtitle": {
+    "zh-Hans": "claude (Anthropic)",
+    "en": "claude (Anthropic)"
+  },
   "icon": "sparkles",
   "homepage": "https://code.claude.com/docs/en/settings",
 
@@ -33,7 +36,7 @@
     {
       "id": "settings",
       "kind": "settings",
-      "title": "通用设置",
+      "title": { "zh-Hans": "通用设置", "en": "Settings" },
       "icon": "slider.horizontal.3",
       "shape": "typed-json",
       "file": "$ROOT/settings.json",
@@ -43,7 +46,7 @@
     {
       "id": "mcp",
       "kind": "mcp",
-      "title": "MCP 服务器",
+      "title": { "zh-Hans": "MCP 服务器", "en": "MCP Servers" },
       "icon": "point.3.connected.trianglepath.dotted",
       "shape": "mcp-servers-map",
       "serverKey": "mcpServers",
@@ -53,14 +56,20 @@
           "scope": "user",
           "precedence": 10,
           "writable": true,
-          "note": "Claude Code 的全局配置。它同时保存账号、用量统计和每个项目的历史，所以这个文件几乎每次运行 claude 都会被改写；AgentKit 落盘前会比对哈希，发现被改过就拒绝写入。"
+          "note": {
+            "zh-Hans": "Claude Code 的全局配置。它同时保存账号、用量统计和每个项目的历史，所以这个文件几乎每次运行 claude 都会被改写；AgentKit 落盘前会比对哈希，发现被改过就拒绝写入。",
+            "en": "Claude Code's global config. It also holds the account, usage stats and per-project history, so running claude rewrites this file almost every time; AgentKit compares hashes before writing and refuses when it changed underneath."
+          }
         },
         {
           "path": "$CWD/.mcp.json",
           "scope": "project",
           "precedence": 30,
           "writable": true,
-          "note": "跟着仓库走的项目级 MCP 配置，通常是要提交的。"
+          "note": {
+            "zh-Hans": "跟着仓库走的项目级 MCP 配置，通常是要提交的。",
+            "en": "Project-level MCP config that travels with the repo; usually committed."
+          }
         }
       ]
     },
@@ -68,7 +77,7 @@
     {
       "id": "skills",
       "kind": "skills",
-      "title": "Skills",
+      "title": { "zh-Hans": "Skills", "en": "Skills" },
       "icon": "shippingbox",
       "shape": "skill-dirs",
       "ignore": [".git", "node_modules", ".venv", "venv", "logs", ".cache", "dist", "build"],
@@ -82,7 +91,7 @@
     {
       "id": "subagents",
       "kind": "subagents",
-      "title": "子 Agents",
+      "title": { "zh-Hans": "子 Agents", "en": "Subagents" },
       "icon": "person.2",
       "shape": "md-frontmatter",
       "roots": [
@@ -98,7 +107,7 @@
     {
       "id": "sessions",
       "kind": "sessions",
-      "title": "会话",
+      "title": { "zh-Hans": "会话", "en": "Sessions" },
       "icon": "clock.arrow.circlepath",
       "shape": "jsonl-sessions",
       "root": "$ROOT/projects",
@@ -126,7 +135,7 @@
     {
       "id": "instructions",
       "kind": "instructions",
-      "title": "全局指令",
+      "title": { "zh-Hans": "全局指令", "en": "Instructions" },
       "icon": "text.book.closed",
       "shape": "md",
       "files": [

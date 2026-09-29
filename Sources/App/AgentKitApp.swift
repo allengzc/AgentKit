@@ -19,6 +19,9 @@ struct AgentKitApp: App {
 				// Re-creating the tree is what makes a language switch take effect:
 				// every `L.t` is read while the body is built.
 				.id(model.languages.current)
+				// Formatters (dates, numbers) follow this, not the system locale —
+				// otherwise English mode still shows "9月30日".
+				.environment(\.locale, Locale(identifier: model.languages.current.rawValue))
 		}
 		.defaultSize(width: 1120, height: 700)
 		.commands {

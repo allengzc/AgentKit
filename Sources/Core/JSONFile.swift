@@ -170,7 +170,7 @@ public enum JSONFile {
 				url: url,
 				realURL: realURL,
 				isSymlink: isSymlink,
-				status: .unreadable("文件不是合法的 UTF-8"),
+				status: .unreadable(L.t("file.notUTF8", "文件不是合法的 UTF-8", table: .messages)),
 				rawText: "",
 				value: nil,
 				style: .standard,
@@ -296,7 +296,7 @@ public enum JSONFile {
 		// while the user was editing the form.
 		if let expected = document.fingerprint {
 			guard FileManager.default.fileExists(atPath: document.realURL.path) else {
-				throw FileWriteError.concurrentModification(expected: expected.shortHash, actual: "文件已被删除")
+				throw FileWriteError.concurrentModification(expected: expected.shortHash, actual: L.t("file.deleted", "文件已被删除", table: .messages))
 			}
 			let current = (try? Data(contentsOf: document.realURL)) ?? Data()
 			let actual = FileFingerprint.of(current, at: document.realURL)
@@ -312,7 +312,7 @@ public enum JSONFile {
 
 		let text = ConfigPatch.render(value, from: document).text
 		guard let data = text.data(using: .utf8) else {
-			throw FileWriteError.io("无法把内容编码成 UTF-8")
+			throw FileWriteError.io(L.t("write.error.encodeUTF8", "无法把内容编码成 UTF-8", table: .messages))
 		}
 		try AtomicFile.write(data, to: document.realURL, mode: document.mode)
 

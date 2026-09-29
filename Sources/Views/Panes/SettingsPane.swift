@@ -49,7 +49,7 @@ struct SettingsPane: View {
 			} else if let loadError {
 				EmptyStateView(
 					icon: "exclamationmark.triangle",
-					title: "无法载入设置",
+					title: L.t("empty.settingsLoadFailed.title", "无法载入设置"),
 					message: loadError
 				)
 			} else {
@@ -103,11 +103,14 @@ struct SettingsPane: View {
 
 	private func load() {
 		guard let fileURL else {
-			loadError = "描述文件没有为这个面板指定 file"
+			loadError = L.t("error.settingsNoFile", "描述文件没有为这个面板指定 file")
 			return
 		}
 		guard let definition = SettingsSchema.definition(for: schemaID) else {
-			loadError = "找不到 schema “\(schemaID ?? "未指定")”"
+			loadError = String(
+				format: L.t("error.schemaNotFound", "找不到 schema “%@”"),
+				schemaID ?? L.t("error.schemaUnspecified", "未指定")
+			)
 			return
 		}
 		let policy = agent.descriptor.backupPolicy
@@ -141,9 +144,12 @@ struct SettingsPane: View {
 			drafts = [:]
 			pendingWrite = nil
 			if let backup = result.backupURL {
-				banner = "已写入，备份 \(backup.lastPathComponent)"
+				banner = String(
+					format: L.t("banner.writtenWithBackup", "已写入，备份 %@"),
+					backup.lastPathComponent
+				)
 			} else {
-				banner = "已写入 \(result.url.path)"
+				banner = String(format: L.t("banner.writtenTo", "已写入 %@"), result.url.path)
 			}
 			model.statusMessage = banner
 		} catch {
@@ -157,7 +163,7 @@ struct SettingsPane: View {
 		guard let document, let fileURL else { return }
 		let preview = JSONFile.preview(current.root, for: document, policy: agent.descriptor.backupPolicy)
 		guard preview.hasChanges else {
-			banner = "没有需要写入的改动"
+			banner = L.t("banner.noChanges", "没有需要写入的改动")
 			return
 		}
 		pendingWrite = PendingWrite(
@@ -178,7 +184,13 @@ struct SettingsPane: View {
 			header(current: current, document: document)
 			Divider()
 			if let reason = current.readOnlyReason {
-				InfoBanner(kind: .error, title: reason, detail: document.rawText.isEmpty ? nil : "下方是文件原文；修复之前不会写入。")
+				InfoBanner(
+					kind: .error,
+					title: reason,
+					detail: document.rawText.isEmpty
+						? nil
+						: L.t("settings.readOnly.detail", "下方是文件原文；修复之前不会写入。")
+				)
 					.padding(12)
 			}
 			HStack(spacing: 0) {
@@ -201,17 +213,17 @@ struct SettingsPane: View {
 				Text(surface.titleText).font(.title3.weight(.semibold))
 				StatusBadge(text: current.schema.titleText, level: .info)
 				if document.isSymlink {
-					StatusBadge(text: "符号链接", level: .warning)
+					StatusBadge(text: L.t("badge.symlink", "符号链接"), level: .warning)
 				}
 				if !document.exists {
-					StatusBadge(text: "文件不存在", level: .muted)
+					StatusBadge(text: L.t("badge.fileMissing", "文件不存在"), level: .muted)
 				}
 				Spacer()
 				if let fingerprint = document.fingerprint {
 					Text(fingerprint.shortHash)
 						.font(.system(.caption2, design: .monospaced))
 						.foregroundStyle(.tertiary)
-						.help("当前文件的 SHA-256 前 7 位")
+						.help(L.t("settings.help.hashPrefix", "当前文件的 SHA-256 前 7 位"))
 				}
 			}
 			if let fileURL {
@@ -245,7 +257,7 @@ struct SettingsPane: View {
 				HStack(spacing: 7) {
 					Image(systemName: "questionmark.folder")
 						.frame(width: 16)
-					Text("其它键（保留）")
+					Text(L.t("settings.unknownSection.title", "其它键（保留）"))
 					Spacer(minLength: 0)
 					Text("\(current.unknownPaths().count)")
 						.font(.caption2)
@@ -271,7 +283,7 @@ struct SettingsPane: View {
 						Divider().opacity(0.4)
 					}
 				} else {
-					Text("选择一个分组").foregroundStyle(.secondary).padding(20)
+					Text(L.t("settings.pickSection", "选择一个分组")).foregroundStyle(.secondary).padding(20)
 				}
 			}
 			.padding(16)
@@ -331,7 +343,7 @@ struct SettingsPane: View {
 				}
 			)) {
 				ForEach(current.pickerOptions(field), id: \.self) { option in
-					Text(option.isEmpty ? "（使用默认）" : option).tag(option)
+					Text(option.isEmpty ? L.t("settings.useDefault", "（使用默认）") : option).tag(option)
 				}
 			}
 			.labelsHidden()
@@ -348,7 +360,7 @@ struct SettingsPane: View {
 							.stroke(Color(nsColor: .separatorColor), lineWidth: 1)
 					)
 				if current.isSet(field) {
-					Button("恢复默认") {
+					Button(L.t("button.restoreDefault", "恢复默认")) {
 						var updated = current
 						updated.clear(field)
 						drafts[field.key] = nil
@@ -366,7 +378,7 @@ struct SettingsPane: View {
 					.textFieldStyle(.roundedBorder)
 					.font(.system(size: 12, design: .monospaced))
 				if current.isSet(field) {
-					Button("恢复默认") {
+					Button(L.t("button.restoreDefault", "恢复默认")) {
 						var updated = current
 						updated.clear(field)
 						drafts[field.key] = nil
@@ -407,8 +419,16 @@ struct SettingsPane: View {
 	@ViewBuilder
 	private func unknownSection(current: SettingsEditor) -> some View {
 		VStack(alignment: .leading, spacing: 10) {
-			Text("其它键（保留）").font(.headline)
-			Text("这些键不在 \(current.schema.titleText) 里，AgentKit 认识不了它们的含义，所以只读展示；写入时原样保留，不会丢失。")
+			Text(L.t("settings.unknownSection.title", "其它键（保留）")).font(.headline)
+			Text(
+				String(
+					format: L.t(
+						"settings.unknownSection.detail",
+						"这些键不在 %@ 里，AgentKit 认识不了它们的含义，所以只读展示；写入时原样保留，不会丢失。"
+					),
+					current.schema.titleText
+				)
+			)
 				.font(.caption)
 				.foregroundStyle(.secondary)
 			if let document {
@@ -431,20 +451,26 @@ struct SettingsPane: View {
 	private func footer(current: SettingsEditor) -> some View {
 		HStack(spacing: 10) {
 			if current.hasChanges {
-				StatusBadge(text: "有未保存改动", level: .warning)
+				StatusBadge(text: L.t("badge.unsavedChanges", "有未保存改动"), level: .warning)
 			} else {
-				StatusBadge(text: "与磁盘一致", level: .ok)
+				StatusBadge(text: L.t("badge.inSync", "与磁盘一致"), level: .ok)
 			}
 			Text(current.summary)
 				.font(.caption)
 				.foregroundStyle(.secondary)
 			if current.errorCount > 0 {
-				StatusBadge(text: "\(current.errorCount) 个输入无效", level: .error)
+				StatusBadge(
+					text: String(
+						format: L.t(current.errorCount == 1 ? "settings.badge.invalidInputs.one" : "settings.badge.invalidInputs", "%d 个输入无效"),
+						current.errorCount
+					),
+					level: .error
+				)
 			}
 			Spacer()
-			Button("重新载入") { load() }
+			Button(L.t("button.reloadFile", "重新载入")) { load() }
 				.controlSize(.small)
-			Button("放弃改动") {
+			Button(L.t("button.discardChanges", "放弃改动")) {
 				if let document, let definition = SettingsSchema.definition(for: schemaID) {
 					editor = SettingsEditor(document: document, schema: definition)
 					drafts = [:]
@@ -452,7 +478,7 @@ struct SettingsPane: View {
 			}
 			.controlSize(.small)
 			.disabled(!current.hasChanges)
-			Button("保存…") { requestWrite(editor: current) }
+			Button(L.t("button.save", "保存…")) { requestWrite(editor: current) }
 				.buttonStyle(.borderedProminent)
 				.controlSize(.small)
 				.disabled(!current.hasChanges || current.errorCount > 0 || current.readOnlyReason != nil)

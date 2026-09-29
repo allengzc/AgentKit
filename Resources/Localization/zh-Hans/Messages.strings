@@ -1,5 +1,169 @@
 /* AgentKit user-facing messages (zh-Hans)
  *
- * 出问题时唯一告诉用户发生了什么的东西：写入被拒、解析失败、校验不通过。
- * 由 task-4 填充。
+ * The strings that tell the user what went wrong: a refused write, a parse that
+ * failed, validation that did not pass. Core and Surfaces produce them and look
+ * them up with L.t(key, "中文原文", table: .messages); the second argument is the
+ * literal that shows when the table is missing, so it must stay verbatim.
+ *
+ * Both tables must carry exactly the same key set — Tests/main.swift asserts it.
+ * %@ is a string argument and %d an integer argument, filled in by
+ * String(format:). A key never carries an argument, and the two languages must
+ * use the same placeholders in the same order.
  */
+
+/* Writing: concurrent edits, refused overwrites, low-level failures */
+"write.error.concurrent" = "文件在读取之后被外部改动（读到时 %@，现在是 %@）。已中止写入，未丢失任何内容。";
+"write.error.malformedSource" = "%@ 的内容不合法，AgentKit 不会覆盖它。请先修复或用外部编辑器处理。";
+"write.error.io" = "写入失败：%@";
+"write.error.tempFile" = "open(%@) 失败：%@";
+"write.error.writeFailed" = "write 失败：%@";
+"write.error.fsyncFailed" = "fsync 失败：%@";
+"write.error.renameFailed" = "rename 失败：%@";
+"write.error.backupFailed" = "备份到 %@ 失败：%@";
+"write.error.encodeUTF8" = "无法把内容编码成 UTF-8";
+"write.error.trashFailed" = "移到废纸篓失败：%@";
+
+/* What this change will cost, shown on the confirmation sheet */
+"write.diff.lossyTables" = "改动只落在受影响的表里，其它表保持原样；被改动的那张表会按标准格式重排，其中的注释会丢失。";
+"write.diff.lossyDocument" = "这个改动碰到了文件顶层，整份 TOML 会按标准格式重写：注释会丢失，内联表会被展开成独立表。";
+
+/* File status */
+"file.notUTF8" = "文件不是合法的 UTF-8";
+"file.deleted" = "文件已被删除";
+
+/* Path resolution and the write scope guard */
+"path.error.unknownToken" = "描述文件里的路径模板 %@ 含有无法识别的记号 %@";
+"path.error.outsideScope" = "拒绝写入 %@：不在允许范围内（%@）";
+"path.error.notFound" = "找不到路径：%@";
+
+/* Joiner for turning an array into a list a human can read */
+"list.separator" = "、";
+
+/* Descriptor validation (shown in an InfoBanner) */
+"descriptor.issue.version" = "描述文件版本 %d 不受支持";
+"descriptor.issue.versionDetail" = "本版本只认识 descriptorVersion = %d。";
+"descriptor.issue.missingID" = "描述文件缺少 id";
+"descriptor.issue.missingRoot" = "描述文件缺少 root.default";
+"descriptor.issue.duplicateSurface" = "面板 id %@ 重复，只有第一个会生效";
+"descriptor.issue.unknownKind" = "本版本不认识面板类型 “%@”";
+"descriptor.issue.unknownKindDetail" = "这个面板会显示为占位符，其余面板不受影响。";
+"descriptor.issue.missingField" = "面板 %@ 缺少 %@";
+"descriptor.issue.noSchema" = "面板 %@ 没有指定 schema，将退化为原始 JSON 编辑器";
+
+/* Loading and detecting an agent */
+"descriptor.load.parseFailed" = "描述文件 %@ 无法解析";
+"descriptor.load.readFailed" = "描述文件 %@ 读取失败";
+"descriptor.load.rootTemplate" = "无法解析根目录模板 %@";
+"descriptor.load.rootOverride" = "根目录由环境变量 %@ 覆盖";
+"descriptor.load.rootMissing" = "根目录不存在";
+"descriptor.load.notDetected" = "在本机没有检测到 %@";
+"descriptor.load.checkedPaths" = "已检查：%@";
+"descriptor.load.cliMissing" = "找不到 %@ 可执行文件";
+"descriptor.load.triedPaths" = "已尝试：(PATH) %@";
+
+/* Why a descriptor would not decode */
+"descriptor.decode.missingField" = "缺少字段 %@";
+"descriptor.decode.root" = "(根)";
+"descriptor.decode.typeMismatch" = "字段 %@ 的类型不是 %@";
+"descriptor.decode.valueMissing" = "字段 %@ 缺少 %@ 值";
+"descriptor.decode.corrupted" = "字段 %@ 损坏：%@";
+
+/* Why a file would not parse: shown next to editing-disabled */
+"parse.error.position" = "%@ (第 %d 行第 %d 列)";
+"parse.expected" = "期望 %@";
+"parse.json.trailingContent" = "JSON 结尾存在多余内容";
+"parse.json.unexpectedEnd" = "意外的文件结尾";
+"parse.json.keyNotString" = "对象的键必须是字符串";
+"parse.json.missingColon" = "键 \"%@\" 后面缺少冒号";
+"parse.object.unclosed" = "对象没有闭合";
+"parse.object.expectedCommaOrBrace" = "对象里期望 , 或 }";
+"parse.array.unclosed" = "数组没有闭合";
+"parse.array.expectedCommaOrBracket" = "数组里期望 , 或 ]";
+"parse.string.notUTF8" = "字符串不是合法的 UTF-8";
+"parse.string.control" = "字符串里出现了未转义的控制字符";
+"parse.string.unclosed" = "字符串没有闭合";
+"parse.escape.incomplete" = "转义序列不完整";
+"parse.escape.unknown" = "无法识别的转义 \\%@";
+"parse.escape.badUnicode" = "不合法的 \\u 转义";
+"parse.escape.unicodeIncomplete" = "\\u 转义不完整";
+"parse.escape.unicodeNonHex" = "\\u 转义里出现了非十六进制字符";
+"parse.surrogate.missingLow" = "高位代理项后面缺少低位代理项";
+"parse.surrogate.badLow" = "低位代理项不合法";
+"parse.surrogate.badPair" = "代理对无法组成合法字符";
+"parse.number.invalid" = "不是合法的数字";
+"parse.number.outOfRange" = "数字 %@ 超出范围";
+"parse.toml.tableNameEmpty" = "表名不能为空";
+"parse.toml.headerUnclosed" = "表头缺少 ]";
+"parse.toml.arrayHeaderUnclosed" = "数组表头缺少 ]]";
+"parse.toml.headerTrailing" = "表头后面有多余内容";
+"parse.toml.notArrayTable" = "%@ 不是数组表";
+"parse.toml.keyMissingName" = "缺少键名";
+"parse.toml.keyMissingEquals" = "键 %@ 后面缺少 =";
+"parse.toml.keyMissingValue" = "键 %@ 缺少值";
+"parse.toml.keyDuplicate" = "键 %@ 重复定义";
+"parse.toml.valueTrailing" = "值后面有多余内容";
+"parse.toml.keyNameIncomplete" = "键名不完整";
+"parse.toml.keyNameInvalid" = "不是合法的键名";
+"parse.toml.missingValue" = "缺少值";
+"parse.toml.unknownValue" = "无法识别的值 %@";
+"parse.toml.emptyArrayTable" = "表 %@ 是空数组";
+"parse.toml.scalarTable" = "%@ 已经是标量，不能再当表";
+"parse.toml.inlineMissingEquals" = "内联表里缺少 =";
+"parse.toml.inlineUnclosed" = "内联表没有闭合";
+"parse.toml.inlineExpectedCommaOrBrace" = "内联表里期望 , 或 }";
+"parse.toml.escapeUnknown" = "无法识别的转义";
+
+/* MCP panel: transport, form validation, import notes, dead files */
+"mcp.transport.remote" = "远程";
+"mcp.transport.unknown" = "未知";
+"mcp.error.nameEmpty" = "名字不能为空";
+"mcp.error.nameSlash" = "名字里不能有斜杠";
+"mcp.error.needCommandOrURL" = "需要 command（本地）或 url（远程）之一";
+"mcp.error.bothCommandAndURL" = "command 与 url 只能有一个";
+"mcp.error.argsNotArray" = "args 必须是数组";
+"mcp.error.envNotObject" = "env 必须是对象";
+"mcp.import.tomlNote" = "TOML 格式，AgentKit 只做存在性检查";
+"mcp.diagnostic.deadFile" = "这个文件已经不会被读取。";
+
+/* MCP repair plan: the steps and notes the user approves one by one */
+"mcp.repair.step.carryKeys" = "把 %@ 迁到 %@";
+"mcp.repair.note.noTargetForKey" = "描述文件没有给出这些键的去处，已跳过：%@";
+"mcp.repair.step.mergeServers" = "把 %d 个服务器并入 %@（合并时已存在的以目标文件为准）";
+"mcp.repair.note.targetWins" = "目标层里已有同名服务器，保留目标层的定义：%@";
+"mcp.repair.note.serversNotMoved" = "%d 个服务器（%@）不会被搬运，它们会随文件一起被重命名。";
+"mcp.repair.note.noSharedLayer" = "找不到可用的共享层，服务器不会被搬运。";
+"mcp.repair.step.rename" = "把 %@ 重命名为 %@";
+"mcp.repair.outcome.written" = "已写入";
+
+/* Sessions */
+"session.error.cannotRename" = "这个 agent 不支持通过追加记录重命名会话";
+"session.error.encodeFailed" = "无法编码 %@";
+
+/* Settings panel: why it is read-only, and per-field validation */
+"settings.readOnly.malformed" = "settings.json 不是合法 JSON：%@";
+"settings.readOnly.unreadable" = "settings.json 无法读取：%@";
+"settings.error.bool" = "只能是 true / false";
+"settings.error.integer" = "需要一个整数";
+"settings.error.min" = "不能小于 %d";
+"settings.error.max" = "不能大于 %d";
+"settings.error.choice" = "只能是 %@";
+"settings.error.boolOrAuto" = "只能是 auto / true / false";
+"settings.error.choiceOrFalse" = "只能是 false / %@";
+"settings.error.list" = "需要逗号分隔的列表，或 JSON 数组";
+"settings.error.jsonArray" = "需要一个 JSON 数组";
+"settings.error.json" = "不是合法 JSON";
+"settings.summary" = "已设置 %d / %d 项";
+
+/* Skills panel: entries, validation, errors, and the new-skill template */
+"skills.item.empty" = "空";
+"skills.item.count" = "%d 项";
+"skills.item.count.one" = "%d 项";
+"skills.issue.unreadable" = "文件无法读取";
+"skills.issue.missingDescription" = "缺少 description：pi 不会加载这个 skill";
+"skills.issue.descriptionTooLong" = "description 超过 1024 字符";
+"skills.issue.nameInvalid" = "name %@ 不符合规范：只能用小写字母、数字和连字符";
+"skills.issue.nameTooLong" = "name 超过 64 字符";
+"skills.warning.nameMismatch" = "声明名 %@ 与目录名 %@ 不一致；AgentKit 与其它实现都接受，但目录名一致更便于移植";
+"skills.error.exists" = "%@ 已经存在";
+"skills.error.encodeFailed" = "无法编码 SKILL.md";
+"skills.template.body" = "\n# %@\n\n在这里写这个 skill 做什么、什么时候用，以及需要先读哪些 bundled 文件。\n\n脚本请用相对于本目录的路径引用，例如 `scripts/example.sh`。\n";

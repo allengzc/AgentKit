@@ -84,14 +84,17 @@ struct SkillsPane: View {
 		.onChange(of: model.externalChangeToken) { _, _ in scan() }
 		.onChange(of: model.projectURL) { _, _ in scan() }
 		.sheet(item: $creating) { request in createSheet(request) }
-		.alert("删除这个 skill？", isPresented: Binding(
+		.alert(L.t("skills.delete.title", "删除这个 skill？"), isPresented: Binding(
 			get: { confirmDelete != nil },
 			set: { if !$0 { confirmDelete = nil } }
 		), presenting: confirmDelete) { entry in
-			Button("移到废纸篓", role: .destructive) {
+			Button(L.t("button.moveToTrash", "移到废纸篓"), role: .destructive) {
 				do {
 					try TextFile.trash(entry.directory)
-					banner = "已把 \(entry.directory.lastPathComponent) 移到废纸篓"
+					banner = String(
+						format: L.t("banner.movedToTrash", "已把 %@ 移到废纸篓"),
+						entry.directory.lastPathComponent
+					)
 					confirmDelete = nil
 					scan()
 				} catch {
@@ -99,18 +102,23 @@ struct SkillsPane: View {
 					confirmDelete = nil
 				}
 			}
-			Button("取消", role: .cancel) { confirmDelete = nil }
+			Button(L.t("button.cancel", "取消"), role: .cancel) { confirmDelete = nil }
 		} message: { entry in
-			Text("\(entry.directory.path)\n\n整个目录会移到废纸篓，可以恢复。")
+			Text(
+				String(
+					format: L.t("skills.delete.message", "%@\n\n整个目录会移到废纸篓，可以恢复。"),
+					entry.directory.path
+				)
+			)
 		}
-		.alert("停用这个 skill？", isPresented: Binding(
+		.alert(L.t("skills.disable.title", "停用这个 skill？"), isPresented: Binding(
 			get: { confirmDisable != nil },
 			set: { if !$0 { confirmDisable = nil } }
 		), presenting: confirmDisable) { entry in
-			Button("停用") {
+			Button(L.t("button.disable", "停用")) {
 				do {
 					try SkillsScanner.setEnabled(entry, enabled: false)
-					banner = "已停用，目录移到了 .disabled/"
+					banner = L.t("skills.disable.banner", "已停用，目录移到了 .disabled/")
 					confirmDisable = nil
 					scan()
 				} catch {
@@ -118,9 +126,17 @@ struct SkillsPane: View {
 					confirmDisable = nil
 				}
 			}
-			Button("取消", role: .cancel) { confirmDisable = nil }
+			Button(L.t("button.cancel", "取消"), role: .cancel) { confirmDisable = nil }
 		} message: { entry in
-			Text("pi 没有单个 skill 的开关，所以 AgentKit 用自己约定：把 \(entry.directory.lastPathComponent) 移到同级 .disabled/ 下，pi 就不会再发现它。需要时可以从这个面板再启用回来。")
+			Text(
+				String(
+					format: L.t(
+						"skills.disable.message",
+						"pi 没有单个 skill 的开关，所以 AgentKit 用自己约定：把 %@ 移到同级 .disabled/ 下，pi 就不会再发现它。需要时可以从这个面板再启用回来。"
+					),
+					entry.directory.lastPathComponent
+				)
+			)
 		}
 	}
 
@@ -131,12 +147,27 @@ struct SkillsPane: View {
 			HStack(spacing: 8) {
 				Text(surface.titleText).font(.title3.weight(.semibold))
 				if let snapshot {
-					StatusBadge(text: "\(snapshot.skills.count) 个 skill", level: .info)
+					StatusBadge(
+						text: String(format: L.t(snapshot.skills.count == 1 ? "skills.badge.skillCount.one" : "skills.badge.skillCount", "%d 个 skill"), snapshot.skills.count),
+						level: .info
+					)
 					if snapshot.problemCount > 0 {
-						StatusBadge(text: "\(snapshot.problemCount) 个有问题", level: .warning)
+						StatusBadge(
+							text: String(
+								format: L.t(snapshot.problemCount == 1 ? "skills.badge.problemCount.one" : "skills.badge.problemCount", "%d 个有问题"),
+								snapshot.problemCount
+							),
+							level: .warning
+						)
 					}
 					if !snapshot.disabled.isEmpty {
-						StatusBadge(text: "\(snapshot.disabled.count) 个已停用", level: .muted)
+						StatusBadge(
+							text: String(
+								format: L.t("skills.badge.disabledCount", "%d 个已停用"),
+								snapshot.disabled.count
+							),
+							level: .muted
+						)
 					}
 				}
 				if scanning { ProgressView().controlSize(.mini) }
@@ -146,20 +177,20 @@ struct SkillsPane: View {
 						Button(entry.url.path) { creating = CreateRequest(root: entry.url) }
 					}
 				} label: {
-					Label("新建 skill", systemImage: "plus")
+					Label(L.t("button.newSkill", "新建 skill"), systemImage: "plus")
 				}
 				.controlSize(.small)
 				.disabled(roots.filter { $0.spec.isWritable }.isEmpty)
 				Button {
 					scan()
 				} label: {
-					Label("重新扫描", systemImage: "arrow.clockwise")
+					Label(L.t("button.rescan", "重新扫描"), systemImage: "arrow.clockwise")
 				}
 				.controlSize(.small)
 			}
 			HStack(spacing: 8) {
 				Image(systemName: "magnifyingglass").foregroundStyle(.tertiary)
-				TextField("搜索", text: $query)
+				TextField(L.t("skills.searchPlaceholder", "搜索"), text: $query)
 					.textFieldStyle(.roundedBorder)
 			}
 			ProjectScopeBanner(surface: surface)
@@ -168,7 +199,7 @@ struct SkillsPane: View {
 			if let snapshot, !snapshot.missingRoots.isEmpty {
 				InfoBanner(
 					kind: .info,
-					title: "以下目录不存在，已跳过",
+					title: L.t("skills.missingRoots.title", "以下目录不存在，已跳过"),
 					detail: snapshot.missingRoots.map(\.path).joined(separator: "\n")
 				)
 			}
@@ -185,7 +216,7 @@ struct SkillsPane: View {
 					row(entry)
 				}
 				if let snapshot, !snapshot.missingManifest.isEmpty {
-					Text("没有 SKILL.md 的目录")
+					Text(L.t("skills.missingManifest", "没有 SKILL.md 的目录"))
 						.font(.caption.weight(.semibold))
 						.foregroundStyle(.secondary)
 						.padding(.horizontal, 8)
@@ -195,7 +226,7 @@ struct SkillsPane: View {
 							Image(systemName: "folder").font(.caption2).foregroundStyle(.tertiary)
 							Text(item.url.lastPathComponent).font(.caption)
 							Spacer(minLength: 0)
-							Text("不会被发现").font(.caption2).foregroundStyle(.tertiary)
+							Text(L.t("skills.notDiscovered", "不会被发现")).font(.caption2).foregroundStyle(.tertiary)
 						}
 						.padding(.horizontal, 10)
 						.padding(.vertical, 2)
@@ -218,7 +249,12 @@ struct SkillsPane: View {
 					Text(entry.name).font(.callout.weight(.medium)).lineLimit(1)
 					if entry.isSymlink {
 						Image(systemName: "link").font(.caption2).foregroundStyle(.orange)
-							.help("符号链接 → \(entry.realDirectory.path)")
+							.help(
+								String(
+									format: L.t("skills.help.symlink", "符号链接 → %@"),
+									entry.realDirectory.path
+								)
+							)
 					}
 					if !entry.issues.isEmpty {
 						Image(systemName: "exclamationmark.triangle.fill")
@@ -226,7 +262,7 @@ struct SkillsPane: View {
 							.foregroundStyle(.orange)
 					}
 					Spacer(minLength: 0)
-					Text(entry.scope == "project" ? "项目" : "用户")
+					Text(entry.scope == "project" ? L.t("badge.scopeProject", "项目") : L.t("badge.scopeUser", "用户"))
 						.font(.caption2)
 						.foregroundStyle(.tertiary)
 				}
@@ -262,11 +298,16 @@ struct SkillsPane: View {
 					VStack(alignment: .leading, spacing: 6) {
 						HStack(spacing: 8) {
 							Text(entry.name).font(.title3.weight(.semibold))
-							StatusBadge(text: entry.scope == "project" ? "项目级" : "用户级", level: .info)
+							StatusBadge(
+								text: entry.scope == "project"
+									? L.t("badge.scopeProjectLevel", "项目级")
+									: L.t("badge.scopeUserLevel", "用户级"),
+								level: .info
+							)
 							if entry.disableModelInvocation {
-								StatusBadge(text: "仅手动调用", level: .muted)
+								StatusBadge(text: L.t("skills.badge.manualOnly", "仅手动调用"), level: .muted)
 							}
-							if !entry.writable { StatusBadge(text: "只读", level: .muted) }
+							if !entry.writable { StatusBadge(text: L.t("badge.readOnly", "只读"), level: .muted) }
 						}
 						Text(entry.description)
 							.font(.callout)
@@ -275,19 +316,34 @@ struct SkillsPane: View {
 					}
 
 					if !entry.issues.isEmpty {
-						InfoBanner(kind: .error, title: "pi 可能不会加载这个 skill", detail: entry.issues.joined(separator: "\n"))
+						InfoBanner(
+							kind: .error,
+							title: L.t("skills.issues.title", "pi 可能不会加载这个 skill"),
+							detail: entry.issues.joined(separator: "\n")
+						)
 					}
 					if !entry.warnings.isEmpty {
-						InfoBanner(kind: .warning, title: "提示", detail: entry.warnings.joined(separator: "\n"))
+						InfoBanner(
+							kind: .warning,
+							title: L.t("skills.warnings.title", "提示"),
+							detail: entry.warnings.joined(separator: "\n")
+						)
 					}
 
 					Grid(alignment: .leading, horizontalSpacing: 14, verticalSpacing: 6) {
 						detailRow("SKILL.md", entry.url.path, monospaced: true)
-						detailRow("目录", entry.directory.path, monospaced: true)
+						detailRow(L.t("skills.detail.directory", "目录"), entry.directory.path, monospaced: true)
 						if entry.isSymlink {
-							detailRow("符号链接指向", entry.realDirectory.path, monospaced: true)
+							detailRow(
+								L.t("skills.detail.symlinkTarget", "符号链接指向"),
+								entry.realDirectory.path,
+								monospaced: true
+							)
 						}
-						detailRow("声明名", entry.frontmatter.string("name") ?? "（未声明）")
+						detailRow(
+							L.t("skills.detail.declaredName", "声明名"),
+							entry.frontmatter.string("name") ?? L.t("skills.detail.undeclared", "（未声明）")
+						)
 						if let license = entry.license { detailRow("license", license) }
 						if let compatibility = entry.compatibility { detailRow("compatibility", compatibility) }
 						if let tools = entry.allowedTools {
@@ -308,23 +364,23 @@ struct SkillsPane: View {
 						Button {
 							ShellActions.openExternally(entry.url)
 						} label: {
-							Label("编辑 SKILL.md", systemImage: "square.and.pencil")
+							Label(L.t("button.editSkillFile", "编辑 SKILL.md"), systemImage: "square.and.pencil")
 						}
 						Button {
 							ShellActions.reveal(entry.directory)
 						} label: {
-							Label("在 Finder 中显示", systemImage: "folder")
+							Label(L.t("button.revealInFinder", "在 Finder 中显示"), systemImage: "folder")
 						}
 						Button {
 							confirmDisable = entry
 						} label: {
-							Label("停用", systemImage: "eye.slash")
+							Label(L.t("button.disable", "停用"), systemImage: "eye.slash")
 						}
 						.disabled(!entry.writable)
 						Button(role: .destructive) {
 							confirmDelete = entry
 						} label: {
-							Label("删除…", systemImage: "trash")
+							Label(L.t("button.delete", "删除…"), systemImage: "trash")
 						}
 						.disabled(!entry.writable)
 					}
@@ -332,12 +388,13 @@ struct SkillsPane: View {
 					if !(snapshot?.disabled.isEmpty ?? true) {
 						Divider()
 						VStack(alignment: .leading, spacing: 6) {
-							Text("已停用（AgentKit 约定，位于 .disabled/）").font(.caption.weight(.semibold))
+							Text(L.t("skills.disabledSection.title", "已停用（AgentKit 约定，位于 .disabled/）"))
+								.font(.caption.weight(.semibold))
 							ForEach(snapshot?.disabled ?? [], id: \.path) { url in
 								HStack(spacing: 6) {
 									Text(url.lastPathComponent).font(.system(.caption, design: .monospaced))
 									Spacer()
-									Button("启用") { enable(url) }
+									Button(L.t("button.enable", "启用")) { enable(url) }
 										.controlSize(.mini)
 								}
 							}
@@ -350,9 +407,14 @@ struct SkillsPane: View {
 		} else {
 			EmptyStateView(
 				icon: "puzzlepiece.extension",
-				title: query.isEmpty ? "没有找到 skill" : "没有匹配的 skill",
+				title: query.isEmpty
+					? L.t("empty.noSkills", "没有找到 skill")
+					: L.t("empty.noMatchingSkills", "没有匹配的 skill"),
 				message: query.isEmpty
-					? "已扫描：" + roots.map(\.url.path).joined(separator: "\n")
+					? String(
+						format: L.t("empty.noSkills.scanned", "已扫描：%@"),
+						roots.map(\.url.path).joined(separator: "\n")
+					)
 					: nil
 			)
 		}
@@ -407,7 +469,7 @@ struct SkillsPane: View {
 		let destination = root.appendingPathComponent(name)
 		do {
 			try FileManager.default.moveItem(at: url, to: destination)
-			banner = "已启用 \(name)"
+			banner = String(format: L.t("banner.enabled", "已启用 %@"), name)
 			scan()
 		} catch {
 			errorText = error.localizedDescription
@@ -416,12 +478,12 @@ struct SkillsPane: View {
 
 	private func createSheet(_ request: CreateRequest) -> some View {
 		VStack(alignment: .leading, spacing: 12) {
-			Text("新建 skill").font(.headline)
+			Text(L.t("button.newSkill", "新建 skill")).font(.headline)
 			PathChip(path: request.root.path)
 			Grid(alignment: .leading, horizontalSpacing: 10, verticalSpacing: 8) {
 				GridRow {
 					Text("name").gridColumnAlignment(.trailing)
-					TextField("小写字母、数字、连字符", text: Binding(
+					TextField(L.t("skills.create.namePlaceholder", "小写字母、数字、连字符"), text: Binding(
 						get: { creating?.name ?? "" },
 						set: { creating?.name = $0 }
 					))
@@ -429,7 +491,7 @@ struct SkillsPane: View {
 				}
 				GridRow {
 					Text("description").gridColumnAlignment(.trailing)
-					TextField("做什么、什么时候用", text: Binding(
+					TextField(L.t("field.descriptionPlaceholder", "做什么、什么时候用"), text: Binding(
 						get: { creating?.description ?? "" },
 						set: { creating?.description = $0 }
 					))
@@ -438,15 +500,26 @@ struct SkillsPane: View {
 			}
 			let name = (creating?.name ?? "").trimmingCharacters(in: .whitespaces)
 			if !name.isEmpty, !SkillsScanner.isValidName(name) {
-				InfoBanner(kind: .warning, title: "name 不符合 Agent Skills 规范（只能小写字母、数字和连字符）")
+				InfoBanner(
+					kind: .warning,
+					title: L.t(
+						"skills.create.invalidName",
+						"name 不符合 Agent Skills 规范（只能小写字母、数字和连字符）"
+					)
+				)
 			}
-			Text("会创建 \(request.root.appendingPathComponent(name.isEmpty ? "<name>" : name).path)，其中包含 SKILL.md 与 scripts/ 目录。")
+			Text(
+				String(
+					format: L.t("skills.create.detail", "会创建 %@，其中包含 SKILL.md 与 scripts/ 目录。"),
+					request.root.appendingPathComponent(name.isEmpty ? "<name>" : name).path
+				)
+			)
 				.font(.caption)
 				.foregroundStyle(.secondary)
 			HStack {
 				Spacer()
-				Button("取消") { creating = nil }
-				Button("创建") { create(request) }
+				Button(L.t("button.cancel", "取消")) { creating = nil }
+				Button(L.t("button.create", "创建")) { create(request) }
 					.buttonStyle(.borderedProminent)
 					.disabled(!SkillsScanner.isValidName(name) || (creating?.description ?? "").isEmpty)
 			}
@@ -461,7 +534,7 @@ struct SkillsPane: View {
 		do {
 			let manifest = try SkillsScanner.createSkill(named: name, in: request.root, description: description)
 			creating = nil
-			banner = "已创建 \(manifest.path)"
+			banner = String(format: L.t("banner.createdAt", "已创建 %@"), manifest.path)
 			scan()
 			selectedID = manifest.path
 		} catch {
@@ -481,8 +554,10 @@ struct SkillsPane: View {
 		let visible = showsAllBundled ? items : Array(items.prefix(bundledPreviewLimit))
 		return VStack(alignment: .leading, spacing: 6) {
 			HStack(spacing: 6) {
-				Text("随包文件").font(.caption.weight(.semibold))
-				Text("\(items.count) 项").font(.caption2).foregroundStyle(.tertiary)
+				Text(L.t("skills.bundled.title", "随包文件")).font(.caption.weight(.semibold))
+				Text(String(format: L.t(items.count == 1 ? "skills.bundled.count.one" : "skills.bundled.count", "%d 项"), items.count))
+					.font(.caption2)
+					.foregroundStyle(.tertiary)
 				Spacer()
 			}
 			VStack(spacing: 0) {
@@ -508,7 +583,14 @@ struct SkillsPane: View {
 			)
 
 			if items.count > bundledPreviewLimit {
-				Button(showsAllBundled ? "收起" : "显示全部 \(items.count) 项") {
+				Button(
+					showsAllBundled
+						? L.t("button.collapse", "收起")
+						: String(
+							format: L.t("skills.bundled.showAll", "显示全部 %d 项"),
+							items.count
+						)
+				) {
 					showsAllBundled.toggle()
 				}
 				.buttonStyle(.link)
@@ -556,7 +638,14 @@ struct SkillsPane: View {
 		.padding(.leading, 8)
 		.padding(.trailing, 8)
 		.padding(.vertical, 1)
-		.help("\(directory.appendingPathComponent(item.name).path)（\(expandedFolders.contains(item.id) ? "已展开" : "已折叠")）")
+		.help(
+			String(
+				format: expandedFolders.contains(item.id)
+					? L.t("skills.help.folderExpanded", "%@（已展开）")
+					: L.t("skills.help.folderCollapsed", "%@（已折叠）"),
+				directory.appendingPathComponent(item.name).path
+			)
+		)
 	}
 
 	private func fileRow(_ item: SkillItem, in directory: URL) -> some View {

@@ -42,7 +42,19 @@ codesign --verify --deep --strict "$TARGET" && echo "    signature ok"
 USER_DIR="${AGENTKIT_CONFIG_DIR:-$HOME/.config/agentkit}/agents"
 mkdir -p "$USER_DIR"
 if [[ ! -f "$USER_DIR/README.md" ]]; then
-	cat > "$USER_DIR/README.md" <<'EOF'
+	# Seed it in the language the app is set to, falling back to the system
+	# locale. A one-time file cannot follow a later language switch, so it is
+	# written once in whatever language was current at install time.
+	SEED_LANG="$(defaults read com.allengzc.agentkit AgentKitLanguage 2>/dev/null || true)"
+	if [[ -z "$SEED_LANG" ]]; then
+		case "$(defaults read -g AppleLocale 2>/dev/null)" in
+			zh*) SEED_LANG="zh-Hans" ;;
+			*)   SEED_LANG="en" ;;
+		esac
+	fi
+
+	if [[ "$SEED_LANG" == "zh-Hans" ]]; then
+		cat > "$USER_DIR/README.md" <<'EOF'
 # AgentKit 描述文件目录
 
 放一份 JSON 描述文件在这里，AgentKit 就会多出一个 agent。
@@ -50,10 +62,28 @@ if [[ ! -f "$USER_DIR/README.md" ]]; then
 - 文件名随意，以 .json 结尾即可。
 - `id` 与内置描述文件相同的，会**整体覆盖**内置的那一份（侧边栏会标「自定义描述」）。
 - 想加一个新 agent 又不确定怎么写，就复制 `/Applications/AgentKit.app/Contents/Resources/Agents/` 下的
-  `pi.json`（JSON 配置）或 `codex.json`（TOML 配置）改。
+  `pi.json`（JSON 配置）、`codex.json`（TOML 配置）或 `claude.json` 改。
 - 写坏了不会导致 App 崩溃：侧边栏会给出解析失败的原因，其它 agent 照常可用。
+- 字段说明见项目里的 `docs/descriptors.md`。
 EOF
-	echo "    seeded $USER_DIR/README.md"
+	else
+		cat > "$USER_DIR/README.md" <<'EOF'
+# AgentKit descriptor directory
+
+Drop a JSON descriptor in here and AgentKit gains another agent.
+
+- Any file name, as long as it ends in `.json`.
+- A descriptor whose `id` matches a built-in one **replaces it entirely**; the
+  sidebar marks it as a custom descriptor.
+- To add a new agent, copy one of the built-ins from
+  `/Applications/AgentKit.app/Contents/Resources/Agents/` — `pi.json` (JSON
+  configuration), `codex.json` (TOML) or `claude.json`.
+- A broken descriptor never takes the app down: the sidebar explains what failed
+  to parse and the other agents keep working.
+- The field reference is `docs/descriptors.md` in the project.
+EOF
+	fi
+	echo "    seeded $USER_DIR/README.md ($SEED_LANG)"
 fi
 echo "    user descriptors: $USER_DIR"
 

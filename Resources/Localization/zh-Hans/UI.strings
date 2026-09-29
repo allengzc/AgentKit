@@ -1,15 +1,433 @@
 /* AgentKit UI strings (zh-Hans)
  *
- * 键名点分层级：pane.* button.* mcp.* skill.* session.*
- * 两份表的 key 集合必须完全一致 —— Tests/main.swift 里有断言在查。
- * 由 task-3 填充。
+ * Keys are dotted and grouped by area: pane.* button.* mcp.* skill.* session.*
+ * Both tables must carry exactly the same key set — Tests/main.swift asserts it.
+ * Filled in by task-3.
+ *
+ * Only text the user can see lives here: titles, buttons, field labels,
+ * placeholders, notice banners, empty states, errors and `.help(...)` tooltips.
+ * Logs, AGENTKIT_* variable names, SF Symbol names, file paths and the key names
+ * of JSON / frontmatter (id / name / apiKey / tools …) stay out: those labels
+ * have to match the real keys in the user's files, so translating them is wrong.
  */
 
-/* 应用菜单 */
+/* Application menu (shipped by the i18n groundwork; do not change) */
 "menu.reload" = "重新载入描述文件与配置";
 "menu.language" = "语言";
 "menu.about" = "AgentKit 说明";
 
-/* 侧边栏 */
+/* Sidebar */
 "sidebar.section.panels" = "面板";
 
+/* Shared buttons
+ *
+ * button.save carries an ellipsis: it opens the write-confirmation sheet first.
+ * button.saveImmediate writes straight through, with no confirmation sheet. */
+"button.cancel" = "取消";
+"button.close" = "关闭";
+"button.write" = "写入";
+"button.save" = "保存…";
+"button.saveImmediate" = "保存";
+"button.delete" = "删除…";
+"button.deleteWithConfirm" = "删除";
+"button.edit" = "编辑…";
+"button.reload" = "重新读取";
+"button.reloadFile" = "重新载入";
+"button.rescan" = "重新扫描";
+"button.enable" = "启用";
+"button.disable" = "停用";
+"button.create" = "创建";
+"button.add" = "新增";
+"button.moveToTrash" = "移到废纸篓";
+"button.revealInFinder" = "在 Finder 中显示";
+"button.openInDefaultApp" = "用默认应用打开";
+"button.discardChanges" = "放弃改动";
+"button.restoreDefault" = "恢复默认";
+"button.collapse" = "收起";
+"button.terminal" = "终端";
+"button.export" = "导出";
+
+/* Shared status badges */
+"badge.default" = "默认";
+"badge.exists" = "已存在";
+"badge.newFile" = "新建文件";
+"badge.missing" = "不存在";
+"badge.symlink" = "符号链接";
+"badge.unsavedChanges" = "有未保存改动";
+"badge.inSync" = "与磁盘一致";
+"badge.disabled" = "已停用";
+"badge.readOnly" = "只读";
+"badge.shared" = "共享";
+"badge.malformedJSON" = "JSON 损坏";
+"badge.unsupported" = "不支持";
+"badge.customDescriptor" = "自定义描述";
+"badge.notInstalled" = "未安装";
+"badge.lookingUpCLI" = "查找 CLI…";
+"badge.scopeGlobal" = "全局";
+"badge.scopeProject" = "项目";
+"badge.scopeUser" = "用户";
+"badge.scopeProjectLevel" = "项目级";
+"badge.scopeUserLevel" = "用户级";
+"badge.reasoning" = "推理";
+"badge.images" = "图片";
+"badge.fileMissing" = "文件不存在";
+
+/* Write results and notice banners
+ *
+ *
+ * banner.writtenWithBackup is “Written, backed up to <name>”. banner.backupSuffix
+ * appends a backup note to another sentence; banner.backupSuffixParen is the
+ * parenthesised form. */
+"banner.noChanges" = "没有需要写入的改动";
+"banner.written" = "已写入";
+"banner.writtenWithBackup" = "已写入，备份 %@";
+"banner.writtenTo" = "已写入 %@";
+"banner.backupSuffix" = "，备份 %@";
+"banner.backupSuffixParen" = "（备份 %@）";
+"banner.movedToTrash" = "已把 %@ 移到废纸篓";
+"banner.createdAt" = "已创建 %@";
+"banner.enabled" = "已启用 %@";
+"banner.disabled" = "已停用 %@";
+"banner.notes" = "说明";
+
+/* Shared errors */
+"error.fileUnreadable" = "文件无法读取";
+"error.fileExists" = "%@ 已经存在";
+
+/* How lists of names are joined in the interface */
+"listSeparator" = "、";
+
+/* Sidebar: agent picker and footer */
+"sidebar.noAgent" = "未检测到 Agent";
+"sidebar.addAgentHint" = "把一份描述文件 JSON 放进 ~/.config/agentkit/agents/ 即可接入新的 agent";
+"sidebar.diagnosticsCount" = "%d 条诊断";
+"sidebar.diagnosticsCount.one" = "%d 条诊断";
+"sidebar.reloadedAt" = "重新载入于";
+
+/* Project scope (toolbar menu plus the banners panes show) */
+"project.scope.global" = "全局（不加载项目配置）";
+"project.scope.globalShort" = "全局";
+"project.scope.globalLong" = "全局作用域（不加载项目配置）";
+"project.scanning" = "正在从会话历史中整理项目…";
+"project.choose.prompt" = "选择项目";
+"project.choose.message" = "AgentKit 会读取这个目录下的项目级配置（例如 .pi/ 或 .codex/）";
+"banner.projectScope.title" = "有 %d 条项目级路径没有加载";
+"banner.projectScope.detail" = "这个面板会读取项目目录下的配置。当前是全局作用域，所以这些路径被跳过了。";
+"banner.projectScope.current" = "项目作用域：%@";
+"button.chooseProject" = "选择项目…";
+"button.chooseDirectory" = "选择目录…";
+"button.backToGlobal" = "回到全局";
+"button.revealCurrentProject" = "在 Finder 中显示当前项目";
+"help.projectScope" = "项目作用域：%@";
+"help.projectGlobalScope" = "当前是全局作用域，项目级配置不会被加载";
+"help.projectBackToGlobal" = "点一下回到全局作用域";
+"help.needsProject" = "需要先选择一个项目目录";
+
+/* Shared agent wording */
+"agent.subtitle.fallback" = "配置";
+"agent.running" = "%@ 正在运行";
+"app.cliMissing" = "找不到 %@，依赖命令行的功能已停用";
+"help.reloadNeeded" = "配置改动需要 /reload 或重启才会生效";
+"help.unsupportedPane" = "本版本不支持这个面板类型";
+
+/* Diagnostics */
+"pane.diagnostics.title" = "诊断";
+"pane.diagnostics.help" = "描述文件与配置的诊断信息";
+"empty.noIssues" = "没有发现问题";
+"diagnostics.paneLabel" = "面板：%@";
+
+/* A pane type this build does not know / no agents at all */
+"pane.unsupported.title" = "本版本不认识面板类型 “%@”";
+"pane.unsupported.detail" = "描述文件比这个 App 新。其余面板不受影响；升级 AgentKit，或者把该面板的类型改成本版本支持的取值。";
+"empty.noAgents.title" = "没有可用的 Agent";
+"empty.noAgents.message" = "把一份描述文件 JSON 放到 ~/.config/agentkit/agents/ 就能接入一个 agent。应用内置了一份 pi 的描述文件作为例子。";
+
+/* Write-confirmation sheet and the shared file editor */
+"sheet.confirmWrite.title" = "确认写入";
+"sheet.changesTo" = "写入 %@ 的改动";
+"sheet.noChangesInline" = "没有改动。";
+"diff.lineCount" = "文件共 %d 行";
+"diff.lineCount.one" = "文件共 %d 行";
+"diff.wrapLongLines" = "长行换行";
+"diff.backupNotice" = "写入前会备份为 %@";
+"diff.lossy.title" = "这次写入不是逐字节保留的";
+"diff.moreLines" = "… 还有更多差异";
+"editor.mode.edit" = "编辑";
+"editor.mode.preview" = "预览";
+"editor.stats" = "%d 字符 · %d 行";
+
+/* Global instructions pane */
+"instructions.scan.note" = "这些文件对所有工作目录生效。";
+"instructions.scan.noProject" = "选中一个项目后，还会列出沿途命中的项目级指令。";
+"instructions.scan.project" = "当前项目：%@";
+"instructions.section.global" = "全局";
+"instructions.section.project" = "项目（只读展示）";
+"instructions.row.missing" = "缺失";
+"instructions.role.override" = "覆盖同目录的 AGENTS.md / CLAUDE.md";
+"instructions.role.instructions" = "全局指令";
+"instructions.role.systemReplace" = "替换系统提示";
+"instructions.role.systemAppend" = "追加到系统提示";
+"instructions.role.project" = "项目级指令（只读）";
+"instructions.duplicate.title" = "和 %@ 是同一个文件";
+"instructions.duplicate.detail" = "描述文件里声明了两个名字，但这个卷不区分大小写，它们指向同一个文件。改哪一个都一样。";
+"instructions.projectReadOnly.title" = "项目级指令只读展示";
+"instructions.projectReadOnly.detail" = "它属于项目本身，AgentKit 不在这里改它。需要修改请用下面的按钮。";
+"badge.overrideRole" = "同目录下 override 覆盖 instructions";
+"badge.sameFileAs" = "同 %@";
+"empty.noInstructionFiles" = "没有可编辑的指令文件";
+
+/* MCP pane: overview and lists */
+"mcp.badge.effectiveCount" = "%d 个生效服务器";
+"mcp.badge.effectiveCount.one" = "%d 个生效服务器";
+"mcp.badge.problemCount" = "%d 个问题";
+"mcp.badge.problemCount.one" = "%d 个问题";
+/* MCP spells the disabled state 已禁用 where the resources and skills panes say
+ * 已停用, so it gets its own keys: two different source strings are two keys,
+ * even when the English happens to collide. */
+"mcp.badge.disabled" = "已禁用";
+"mcp.button.disable" = "禁用";
+"mcp.badge.shadowed" = "有 %d 处被覆盖";
+"mcp.badge.shadowed.one" = "有 %d 处被覆盖";
+"mcp.badge.winner" = "生效";
+"mcp.note.merge" = "按优先级从低到高合并全部配置层，后出现的层覆盖先出现的层。默认写入的共享层是 ~/.config/mcp/mcp.json。";
+"mcp.legacy.title" = "%@ 已经不会被读取";
+"mcp.legacy.declared" = "这里声明了 %d 个服务器%@。";
+"mcp.legacy.alsoKeys" = "、以及 %@";
+"mcp.section.conflicts" = "同名冲突";
+"mcp.section.effective" = "生效的服务器";
+"mcp.section.layers" = "配置层（优先级从低到高）";
+"mcp.section.imports" = "可导入的其它工具配置";
+"mcp.layer.serverCount" = "%d 个服务器";
+"mcp.layer.serverCount.one" = "%d 个服务器";
+"mcp.layerReadOnly" = "这一层是只读的";
+"mcp.note.imports" = "这些是 pi-mcp-adapter 的兼容输入，默认不加载（hostConfigDiscovery 为 off）。这里只做展示，不会替你改动它们。";
+"button.addServer" = "新增服务器";
+"button.viewRepairPlan" = "查看修复方案…";
+"empty.noMCPServers" = "没有任何生效的 MCP 服务器。";
+"empty.noImports" = "没有检测到 Cursor / Claude / Codex / opencode 等工具的 MCP 配置。";
+
+/* MCP pane: repair sheet */
+"mcp.repair.title" = "修复方案";
+"mcp.repair.detail" = "下面是 AgentKit 准备按顺序执行的全部步骤。每一步都是原子写入，并各自生成一份 .bak-agentkit-* 备份；任何一步失败就停下，不会继续。";
+"mcp.repair.includeServers" = "把这个文件里的 mcpServers 并入共享全局层";
+"mcp.repair.done" = "修复完成";
+"mcp.repair.interrupted" = "修复中断";
+"button.runRepair" = "执行";
+
+/* MCP pane: server editor sheet */
+"mcp.editor.newTitle" = "新增 MCP 服务器";
+"mcp.editor.editTitle" = "编辑 %@";
+"mcp.editor.hint" = "args 一行一个参数；command 与 url 只能填一个。";
+"mcp.field.name" = "名字";
+"mcp.field.commandPlaceholder" = "本地服务器的可执行文件";
+"mcp.field.urlPlaceholder" = "远程服务器的 URL";
+"mcp.field.disabledToggle" = "禁用（保留配置但不加载）";
+
+/* Models pane: overview */
+"models.badge.providerCount" = "%d 个 provider";
+"models.badge.providerCount.one" = "%d 个 provider";
+"models.badge.customModelCount" = "%d 个自定义 model";
+"models.badge.customModelCount.one" = "%d 个自定义 model";
+"models.badge.modelCount" = "%d 个 model";
+"models.badge.modelCount.one" = "%d 个 model";
+"models.badge.apiUnset" = "api 未设置";
+"models.badge.noAPIKey" = "无 apiKey";
+"models.badge.malformed" = "models.json 无法解析，编辑已停用";
+"models.defaults.label" = "启动默认：";
+"models.defaults.empty" = "settings.json 里没有设置启动默认模型；pi 会自己选一个。";
+"models.help.apiKeyEnvRef" = "apiKey 是环境变量/命令引用";
+"models.help.apiKeySet" = "已配置 apiKey";
+"models.help.noAPIKey" = "没有 apiKey，pi 会依赖 auth.json 或环境变量";
+"models.help.deleteModel" = "删除这个 model 条目";
+"models.apiKeyEnvRef" = "环境变量 / 命令引用（未展开）";
+"models.apiKeyConfigured" = "已配置（已隐藏，AgentKit 不读取明文）";
+"models.apiKeyUnset" = "未配置";
+"models.unknownKeys.title" = "这个 provider 还有 AgentKit 不认识的键，编辑时会原样保留";
+"models.noModelList.title" = "这个 agent 的 provider 不声明模型列表";
+"models.noModelList.detail" = "模型 id 由 %@ 侧决定，这里只配置连接方式。";
+"models.noModelList.providerSide" = "接口";
+"models.contextWindow" = "上下文 %@";
+"models.maxOutput" = "最大输出 %@";
+"models.authCheck.unavailable" = "无法检查";
+"button.checkAuth" = "检查认证";
+"button.addProvider" = "新增 provider…";
+"button.editDefaults" = "改…";
+"button.editProvider" = "编辑 provider…";
+"button.deleteProvider" = "删除 provider…";
+"button.addModel" = "新增 model";
+"empty.noModels" = "这个 provider 没有自定义 model 条目。";
+"empty.noProviders.title" = "models.json 里还没有 provider";
+
+/* Models pane: provider editor sheet */
+"models.editor.newTitle" = "新增 provider";
+"models.editor.editTitle" = "编辑 %@";
+"models.editor.appendNote" = "新增的 provider 会追加到 models.json 的 providers 下。";
+"models.field.idPlaceholder" = "例如 openrouter";
+"models.field.displayNamePlaceholder" = "显示名";
+"models.field.apiKeyPlaceholderNew" = "可留空，改用 auth.json 或环境变量";
+"models.field.apiKeyPlaceholderEdit" = "留空表示不改动现有值";
+"models.field.modelsLabel" = "models（JSON 数组）";
+"error.provider.idEmpty" = "id 不能为空";
+"error.provider.baseUrlEmpty" = "baseUrl 不能为空";
+"error.provider.duplicate" = "providers 下已经有 %@ 了";
+"error.provider.modelsNotArray" = "models 必须是一个 JSON 数组";
+"banner.providerDeleted" = "已删除 provider %@";
+"banner.modelAdded" = "已在 %@ 下新增一个 model 条目，请编辑它的 id";
+"banner.modelDeleted" = "已删除 %@/%@";
+
+/* Models pane: startup defaults sheet */
+"models.defaults.title" = "启动默认模型";
+"models.defaults.detail" = "写入 settings.json 的 defaultProvider / defaultModel / defaultThinkingLevel。";
+"models.defaults.noModels.title" = "这个 provider 在 models.json 里没有自定义 model";
+"models.defaults.noModels.detail" = "pi 会用内置目录里的模型；这里只能设置 provider 级别的默认值。";
+
+/* Resources pane (themes / extensions / prompt templates / packages) */
+"resources.section.themes" = "主题";
+"resources.section.extensions" = "扩展";
+"resources.section.prompts" = "Prompt 模板";
+"resources.section.packages" = "Packages";
+"resources.badge.fileCount" = "%d 个资源文件";
+"resources.badge.fileCount.one" = "%d 个资源文件";
+"resources.badge.currentTheme" = "当前主题";
+"resources.note.extensions" = "扩展的启用/停用沿用 pi 的约定：文件名以 .off 结尾即不加载。这里的改动是直接重命名文件，会先征求确认。";
+"resources.scannedRoots" = "已扫描：";
+"resources.noRoots" = "描述文件里没有为这个分类声明根目录";
+"resources.packages.title" = "settings.json 里声明的包";
+"resources.piListOutput" = "pi list 输出";
+"resources.packages.note" = "安装与卸载请用命令行：`pi install <source>` / `pi remove <source>`。AgentKit 只读取声明，不替你改 packages 数组。";
+"button.runPiList" = "运行 pi list";
+"empty.noResources" = "这个分类下没有资源文件。";
+"empty.noPackages" = "没有声明任何 package。";
+
+/* Sessions pane: list and detail */
+"sessions.grouping.project" = "按项目";
+"sessions.grouping.time" = "按时间";
+"sessions.badge.sessionCount" = "%d 个会话";
+"sessions.badge.sessionCount.one" = "%d 个会话";
+"sessions.indexing" = "统计中 %d/%d";
+"sessions.indexingShort" = "统计中…";
+"sessions.searchPlaceholder" = "搜索会话名、首条消息、项目路径或 id";
+"sessions.forkedFrom" = "从别的会话 fork 而来";
+"sessions.messageCount" = "%d 条消息";
+"sessions.messageCount.one" = "%d 条消息";
+"sessions.detail.id" = "会话 id";
+"sessions.detail.cwd" = "工作目录";
+"sessions.detail.started" = "开始时间";
+"sessions.detail.modified" = "最后修改";
+"sessions.detail.messages" = "消息数";
+"sessions.detail.cost" = "成本";
+"sessions.detail.models" = "模型";
+"sessions.detail.fileSize" = "文件大小";
+"sessions.detail.forkedFrom" = "fork 自";
+"sessions.directoryFallback" = "会话目录";
+
+/* Sessions pane: rename */
+"sessions.rename.title" = "重命名会话";
+"sessions.rename.placeholder" = "会话名";
+"sessions.rename.detail" = "这是往会话文件末尾追加一条重命名记录，不改动已有内容。写入前会先在同目录生成一份备份。";
+"sessions.rename.banner" = "已重命名为「%@」";
+"sessions.rename.append" = "追加一条重命名记录";
+"sessions.rename.agentRunning" = "agent 正在运行，改写会话文件不安全";
+"sessions.rename.unavailableIndex" = "%@ 的会话名存在索引文件里，AgentKit 不支持在这里改写";
+"sessions.rename.unavailableNoName" = "%@ 不在会话文件里保存名字，AgentKit 不支持在这里改写";
+"sessions.noRename.title" = "这个 agent 的会话名不由会话文件保存";
+"sessions.noRename.indexDetail" = "它的名字来自单独的索引文件，AgentKit 只读取，不代写。";
+"sessions.noRename.noNameDetail" = "这个 agent 不在会话文件里保存名字，所以 AgentKit 不能替你改名。";
+"sessions.agentRunning.title" = "%@ 正在运行";
+"sessions.agentRunning.detail" = "重命名会向会话文件追加内容，运行中的 agent 可能同时写这个文件，所以这里先禁用了。";
+
+/* Sessions pane: delete and export */
+"sessions.delete.title" = "删除这个会话？";
+"sessions.delete.message" = "%@\n\n会移到废纸篓，可以恢复。";
+"sessions.export.title" = "导出会话为 HTML";
+"sessions.export.detail" = "执行 `%@ --export <会话文件>`，输出目录为：";
+"sessions.export.note" = "文件名由命令行工具生成，导出完成后会自动在 Finder 中显示。";
+"sessions.export.banner" = "已导出到 %@";
+"sessions.export.error" = "导出失败：%@";
+"button.exportHTML" = "导出 HTML";
+"button.rename" = "重命名";
+"error.sessionsLayout" = "描述文件没有描述这个 agent 的会话布局（缺少 sessions 映射）";
+"empty.noSessions" = "还没有会话";
+"empty.noMatchingSessions" = "没有匹配的会话";
+"empty.noSessions.message" = "在 %@ 下没有找到 .jsonl 会话文件。";
+
+/* Settings pane */
+"empty.settingsLoadFailed.title" = "无法载入设置";
+"error.settingsNoFile" = "描述文件没有为这个面板指定 file";
+"error.schemaNotFound" = "找不到 schema “%@”";
+"error.schemaUnspecified" = "未指定";
+"settings.readOnly.detail" = "下方是文件原文；修复之前不会写入。";
+"settings.help.hashPrefix" = "当前文件的 SHA-256 前 7 位";
+"settings.unknownSection.title" = "其它键（保留）";
+"settings.unknownSection.detail" = "这些键不在 %@ 里，AgentKit 认识不了它们的含义，所以只读展示；写入时原样保留，不会丢失。";
+"settings.pickSection" = "选择一个分组";
+"settings.useDefault" = "（使用默认）";
+"settings.badge.invalidInputs" = "%d 个输入无效";
+"settings.badge.invalidInputs.one" = "%d 个输入无效";
+
+/* Skills pane: list and detail */
+"skills.badge.skillCount" = "%d 个 skill";
+"skills.badge.skillCount.one" = "%d 个 skill";
+"skills.badge.problemCount" = "%d 个有问题";
+"skills.badge.problemCount.one" = "%d 个有问题";
+"skills.badge.disabledCount" = "%d 个已停用";
+"skills.badge.manualOnly" = "仅手动调用";
+"skills.searchPlaceholder" = "搜索";
+"skills.missingRoots.title" = "以下目录不存在，已跳过";
+"skills.missingManifest" = "没有 SKILL.md 的目录";
+"skills.notDiscovered" = "不会被发现";
+"skills.help.symlink" = "符号链接 → %@";
+"skills.issues.title" = "pi 可能不会加载这个 skill";
+"skills.warnings.title" = "提示";
+"skills.detail.directory" = "目录";
+"skills.detail.symlinkTarget" = "符号链接指向";
+"skills.detail.declaredName" = "声明名";
+"skills.detail.undeclared" = "（未声明）";
+"skills.disabledSection.title" = "已停用（AgentKit 约定，位于 .disabled/）";
+"skills.bundled.title" = "随包文件";
+"skills.bundled.count" = "%d 项";
+"skills.bundled.count.one" = "%d 项";
+"skills.bundled.showAll" = "显示全部 %d 项";
+"skills.help.folderExpanded" = "%@（已展开）";
+"skills.help.folderCollapsed" = "%@（已折叠）";
+"button.newSkill" = "新建 skill";
+"button.editSkillFile" = "编辑 SKILL.md";
+"empty.noSkills" = "没有找到 skill";
+"empty.noMatchingSkills" = "没有匹配的 skill";
+"empty.noSkills.scanned" = "已扫描：%@";
+
+/* Skills pane: create and delete */
+"skills.create.namePlaceholder" = "小写字母、数字、连字符";
+"skills.create.invalidName" = "name 不符合 Agent Skills 规范（只能小写字母、数字和连字符）";
+"skills.create.detail" = "会创建 %@，其中包含 SKILL.md 与 scripts/ 目录。";
+"skills.delete.title" = "删除这个 skill？";
+"skills.delete.message" = "%@\n\n整个目录会移到废纸篓，可以恢复。";
+"skills.disable.title" = "停用这个 skill？";
+"skills.disable.message" = "pi 没有单个 skill 的开关，所以 AgentKit 用自己约定：把 %@ 移到同级 .disabled/ 下，pi 就不会再发现它。需要时可以从这个面板再启用回来。";
+"skills.disable.banner" = "已停用，目录移到了 .disabled/";
+
+/* Subagents pane */
+"subagents.badge.count" = "%d 个";
+"subagents.badge.count.one" = "%d 个";
+"subagents.note" = "子 agent 由 subagent 扩展加载：frontmatter 里的 name 与 description 是必填项，model 用 `provider/modelId` 指定。";
+"subagents.issues.title" = "这个文件 pi 可能不会加载";
+"subagents.issue.missingName" = "缺少 name，pi 会跳过这个文件";
+"subagents.issue.missingDescription" = "缺少 description，pi 会跳过这个文件";
+"subagents.issue.missingFile" = "文件不存在";
+"subagents.field.namePlaceholder" = "子 agent 的名字";
+"subagents.field.nameExample" = "例如 code-reviewer";
+"subagents.body.label" = "正文（系统提示）";
+"subagents.modelMissing.title" = "models.json 里找不到 %@";
+"subagents.modelMissing.detail" = "pi 用的是内置目录或其它来源的话没问题；否则启动时会回退到默认模型。";
+"subagents.error.nameEmpty" = "name 不能为空";
+"subagents.error.descriptionEmpty" = "description 不能为空";
+"subagents.error.nameSlash" = "name 里不能有斜杠";
+"subagents.create.detail" = "会写入 %@";
+"subagents.create.bodyPlaceholder" = "\n在这里写这个子 agent 的系统提示。\n";
+"subagents.delete.title" = "删除这个子 agent？";
+"subagents.delete.message" = "%@\n\n会移到废纸篓，可以恢复。";
+"button.newSubagent" = "新建子 agent";
+"field.descriptionPlaceholder" = "做什么、什么时候用";
+"empty.noSubagents" = "还没有子 agent";
+"empty.noSubagent.title" = "没有子 agent";
+"empty.noSubagent.message" = "用右上角的新建按钮创建一个，会在选中的根目录里生成一个带 frontmatter 的 Markdown 文件。";

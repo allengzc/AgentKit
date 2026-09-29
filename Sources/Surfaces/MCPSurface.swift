@@ -182,9 +182,9 @@ public struct MCPSnapshot {
 
 public enum MCPShape {
 	public static func transport(_ value: JSONValue) -> String {
-		if value.value(at: ["url"])?.stringValue != nil { return "远程" }
+		if value.value(at: ["url"])?.stringValue != nil { return L.t("mcp.transport.remote", "远程", table: .messages) }
 		if value.value(at: ["command"])?.stringValue != nil { return "stdio" }
-		return "未知"
+		return L.t("mcp.transport.unknown", "未知", table: .messages)
 	}
 
 	public static func summary(_ value: JSONValue) -> String {
@@ -266,16 +266,16 @@ public enum MCPShape {
 	}
 
 	public static func validate(name: String, value: JSONValue) -> String? {
-		if name.trimmingCharacters(in: .whitespaces).isEmpty { return "名字不能为空" }
-		if name.contains("/") { return "名字里不能有斜杠" }
+		if name.trimmingCharacters(in: .whitespaces).isEmpty { return L.t("mcp.error.nameEmpty", "名字不能为空", table: .messages) }
+		if name.contains("/") { return L.t("mcp.error.nameSlash", "名字里不能有斜杠", table: .messages) }
 		let hasCommand = value.value(at: ["command"])?.stringValue?.isEmpty == false
 		let hasURL = value.value(at: ["url"])?.stringValue?.isEmpty == false
-		if !hasCommand && !hasURL { return "需要 command（本地）或 url（远程）之一" }
-		if hasCommand && hasURL { return "command 与 url 只能有一个" }
+		if !hasCommand && !hasURL { return L.t("mcp.error.needCommandOrURL", "需要 command（本地）或 url（远程）之一", table: .messages) }
+		if hasCommand && hasURL { return L.t("mcp.error.bothCommandAndURL", "command 与 url 只能有一个", table: .messages) }
 		let args = value.value(at: ["args"])
-		if let args, args.arrayValue == nil { return "args 必须是数组" }
+		if let args, args.arrayValue == nil { return L.t("mcp.error.argsNotArray", "args 必须是数组", table: .messages) }
 		let env = value.value(at: ["env"])
-		if let env, env.objectValue == nil { return "env 必须是对象" }
+		if let env, env.objectValue == nil { return L.t("mcp.error.envNotObject", "env 必须是对象", table: .messages) }
 		return nil
 	}
 }
@@ -345,7 +345,7 @@ public enum MCPSurfaceLoader {
 				var note: String?
 				if url.pathExtension.lowercased() == "toml" {
 					count = 0
-					note = exists ? "TOML 格式，AgentKit 只做存在性检查" : nil
+					note = exists ? L.t("mcp.import.tomlNote", "TOML 格式，AgentKit 只做存在性检查", table: .messages) : nil
 				} else {
 					let document = JSONFile.load(url, policy: policy)
 					count = MCPShape.serverNames(in: document, shape: shape).count
@@ -368,7 +368,7 @@ public enum MCPSurfaceLoader {
 			snapshot.legacy.append(
 				MCPLegacyFinding(
 					url: url,
-					notice: legacy.notice ?? "这个文件已经不会被读取。",
+					notice: legacy.notice?.current ?? L.t("mcp.diagnostic.deadFile", "这个文件已经不会被读取。", table: .messages),
 					serverNames: servers,
 					adapterKeys: adapterKeys,
 					rawText: document.rawText,

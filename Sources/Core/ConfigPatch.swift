@@ -64,14 +64,14 @@ public enum ConfigPatch {
 						text: patched.text,
 						isLossy: lossy,
 						note: lossy
-							? "改动只落在受影响的表里，其它表保持原样；被改动的那张表会按标准格式重排，其中的注释会丢失。"
+							? L.t("write.diff.lossyTables", "改动只落在受影响的表里，其它表保持原样；被改动的那张表会按标准格式重排，其中的注释会丢失。", table: .messages)
 							: nil
 					)
 				}
 				return ConfigRender(
 					text: TOMLWriter().serialize(updated),
 					isLossy: true,
-					note: "这个改动碰到了文件顶层，整份 TOML 会按标准格式重写：注释会丢失，内联表会被展开成独立表。"
+					note: L.t("write.diff.lossyDocument", "这个改动碰到了文件顶层，整份 TOML 会按标准格式重写：注释会丢失，内联表会被展开成独立表。", table: .messages)
 				)
 			}
 		}

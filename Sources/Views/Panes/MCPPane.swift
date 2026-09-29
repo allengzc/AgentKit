@@ -83,19 +83,36 @@ struct MCPPane: View {
 		VStack(alignment: .leading, spacing: 7) {
 			HStack(spacing: 8) {
 				Text(surface.titleText).font(.title3.weight(.semibold))
-				StatusBadge(text: "\(snapshot.effective.count) 个生效服务器", level: .info)
+				StatusBadge(
+					text: String(
+						format: L.t(snapshot.effective.count == 1 ? "mcp.badge.effectiveCount.one" : "mcp.badge.effectiveCount", "%d 个生效服务器"),
+						snapshot.effective.count
+					),
+					level: .info
+				)
 				if snapshot.problemCount > 0 {
-					StatusBadge(text: "\(snapshot.problemCount) 个问题", level: .warning)
+					StatusBadge(
+						text: String(
+							format: L.t(snapshot.problemCount == 1 ? "mcp.badge.problemCount.one" : "mcp.badge.problemCount", "%d 个问题"),
+							snapshot.problemCount
+						),
+						level: .warning
+					)
 				}
 				Spacer()
 				Button {
 					reload()
 				} label: {
-					Label("重新读取", systemImage: "arrow.clockwise")
+					Label(L.t("button.reload", "重新读取"), systemImage: "arrow.clockwise")
 				}
 				.controlSize(.small)
 			}
-			Text("按优先级从低到高合并全部配置层，后出现的层覆盖先出现的层。默认写入的共享层是 ~/.config/mcp/mcp.json。")
+			Text(
+				L.t(
+					"mcp.note.merge",
+					"按优先级从低到高合并全部配置层，后出现的层覆盖先出现的层。默认写入的共享层是 ~/.config/mcp/mcp.json。"
+				)
+			)
 				.font(.caption)
 				.foregroundStyle(.secondary)
 			ProjectScopeBanner(surface: surface)
@@ -139,12 +156,26 @@ struct MCPPane: View {
 			if finding.hasAnything {
 				InfoBanner(
 					kind: .warning,
-					title: "\(finding.url.path) 已经不会被读取",
+					title: String(
+						format: L.t("mcp.legacy.title", "%@ 已经不会被读取"),
+						finding.url.path
+					),
 					detail: finding.notice
-						+ "\n这里声明了 \(finding.serverNames.count) 个服务器"
-						+ (finding.adapterKeys.isEmpty ? "" : "、以及 \(finding.adapterKeys.joined(separator: "、"))")
-						+ "。",
-					action: ("查看修复方案…", { repairIncludeServers = true; repairFinding = finding })
+						+ "\n"
+						+ String(
+							format: L.t("mcp.legacy.declared", "这里声明了 %d 个服务器%@。"),
+							finding.serverNames.count,
+							finding.adapterKeys.isEmpty
+								? ""
+								: String(
+									format: L.t("mcp.legacy.alsoKeys", "、以及 %@"),
+									finding.adapterKeys.joined(separator: L.t("listSeparator", "、"))
+								)
+						),
+					action: (
+						L.t("button.viewRepairPlan", "查看修复方案…"),
+						{ repairIncludeServers = true; repairFinding = finding }
+					)
 				)
 			}
 		}
@@ -153,7 +184,7 @@ struct MCPPane: View {
 	@ViewBuilder
 	private func conflictSection(_ conflicts: [MCPConflict]) -> some View {
 		VStack(alignment: .leading, spacing: 8) {
-			sectionTitle("同名冲突", icon: "exclamationmark.triangle", count: conflicts.count)
+			sectionTitle(L.t("mcp.section.conflicts", "同名冲突"), icon: "exclamationmark.triangle", count: conflicts.count)
 			ForEach(conflicts) { conflict in
 				VStack(alignment: .leading, spacing: 4) {
 					Text(conflict.name).font(.callout.weight(.medium))
@@ -166,7 +197,7 @@ struct MCPPane: View {
 								.font(.system(.caption, design: .monospaced))
 								.foregroundStyle(.secondary)
 							if layer.id == conflict.winner.id {
-								Text("生效").font(.caption2).foregroundStyle(.green)
+								Text(L.t("mcp.badge.winner", "生效")).font(.caption2).foregroundStyle(.green)
 							}
 						}
 					}
@@ -184,7 +215,11 @@ struct MCPPane: View {
 	private func effectiveSection(_ snapshot: MCPSnapshot) -> some View {
 		VStack(alignment: .leading, spacing: 8) {
 			HStack {
-				sectionTitle("生效的服务器", icon: "checkmark.seal", count: snapshot.effective.count)
+				sectionTitle(
+					L.t("mcp.section.effective", "生效的服务器"),
+					icon: "checkmark.seal",
+					count: snapshot.effective.count
+				)
 				Spacer()
 				Menu {
 					ForEach(snapshot.writableLayers) { layer in
@@ -201,14 +236,14 @@ struct MCPPane: View {
 						}
 					}
 				} label: {
-					Label("新增服务器", systemImage: "plus")
+					Label(L.t("button.addServer", "新增服务器"), systemImage: "plus")
 				}
 				.controlSize(.small)
 				.disabled(snapshot.writableLayers.isEmpty)
 			}
 
 			if snapshot.effective.isEmpty {
-				Text("没有任何生效的 MCP 服务器。")
+				Text(L.t("empty.noMCPServers", "没有任何生效的 MCP 服务器。"))
 					.font(.callout)
 					.foregroundStyle(.secondary)
 					.padding(.vertical, 8)
@@ -224,10 +259,16 @@ struct MCPPane: View {
 							Text(item.name).font(.callout.weight(.semibold))
 							StatusBadge(text: MCPShape.transport(item.value), level: .muted)
 							if item.isDisabled {
-								StatusBadge(text: "已禁用", level: .warning)
+								StatusBadge(text: L.t("mcp.badge.disabled", "已禁用"), level: .warning)
 							}
 							if item.isShadowed {
-								StatusBadge(text: "有 \(item.shadowed.count) 处被覆盖", level: .warning)
+								StatusBadge(
+									text: String(
+										format: L.t(item.shadowed.count == 1 ? "mcp.badge.shadowed.one" : "mcp.badge.shadowed", "有 %d 处被覆盖"),
+										item.shadowed.count
+									),
+									level: .warning
+								)
 							}
 						}
 						Text(MCPShape.summary(item.value))
@@ -244,17 +285,21 @@ struct MCPPane: View {
 					Spacer(minLength: 8)
 					Menu {
 						if item.winner.isWritable {
-							Button("编辑…") { beginEdit(item) }
-							Button(item.isDisabled ? "启用" : "禁用") {
+							Button(L.t("button.edit", "编辑…")) { beginEdit(item) }
+							Button(
+								item.isDisabled
+									? L.t("button.enable", "启用")
+									: L.t("mcp.button.disable", "禁用")
+							) {
 								toggleDisabled(item)
 							}
 							Divider()
-							Button("删除…", role: .destructive) { deleteServer(item) }
+							Button(L.t("button.delete", "删除…"), role: .destructive) { deleteServer(item) }
 						} else {
-							Text("这一层是只读的")
+							Text(L.t("mcp.layerReadOnly", "这一层是只读的"))
 						}
 						Divider()
-						Button("在 Finder 中显示") { ShellActions.reveal(item.winner.url) }
+						Button(L.t("button.revealInFinder", "在 Finder 中显示")) { ShellActions.reveal(item.winner.url) }
 					} label: {
 						Image(systemName: "ellipsis.circle")
 					}
@@ -273,7 +318,11 @@ struct MCPPane: View {
 	@ViewBuilder
 	private func layerSection(_ snapshot: MCPSnapshot) -> some View {
 		VStack(alignment: .leading, spacing: 8) {
-			sectionTitle("配置层（优先级从低到高）", icon: "square.3.layers.3d", count: snapshot.layers.count)
+			sectionTitle(
+				L.t("mcp.section.layers", "配置层（优先级从低到高）"),
+				icon: "square.3.layers.3d",
+				count: snapshot.layers.count
+			)
 			ForEach(snapshot.layers) { layer in
 				HStack(spacing: 9) {
 					Text("\(layer.spec.precedence)")
@@ -287,17 +336,27 @@ struct MCPPane: View {
 								.lineLimit(1)
 								.truncationMode(.middle)
 							if layer.malformedReason != nil {
-								StatusBadge(text: "JSON 损坏", level: .error)
+								StatusBadge(text: L.t("badge.malformedJSON", "JSON 损坏"), level: .error)
 							}
 							if !layer.exists {
-								StatusBadge(text: "不存在", level: .muted)
+								StatusBadge(text: L.t("badge.missing", "不存在"), level: .muted)
 							}
 						}
 						HStack(spacing: 6) {
-							StatusBadge(text: layer.isProjectScoped ? "项目" : "全局", level: .muted)
-							if layer.isShared { StatusBadge(text: "共享", level: .muted) }
-							if !layer.isWritable { StatusBadge(text: "只读", level: .muted) }
-							Text("\(layer.serverNames.count) 个服务器")
+							StatusBadge(
+								text: layer.isProjectScoped
+									? L.t("badge.scopeProject", "项目")
+									: L.t("badge.scopeGlobal", "全局"),
+								level: .muted
+							)
+							if layer.isShared { StatusBadge(text: L.t("badge.shared", "共享"), level: .muted) }
+							if !layer.isWritable { StatusBadge(text: L.t("badge.readOnly", "只读"), level: .muted) }
+							Text(
+								String(
+									format: L.t(layer.serverNames.count == 1 ? "mcp.layer.serverCount.one" : "mcp.layer.serverCount", "%d 个服务器"),
+									layer.serverNames.count
+								)
+							)
 								.font(.caption2)
 								.foregroundStyle(.tertiary)
 						}
@@ -309,7 +368,7 @@ struct MCPPane: View {
 						Image(systemName: "folder")
 					}
 					.buttonStyle(.borderless)
-					.help("在 Finder 中显示")
+					.help(L.t("button.revealInFinder", "在 Finder 中显示"))
 				}
 				.padding(.vertical, 5)
 			}
@@ -320,9 +379,9 @@ struct MCPPane: View {
 	private func importSection(_ snapshot: MCPSnapshot) -> some View {
 		let found = snapshot.imports.filter(\.exists)
 		VStack(alignment: .leading, spacing: 8) {
-			sectionTitle("可导入的其它工具配置", icon: "arrow.down.doc", count: found.count)
+			sectionTitle(L.t("mcp.section.imports", "可导入的其它工具配置"), icon: "arrow.down.doc", count: found.count)
 			if found.isEmpty {
-				Text("没有检测到 Cursor / Claude / Codex / opencode 等工具的 MCP 配置。")
+				Text(L.t("empty.noImports", "没有检测到 Cursor / Claude / Codex / opencode 等工具的 MCP 配置。"))
 					.font(.caption)
 					.foregroundStyle(.secondary)
 			} else {
@@ -337,7 +396,12 @@ struct MCPPane: View {
 						if let note = candidate.note {
 							Text(note).font(.caption2).foregroundStyle(.tertiary)
 						} else {
-							Text("\(candidate.serverCount) 个服务器")
+							Text(
+								String(
+									format: L.t(candidate.serverCount == 1 ? "mcp.layer.serverCount.one" : "mcp.layer.serverCount", "%d 个服务器"),
+									candidate.serverCount
+								)
+							)
 								.font(.caption2)
 								.foregroundStyle(.tertiary)
 						}
@@ -345,7 +409,12 @@ struct MCPPane: View {
 					.padding(.vertical, 3)
 				}
 			}
-			Text("这些是 pi-mcp-adapter 的兼容输入，默认不加载（hostConfigDiscovery 为 off）。这里只做展示，不会替你改动它们。")
+			Text(
+				L.t(
+					"mcp.note.imports",
+					"这些是 pi-mcp-adapter 的兼容输入，默认不加载（hostConfigDiscovery 为 off）。这里只做展示，不会替你改动它们。"
+				)
+			)
 				.font(.caption2)
 				.foregroundStyle(.tertiary)
 		}
@@ -392,12 +461,20 @@ struct MCPPane: View {
 
 		return VStack(alignment: .leading, spacing: 0) {
 			VStack(alignment: .leading, spacing: 8) {
-				Text("修复方案").font(.headline)
-				Text("下面是 AgentKit 准备按顺序执行的全部步骤。每一步都是原子写入，并各自生成一份 .bak-agentkit-* 备份；任何一步失败就停下，不会继续。")
+				Text(L.t("mcp.repair.title", "修复方案")).font(.headline)
+				Text(
+					L.t(
+						"mcp.repair.detail",
+						"下面是 AgentKit 准备按顺序执行的全部步骤。每一步都是原子写入，并各自生成一份 .bak-agentkit-* 备份；任何一步失败就停下，不会继续。"
+					)
+				)
 					.font(.caption)
 					.foregroundStyle(.secondary)
 					.fixedSize(horizontal: false, vertical: true)
-				Toggle("把这个文件里的 mcpServers 并入共享全局层", isOn: $repairIncludeServers)
+				Toggle(
+					L.t("mcp.repair.includeServers", "把这个文件里的 mcpServers 并入共享全局层"),
+					isOn: $repairIncludeServers
+				)
 					.toggleStyle(.checkbox)
 			}
 			.padding(14)
@@ -427,12 +504,18 @@ struct MCPPane: View {
 						)
 					}
 					if !plan.notes.isEmpty {
-						InfoBanner(kind: .info, title: "说明", detail: plan.notes.joined(separator: "\n"))
+						InfoBanner(
+							kind: .info,
+							title: L.t("banner.notes", "说明"),
+							detail: plan.notes.joined(separator: "\n")
+						)
 					}
 					if let outcome = repairOutcome {
 						InfoBanner(
 							kind: outcome.allSatisfy(\.succeeded) ? .info : .error,
-							title: outcome.allSatisfy(\.succeeded) ? "修复完成" : "修复中断",
+							title: outcome.allSatisfy(\.succeeded)
+								? L.t("mcp.repair.done", "修复完成")
+								: L.t("mcp.repair.interrupted", "修复中断"),
 							detail: outcome.map { "\($0.succeeded ? "✓" : "✗") \($0.step) — \($0.detail)" }.joined(separator: "\n")
 						)
 					}
@@ -442,8 +525,8 @@ struct MCPPane: View {
 			Divider()
 			HStack {
 				Spacer()
-				Button("关闭") { repairFinding = nil }
-				Button("执行") {
+				Button(L.t("button.close", "关闭")) { repairFinding = nil }
+				Button(L.t("button.runRepair", "执行")) {
 					let outcomes = MCPRepair.run(plan, scope: resolver, policy: policy)
 					repairOutcome = outcomes
 					reload()
@@ -477,13 +560,20 @@ struct MCPPane: View {
 		return VStack(alignment: .leading, spacing: 0) {
 			VStack(alignment: .leading, spacing: 10) {
 				HStack {
-					Text(draft.isNew ? "新增 MCP 服务器" : "编辑 \(draft.originalName ?? "")")
+					Text(
+						draft.isNew
+							? L.t("mcp.editor.newTitle", "新增 MCP 服务器")
+							: String(
+								format: L.t("mcp.editor.editTitle", "编辑 %@"),
+								draft.originalName ?? ""
+							)
+					)
 						.font(.headline)
 					Spacer()
 				}
 				Grid(alignment: .leading, horizontalSpacing: 10, verticalSpacing: 8) {
 					GridRow {
-						Text("名字").gridColumnAlignment(.trailing)
+						Text(L.t("mcp.field.name", "名字")).gridColumnAlignment(.trailing)
 						TextField("", text: Binding(
 							get: { draft.name },
 							set: { self.draft?.name = $0 }
@@ -492,7 +582,7 @@ struct MCPPane: View {
 					}
 					GridRow {
 						Text("command").gridColumnAlignment(.trailing)
-						TextField("本地服务器的可执行文件", text: Binding(
+						TextField(L.t("mcp.field.commandPlaceholder", "本地服务器的可执行文件"), text: Binding(
 							get: { draft.command },
 							set: { self.draft?.command = $0 }
 						))
@@ -511,7 +601,7 @@ struct MCPPane: View {
 					}
 					GridRow {
 						Text("url").gridColumnAlignment(.trailing)
-						TextField("远程服务器的 URL", text: Binding(
+						TextField(L.t("mcp.field.urlPlaceholder", "远程服务器的 URL"), text: Binding(
 							get: { draft.url },
 							set: { self.draft?.url = $0 }
 						))
@@ -520,14 +610,17 @@ struct MCPPane: View {
 					}
 					GridRow {
 						Text("").gridColumnAlignment(.trailing)
-						Toggle("禁用（保留配置但不加载）", isOn: Binding(
-							get: { draft.disabled },
-							set: { self.draft?.disabled = $0 }
-						))
+						Toggle(
+							L.t("mcp.field.disabledToggle", "禁用（保留配置但不加载）"),
+							isOn: Binding(
+								get: { draft.disabled },
+								set: { self.draft?.disabled = $0 }
+							)
+						)
 						.toggleStyle(.checkbox)
 					}
 				}
-				Text("args 一行一个参数；command 与 url 只能填一个。")
+				Text(L.t("mcp.editor.hint", "args 一行一个参数；command 与 url 只能填一个。"))
 					.font(.caption2)
 					.foregroundStyle(.tertiary)
 				if let error {
@@ -536,11 +629,19 @@ struct MCPPane: View {
 				if let prepared {
 					if prepared.preview.hasChanges {
 						VStack(alignment: .leading, spacing: 4) {
-							Text("写入 \(prepared.url.path) 的改动").font(.caption.weight(.medium))
+							Text(
+								String(
+									format: L.t("sheet.changesTo", "写入 %@ 的改动"),
+									prepared.url.path
+								)
+							)
+							.font(.caption.weight(.medium))
 							DiffPreviewList(diff: prepared.preview.diff)
 						}
 					} else {
-						Text("没有改动。").font(.caption).foregroundStyle(.secondary)
+						Text(L.t("sheet.noChangesInline", "没有改动。"))
+							.font(.caption)
+							.foregroundStyle(.secondary)
 					}
 				}
 			}
@@ -548,13 +649,18 @@ struct MCPPane: View {
 			Divider()
 			HStack {
 				if let prepared, prepared.preview.existed {
-					Text("写入前会备份为 \(prepared.preview.backupURL?.lastPathComponent ?? "")")
+					Text(
+						String(
+							format: L.t("diff.backupNotice", "写入前会备份为 %@"),
+							prepared.preview.backupURL?.lastPathComponent ?? ""
+						)
+					)
 						.font(.caption2)
 						.foregroundStyle(.tertiary)
 				}
 				Spacer()
-				Button("取消") { self.draft = nil }
-				Button("写入") { apply(draft) }
+				Button(L.t("button.cancel", "取消")) { self.draft = nil }
+				Button(L.t("button.write", "写入")) { apply(draft) }
 					.buttonStyle(.borderedProminent)
 					.disabled(error != nil || prepared?.preview.hasChanges != true)
 			}
@@ -621,8 +727,12 @@ struct MCPPane: View {
 		value.setValue(buildValue(draft), at: [layer.shape.serverKey, name])
 		do {
 			let result = try JSONFile.write(value, document: document, scope: resolver, policy: policy)
-			controller.banner = result.backupURL.map { "已写入，备份 \($0.lastPathComponent)" }
-				?? "已写入 \(result.url.lastPathComponent)"
+			controller.banner = result.backupURL.map {
+				String(format: L.t("banner.writtenWithBackup", "已写入，备份 %@"), $0.lastPathComponent)
+			} ?? String(
+				format: L.t("banner.writtenTo", "已写入 %@"),
+				result.url.lastPathComponent
+			)
 			controller.errorText = nil
 			self.draft = nil
 			reload()
@@ -672,7 +782,7 @@ struct DiffPreviewList: View {
 				.font(.system(size: 11, design: .monospaced))
 			}
 			if diff.lines.filter({ $0.kind != .equal }).count > limit {
-				Text("… 还有更多差异").font(.caption2).foregroundStyle(.tertiary)
+				Text(L.t("diff.moreLines", "… 还有更多差异")).font(.caption2).foregroundStyle(.tertiary)
 			}
 		}
 		.padding(6)

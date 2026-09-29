@@ -132,6 +132,12 @@ public struct ConfigSource: Codable {
 	public var writable: Bool?
 	/// Overrides the parser chosen from the file extension.
 	public var format: String? = nil
+	/// A per-language sentence about this layer, for a descriptor that has to say
+	/// more than the path does. Optional and defaulted, so a descriptor written
+	/// before this key existed still loads: `~/.claude.json` carries a long note
+	/// because every `claude` run rewrites it, and the pane would otherwise show
+	/// the same Chinese sentence in English mode.
+	public var note: LocalizedText? = nil
 
 	public var isProjectScoped: Bool { scope == "project" }
 	public var isWritable: Bool { writable ?? true }
@@ -147,7 +153,7 @@ public struct LegacyFixSpec: Codable {
 
 public struct LegacySpec: Codable {
 	public var path: String
-	public var notice: String?
+	public var notice: LocalizedText?
 	public var fix: LegacyFixSpec?
 }
 
@@ -435,16 +441,16 @@ public enum DescriptorValidator {
 			issues.append(DescriptorIssue(
 				severity: .error,
 				agentID: id,
-				message: "描述文件版本 \(descriptor.descriptorVersion) 不受支持",
-				detail: "本版本只认识 descriptorVersion = \(AgentDescriptor.supportedVersion)。"
+				message: String(format: L.t("descriptor.issue.version", "描述文件版本 %d 不受支持", table: .messages), descriptor.descriptorVersion),
+				detail: String(format: L.t("descriptor.issue.versionDetail", "本版本只认识 descriptorVersion = %d。", table: .messages), AgentDescriptor.supportedVersion)
 			))
 		}
 
 		if descriptor.id.isEmpty {
-			issues.append(DescriptorIssue(severity: .error, agentID: id, message: "描述文件缺少 id"))
+			issues.append(DescriptorIssue(severity: .error, agentID: id, message: L.t("descriptor.issue.missingID", "描述文件缺少 id", table: .messages)))
 		}
 		if descriptor.root.default.isEmpty {
-			issues.append(DescriptorIssue(severity: .error, agentID: id, message: "描述文件缺少 root.default"))
+			issues.append(DescriptorIssue(severity: .error, agentID: id, message: L.t("descriptor.issue.missingRoot", "描述文件缺少 root.default", table: .messages)))
 		}
 
 		var seen = Set<String>()
@@ -454,7 +460,7 @@ public enum DescriptorValidator {
 					severity: .warning,
 					agentID: id,
 					surfaceID: surface.id,
-					message: "面板 id \(surface.id) 重复，只有第一个会生效"
+					message: String(format: L.t("descriptor.issue.duplicateSurface", "面板 id %@ 重复，只有第一个会生效", table: .messages), surface.id)
 				))
 			}
 			if case .unsupported(let raw) = surface.kind {
@@ -462,8 +468,8 @@ public enum DescriptorValidator {
 					severity: .warning,
 					agentID: id,
 					surfaceID: surface.id,
-					message: "本版本不认识面板类型 “\(raw)”",
-					detail: "这个面板会显示为占位符，其余面板不受影响。"
+					message: String(format: L.t("descriptor.issue.unknownKind", "本版本不认识面板类型 “%@”", table: .messages), raw),
+					detail: L.t("descriptor.issue.unknownKindDetail", "这个面板会显示为占位符，其余面板不受影响。", table: .messages)
 				))
 				continue
 			}
@@ -480,7 +486,7 @@ public enum DescriptorValidator {
 				severity: .error,
 				agentID: agentID,
 				surfaceID: surface.id,
-				message: "面板 \(surface.id) 缺少 \(field)"
+				message: String(format: L.t("descriptor.issue.missingField", "面板 %@ 缺少 %@", table: .messages), surface.id, field)
 			))
 		}
 
@@ -502,7 +508,7 @@ public enum DescriptorValidator {
 					severity: .warning,
 					agentID: agentID,
 					surfaceID: surface.id,
-					message: "面板 \(surface.id) 没有指定 schema，将退化为原始 JSON 编辑器"
+					message: String(format: L.t("descriptor.issue.noSchema", "面板 %@ 没有指定 schema，将退化为原始 JSON 编辑器", table: .messages), surface.id)
 				))
 			}
 		case .resources:

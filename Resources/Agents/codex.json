@@ -1,8 +1,11 @@
 {
   "descriptorVersion": 1,
   "id": "codex",
-  "name": "Codex",
-  "subtitle": "codex-cli (OpenAI)",
+  "name": { "zh-Hans": "Codex", "en": "Codex" },
+  "subtitle": {
+    "zh-Hans": "codex-cli (OpenAI)",
+    "en": "codex-cli (OpenAI)"
+  },
   "icon": "chevron.left.forwardslash.chevron.right",
   "homepage": "https://github.com/openai/codex",
 
@@ -41,7 +44,7 @@
     {
       "id": "models",
       "kind": "models",
-      "title": "模型与 Provider",
+      "title": { "zh-Hans": "模型与 Provider", "en": "Models & Providers" },
       "icon": "cpu",
       "shape": "providers-map",
       "format": "toml",
@@ -64,7 +67,7 @@
     {
       "id": "mcp",
       "kind": "mcp",
-      "title": "MCP 服务器",
+      "title": { "zh-Hans": "MCP 服务器", "en": "MCP Servers" },
       "icon": "point.3.connected.trianglepath.dotted",
       "shape": "mcp-servers-map",
       "format": "toml",
@@ -79,7 +82,7 @@
     {
       "id": "skills",
       "kind": "skills",
-      "title": "Skills",
+      "title": { "zh-Hans": "Skills", "en": "Skills" },
       "icon": "puzzlepiece.extension",
       "shape": "skill-dirs",
       "roots": [
@@ -93,7 +96,7 @@
     {
       "id": "sessions",
       "kind": "sessions",
-      "title": "会话",
+      "title": { "zh-Hans": "会话", "en": "Sessions" },
       "icon": "clock.arrow.circlepath",
       "shape": "jsonl-sessions",
       "root": "$ROOT/sessions",
@@ -125,7 +128,7 @@
     {
       "id": "instructions",
       "kind": "instructions",
-      "title": "全局指令",
+      "title": { "zh-Hans": "全局指令", "en": "Instructions" },
       "icon": "text.book.closed",
       "shape": "md",
       "files": [
@@ -140,7 +143,7 @@
     {
       "id": "settings",
       "kind": "settings",
-      "title": "通用设置",
+      "title": { "zh-Hans": "通用设置", "en": "Settings" },
       "icon": "slider.horizontal.3",
       "shape": "typed-json",
       "format": "toml",

@@ -54,13 +54,16 @@ SHOTS_LIST=(
 )
 
 quit_app() {
-  pkill -f "AgentKit.app/Contents/MacOS/AgentKit" 2>/dev/null || true
+  # `-x` on the process name, not `-f` on the command line: the swiftc invocation
+  # in build.sh also contains the path to the binary, so a `-f` match killed the
+  # compiler whenever a build overlapped a screenshot run.
+  pkill -x AgentKit 2>/dev/null || true
   local waited=0
-  while pgrep -f "AgentKit.app/Contents/MacOS/AgentKit" >/dev/null 2>&1; do
+  while pgrep -x AgentKit >/dev/null 2>&1; do
     sleep 0.5
     waited=$((waited + 1))
     if [[ $waited -gt 20 ]]; then
-      pkill -9 -f "AgentKit.app/Contents/MacOS/AgentKit" 2>/dev/null || true
+      pkill -9 -x AgentKit 2>/dev/null || true
       break
     fi
   done

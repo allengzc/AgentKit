@@ -57,7 +57,7 @@ struct MarkdownEditorView: View {
 			if let document, !document.isReadable {
 				InfoBanner(
 					kind: .error,
-					title: document.problemReason ?? "文件无法读取",
+					title: document.problemReason ?? L.t("error.fileUnreadable", "文件无法读取"),
 					detail: url.path
 				)
 			} else {
@@ -68,18 +68,18 @@ struct MarkdownEditorView: View {
 						.truncationMode(.middle)
 						.foregroundStyle(.secondary)
 					if let document, !document.exists {
-						StatusBadge(text: "不存在", level: .muted)
+						StatusBadge(text: L.t("badge.missing", "不存在"), level: .muted)
 					}
 					if let document, document.isSymlink {
-						StatusBadge(text: "符号链接", level: .warning)
+						StatusBadge(text: L.t("badge.symlink", "符号链接"), level: .warning)
 					}
 					Spacer()
 					if hasChanges {
-						StatusBadge(text: "有未保存改动", level: .warning)
+						StatusBadge(text: L.t("badge.unsavedChanges", "有未保存改动"), level: .warning)
 					}
 					Picker("", selection: $showsPreview) {
-						Text("编辑").tag(false)
-						Text("预览").tag(true)
+						Text(L.t("editor.mode.edit", "编辑")).tag(false)
+						Text(L.t("editor.mode.preview", "预览")).tag(true)
 					}
 					.labelsHidden()
 					.pickerStyle(.segmented)
@@ -110,18 +110,18 @@ struct MarkdownEditorView: View {
 				}
 
 				HStack(spacing: 8) {
-					Text("\(text.count) 字符 · \(lineCount) 行")
+					Text(String(format: L.t("editor.stats", "%d 字符 · %d 行"), text.count, lineCount))
 						.font(.caption2)
 						.foregroundStyle(.tertiary)
 					Spacer()
-					Button("在 Finder 中显示") { ShellActions.reveal(url) }
+					Button(L.t("button.revealInFinder", "在 Finder 中显示")) { ShellActions.reveal(url) }
 						.controlSize(.small)
-					Button("用默认应用打开") { ShellActions.openExternally(url) }
+					Button(L.t("button.openInDefaultApp", "用默认应用打开")) { ShellActions.openExternally(url) }
 						.controlSize(.small)
-					Button("放弃改动") { text = loadedText; status = nil }
+					Button(L.t("button.discardChanges", "放弃改动")) { text = loadedText; status = nil }
 						.controlSize(.small)
 						.disabled(!hasChanges)
-					Button("保存…") { stage() }
+					Button(L.t("button.save", "保存…")) { stage() }
 						.buttonStyle(.borderedProminent)
 						.controlSize(.small)
 						.disabled(!hasChanges || document?.isReadable == false)
@@ -159,7 +159,7 @@ struct MarkdownEditorView: View {
 		guard let document else { return }
 		let preview = TextFile.preview(text, for: document, policy: policy)
 		guard preview.hasChanges else {
-			status = "没有需要写入的改动"
+			status = L.t("banner.noChanges", "没有需要写入的改动")
 			return
 		}
 		pending = PendingTextWrite(preview: preview, document: document)
@@ -170,7 +170,9 @@ struct MarkdownEditorView: View {
 			let result = try TextFile.write(text, document: write.document, scope: resolver, policy: policy)
 			pending = nil
 			load()
-			status = result.backupURL.map { "已写入，备份 \($0.lastPathComponent)" } ?? "已写入"
+			status = result.backupURL.map {
+				String(format: L.t("banner.writtenWithBackup", "已写入，备份 %@"), $0.lastPathComponent)
+			} ?? L.t("banner.written", "已写入")
 			errorText = nil
 			onWritten?()
 		} catch {

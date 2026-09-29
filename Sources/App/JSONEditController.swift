@@ -80,7 +80,7 @@ public final class JSONEditController {
 		_ = title
 		let preview = JSONFile.preview(value, for: document, policy: policy)
 		guard preview.hasChanges else {
-			banner = "没有需要写入的改动"
+			banner = L.t("banner.noChanges", "没有需要写入的改动")
 			return false
 		}
 		pending = Pending(
@@ -111,7 +111,9 @@ public final class JSONEditController {
 			let reloaded = JSONFile.load(result.url, policy: pending.policy)
 			document = reloaded
 			let backupName = result.backupURL?.lastPathComponent
-			banner = backupName.map { "已写入，备份 \($0)" } ?? "已写入 \(result.url.path)"
+			banner = backupName.map {
+				String(format: L.t("banner.writtenWithBackup", "已写入，备份 %@"), $0)
+			} ?? String(format: L.t("banner.writtenTo", "已写入 %@"), result.url.path)
 			errorText = nil
 		} catch {
 			self.pending = nil

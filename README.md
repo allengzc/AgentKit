@@ -44,6 +44,10 @@ AGENTKIT_PROJECT=~/code/my-repo open -a AgentKit      # 指定项目作用域
 CODEX_HOME=/tmp/fixture open -a AgentKit              # 换一个配置根（夹具优先调试）
 ```
 
+界面支持**中文 / 英文**：菜单栏「语言」里切换，选择会被记住。默认跟随系统语言。
+面板名、按钮、提示、写入失败的原因、描述文件与设置表的标签都会跟着变；
+日志和命令行开关名不翻译。
+
 对着假配置跑、断言怎么加、图标与截图流水线 → [开发与验收](docs/development.md)。
 
 ---

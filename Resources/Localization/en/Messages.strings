@@ -1,5 +1,169 @@
 /* AgentKit user-facing messages (en)
  *
- * 出问题时唯一告诉用户发生了什么的东西：写入被拒、解析失败、校验不通过。
- * 由 task-4 填充。
+ * The strings that tell the user what went wrong: a refused write, a parse that
+ * failed, validation that did not pass. Core and Surfaces produce them and look
+ * them up with L.t(key, "中文原文", table: .messages); the second argument is the
+ * literal that shows when the table is missing, so it must stay verbatim.
+ *
+ * Both tables must carry exactly the same key set — Tests/main.swift asserts it.
+ * %@ is a string argument and %d an integer argument, filled in by
+ * String(format:). A key never carries an argument, and the two languages must
+ * use the same placeholders in the same order.
  */
+
+/* Writing: concurrent edits, refused overwrites, low-level failures */
+"write.error.concurrent" = "The file changed outside AgentKit since it was read (expected %@, found %@). Nothing was written, so nothing was lost.";
+"write.error.malformedSource" = "AgentKit cannot parse %@, so it will not overwrite it. Fix the file first, or edit it in an external editor.";
+"write.error.io" = "Write failed: %@";
+"write.error.tempFile" = "Could not open %@: %@";
+"write.error.writeFailed" = "Could not write the file: %@";
+"write.error.fsyncFailed" = "Could not flush the file to disk: %@";
+"write.error.renameFailed" = "Could not replace the file: %@";
+"write.error.backupFailed" = "Could not back up to %@: %@";
+"write.error.encodeUTF8" = "The content could not be encoded as UTF-8";
+"write.error.trashFailed" = "Could not move it to the Trash: %@";
+
+/* What this change will cost, shown on the confirmation sheet */
+"write.diff.lossyTables" = "Only the tables this change touches are rewritten; every other table is left exactly as it was. The rewritten table is reflowed into standard TOML, so comments inside it are lost.";
+"write.diff.lossyDocument" = "This change reaches the top level of the file, so the whole TOML document is rewritten in standard formatting: comments are lost and inline tables are expanded into tables of their own.";
+
+/* File status */
+"file.notUTF8" = "The file is not valid UTF-8";
+"file.deleted" = "The file has been deleted";
+
+/* Path resolution and the write scope guard */
+"path.error.unknownToken" = "The path template %@ in the descriptor contains an unknown token %@";
+"path.error.outsideScope" = "Refused to write %@: it is outside the directories this agent declared it may touch (%@)";
+"path.error.notFound" = "Path not found: %@";
+
+/* Joiner for turning an array into a list a human can read */
+"list.separator" = ", ";
+
+/* Descriptor validation (shown in an InfoBanner) */
+"descriptor.issue.version" = "Descriptor version %d is not supported";
+"descriptor.issue.versionDetail" = "This version of AgentKit only understands descriptorVersion = %d.";
+"descriptor.issue.missingID" = "The descriptor has no id";
+"descriptor.issue.missingRoot" = "The descriptor has no root.default";
+"descriptor.issue.duplicateSurface" = "Two panels share the id %@; only the first one takes effect";
+"descriptor.issue.unknownKind" = "This version of AgentKit does not know the panel type “%@”";
+"descriptor.issue.unknownKindDetail" = "That panel shows as a placeholder; every other panel still works.";
+"descriptor.issue.missingField" = "Panel %@ has no %@";
+"descriptor.issue.noSchema" = "Panel %@ declares no schema, so it falls back to the raw JSON editor";
+
+/* Loading and detecting an agent */
+"descriptor.load.parseFailed" = "The descriptor %@ could not be parsed";
+"descriptor.load.readFailed" = "The descriptor %@ could not be read";
+"descriptor.load.rootTemplate" = "Could not resolve the root directory template %@";
+"descriptor.load.rootOverride" = "The root directory is overridden by the environment variable %@";
+"descriptor.load.rootMissing" = "The root directory does not exist";
+"descriptor.load.notDetected" = "%@ was not found on this machine";
+"descriptor.load.checkedPaths" = "Checked: %@";
+"descriptor.load.cliMissing" = "Could not find the %@ executable";
+"descriptor.load.triedPaths" = "Tried: (PATH) %@";
+
+/* Why a descriptor would not decode */
+"descriptor.decode.missingField" = "Missing field %@";
+"descriptor.decode.root" = "(root)";
+"descriptor.decode.typeMismatch" = "Field %@ has a value of the wrong type (expected %@)";
+"descriptor.decode.valueMissing" = "Field %@ has no value (expected %@)";
+"descriptor.decode.corrupted" = "Field %@ is damaged: %@";
+
+/* Why a file would not parse: shown next to "editing is disabled" */
+"parse.error.position" = "%@ (line %d, column %d)";
+"parse.expected" = "Expected %@";
+"parse.json.trailingContent" = "Unexpected content after the end of the JSON";
+"parse.json.unexpectedEnd" = "Unexpected end of file";
+"parse.json.keyNotString" = "An object key must be a string";
+"parse.json.missingColon" = "Missing colon after the key \"%@\"";
+"parse.object.unclosed" = "The object is never closed";
+"parse.object.expectedCommaOrBrace" = "Expected , or } inside the object";
+"parse.array.unclosed" = "The array is never closed";
+"parse.array.expectedCommaOrBracket" = "Expected , or ] inside the array";
+"parse.string.notUTF8" = "The string is not valid UTF-8";
+"parse.string.control" = "The string contains an unescaped control character";
+"parse.string.unclosed" = "The string is never closed";
+"parse.escape.incomplete" = "The escape sequence is incomplete";
+"parse.escape.unknown" = "Unknown escape \\%@";
+"parse.escape.badUnicode" = "Invalid \\u escape";
+"parse.escape.unicodeIncomplete" = "The \\u escape is incomplete";
+"parse.escape.unicodeNonHex" = "The \\u escape contains a character that is not a hex digit";
+"parse.surrogate.missingLow" = "A high surrogate is not followed by a low surrogate";
+"parse.surrogate.badLow" = "The low surrogate is invalid";
+"parse.surrogate.badPair" = "The surrogate pair does not form a valid character";
+"parse.number.invalid" = "Not a valid number";
+"parse.number.outOfRange" = "The number %@ is out of range";
+"parse.toml.tableNameEmpty" = "The table name cannot be empty";
+"parse.toml.headerUnclosed" = "The table header is missing its closing ]";
+"parse.toml.arrayHeaderUnclosed" = "The array-of-tables header is missing its closing ]]";
+"parse.toml.headerTrailing" = "Unexpected content after the table header";
+"parse.toml.notArrayTable" = "%@ is not an array of tables";
+"parse.toml.keyMissingName" = "Missing key name";
+"parse.toml.keyMissingEquals" = "Missing = after the key %@";
+"parse.toml.keyMissingValue" = "The key %@ has no value";
+"parse.toml.keyDuplicate" = "The key %@ is defined more than once";
+"parse.toml.valueTrailing" = "Unexpected content after the value";
+"parse.toml.keyNameIncomplete" = "The key name is incomplete";
+"parse.toml.keyNameInvalid" = "Not a valid key name";
+"parse.toml.missingValue" = "Missing value";
+"parse.toml.unknownValue" = "Unrecognized value %@";
+"parse.toml.emptyArrayTable" = "The table %@ is an empty array";
+"parse.toml.scalarTable" = "%@ is already a plain value, so it cannot also be a table";
+"parse.toml.inlineMissingEquals" = "Missing = inside the inline table";
+"parse.toml.inlineUnclosed" = "The inline table is never closed";
+"parse.toml.inlineExpectedCommaOrBrace" = "Expected , or } inside the inline table";
+"parse.toml.escapeUnknown" = "Unknown escape";
+
+/* MCP panel: transport, form validation, import notes, dead files */
+"mcp.transport.remote" = "Remote";
+"mcp.transport.unknown" = "Unknown";
+"mcp.error.nameEmpty" = "The name cannot be empty";
+"mcp.error.nameSlash" = "The name cannot contain a slash";
+"mcp.error.needCommandOrURL" = "Give either command (a local server) or url (a remote server)";
+"mcp.error.bothCommandAndURL" = "Give command or url, not both";
+"mcp.error.argsNotArray" = "args must be an array";
+"mcp.error.envNotObject" = "env must be an object";
+"mcp.import.tomlNote" = "TOML file: AgentKit only checks that it exists";
+"mcp.diagnostic.deadFile" = "This file is no longer read by the agent.";
+
+/* MCP repair plan: the steps and notes the user approves one by one */
+"mcp.repair.step.carryKeys" = "Move %@ into %@";
+"mcp.repair.note.noTargetForKey" = "The descriptor does not say where these keys belong, so they are skipped: %@";
+"mcp.repair.step.mergeServers" = "Merge %d servers into %@ (where a name already exists, the target file wins)";
+"mcp.repair.note.targetWins" = "The target layer already defines servers with these names, so its definitions are kept: %@";
+"mcp.repair.note.serversNotMoved" = "The %d servers listed here (%@) are not carried over; they are renamed together with the file.";
+"mcp.repair.note.noSharedLayer" = "No usable shared layer was found, so the servers are not carried over.";
+"mcp.repair.step.rename" = "Rename %@ to %@";
+"mcp.repair.outcome.written" = "Written";
+
+/* Sessions */
+"session.error.cannotRename" = "This agent cannot rename a session by appending a record";
+"session.error.encodeFailed" = "Could not encode %@";
+
+/* Settings panel: why it is read-only, and per-field validation */
+"settings.readOnly.malformed" = "settings.json is not valid JSON: %@";
+"settings.readOnly.unreadable" = "settings.json could not be read: %@";
+"settings.error.bool" = "Must be true or false";
+"settings.error.integer" = "Must be a whole number";
+"settings.error.min" = "Must not be less than %d";
+"settings.error.max" = "Must not be greater than %d";
+"settings.error.choice" = "Must be one of %@";
+"settings.error.boolOrAuto" = "Must be auto, true or false";
+"settings.error.choiceOrFalse" = "Must be false or %@";
+"settings.error.list" = "Enter a comma-separated list, or a JSON array";
+"settings.error.jsonArray" = "Must be a JSON array";
+"settings.error.json" = "Not valid JSON";
+"settings.summary" = "%d of %d set";
+
+/* Skills panel: entries, validation, errors, and the new-skill template */
+"skills.item.empty" = "Empty";
+"skills.item.count" = "%d items";
+"skills.item.count.one" = "%d item";
+"skills.issue.unreadable" = "The file could not be read";
+"skills.issue.missingDescription" = "Missing description — pi will not load this skill";
+"skills.issue.descriptionTooLong" = "The description is longer than 1024 characters";
+"skills.issue.nameInvalid" = "The name %@ is not valid: use lowercase letters, digits and hyphens only";
+"skills.issue.nameTooLong" = "The name is longer than 64 characters";
+"skills.warning.nameMismatch" = "The declared name %@ does not match the directory name %@. AgentKit and the other implementations accept this, but matching names are easier to move between machines.";
+"skills.error.exists" = "%@ already exists";
+"skills.error.encodeFailed" = "Could not encode SKILL.md";
+"skills.template.body" = "\n# %@\n\nDescribe what this skill does, when to use it, and which bundled files to read first.\n\nReference scripts by a path relative to this directory, for example `scripts/example.sh`.\n";

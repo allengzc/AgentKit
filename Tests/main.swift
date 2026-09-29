@@ -495,7 +495,10 @@ try MainActor.assumeIsolated {
 
 	// A no-op mutation stages nothing.
 	check(controller.stage(controller.editable) == false, "没有改动时不弹确认")
-	equal(controller.banner, "没有需要写入的改动", "提示没有改动")
+	// Assert that the user is told, not the exact sentence: the banner text is a
+	// localised string, and comparing it here would break the moment the test
+	// binary gains a string table or a language is pinned elsewhere.
+	check(controller.banner != nil, "提示没有改动")
 
 	// A real mutation produces a pending write with a diff.
 	var value = controller.editable
@@ -959,6 +962,12 @@ do {
 	check(!issues.contains { $0.surfaceID == "settings" }, "合法面板没有诊断")
 
 	// Unsupported descriptor version is an error, not a crash.
+	//
+	// The `contains("版本")` below matches the *fallback* literal: the test
+	// binary has no .lproj, so L.t always returns the Chinese text passed at the
+	// call site. It is a check that the message names the version, not a check of
+	// the wording — renaming the key would keep it green, translating it would
+	// not. Both tables are compared with each other further down.
 	var future = descriptor
 	future.descriptorVersion = 99
 	check(
@@ -972,6 +981,8 @@ do {
 		check(false, "缺少必填字段应解码失败")
 	} catch let error as DecodingError {
 		let message = DescriptorLoader.describe(error)
+		// Same fallback-literal caveat as above: this asserts that the reason
+		// names the missing field, not that it is worded in any one language.
 		check(message.contains("缺少字段"), "解码错误信息可读", message)
 	}
 }
@@ -1060,6 +1071,96 @@ do {
 	equal(schema.field(key: "defaultProjectTrust")?.scopeNoteText?.isEmpty, false, "标注了作用域限制")
 	equal(schema.field(key: "defaultThinkingLevel")?.type.choices.count, 7, "思考等级 7 个取值")
 	equal(schema.field(key: "transport")?.type.choices, ["auto", "sse", "websocket", "websocket-cached"], "传输方式取值")
+}
+
+// MARK: - Settings schema localization
+
+group("设置表：双语完整")
+
+do {
+	// The shape of one schema in one language: its sections, whether each title
+	// resolved, its field keys, and whether each label and help sentence
+	// resolved. Translating should only swap text — a section or a key that
+	// exists in one language but not the other means an entry was dropped, and
+	// `text(for:)` falls back to the other language, so the pane would still
+	// look populated while showing the wrong language.
+	func shape(_ schema: SettingsSchemaDefinition, _ language: AppLanguage) -> [String] {
+		schema.sections.map { section in
+			[section.id + "|" + (section.title.text(for: language).isEmpty ? "empty-title" : "ok")]
+				+ section.fields.map { field in
+					let label = field.label.text(for: language)
+					let help = field.help.text(for: language)
+					return field.key + (label.isEmpty || help.isEmpty ? "=empty" : "")
+				}
+		}.map { $0.joined(separator: ",") }
+	}
+
+	for schema in SettingsSchema.all {
+		equal(shape(schema, .zhHans), shape(schema, .en), "\(schema.id)：两语言的分组数、字段数与字段 key 完全一致")
+		check(!schema.title.isPlain, "\(schema.id)：表标题是中英两份")
+		check(schema.sections.allSatisfy { !$0.title.isPlain }, "\(schema.id)：每个分组标题都是中英两份")
+		check(schema.fields.allSatisfy { !$0.label.isPlain }, "\(schema.id)：每个字段标签都是中英两份")
+		check(schema.fields.allSatisfy { !$0.help.isPlain }, "\(schema.id)：每个字段说明都是中英两份")
+		check(
+			schema.fields.allSatisfy { $0.help.text(for: .zhHans) != $0.help.text(for: .en) },
+			"\(schema.id)：每条说明的中英确实是两句不同的话，不是同一句抄两遍"
+		)
+		equal(schema.fields.count, schema.knownKeys.count, "\(schema.id)：字段 key 唯一")
+		check(schema.sections.allSatisfy { !$0.fields.isEmpty }, "\(schema.id)：没有空分组")
+	}
+
+	// `isPlain` only catches "the same string in every language". A value with a
+	// single language filled in is *not* plain, yet it resolves to that language
+	// everywhere — a missing translation the checks above cannot see. So compare
+	// labels one by one: pi and codex must differ per language (`packages` is the
+	// only one named the same in both, because upstream calls it Pi Packages
+	// either way), and claude's labels are deliberately the JSON keys — a
+	// Chinese name would hide which key in settings.json is being edited.
+	for schema in [SettingsSchema.pi087, SettingsSchema.codex0157] {
+		let identical = schema.fields
+			.filter { $0.label.text(for: .zhHans) == $0.label.text(for: .en) }
+			.map(\.key)
+		let expected = schema.id == "pi-settings-0.87" ? ["packages"] : [String]()
+		equal(identical, expected, "\(schema.id)：中英同名的标签只有本来就同名的那个")
+	}
+	check(
+		SettingsSchema.claudeCode.fields.allSatisfy { field in
+			field.label.text(for: .zhHans) == field.key && field.label.text(for: .en) == field.key
+		},
+		"claude-code：标签是 JSON 键名，两种语言都一样"
+	)
+
+	// Same for section titles: a title filled in for one language only is not
+	// plain, but it shows Chinese in English mode. Only two are named the same in
+	// both languages — pi's `Shell` and claude's `MCP`.
+	for schema in SettingsSchema.all {
+		let identical = schema.sections
+			.filter { $0.title.text(for: .zhHans) == $0.title.text(for: .en) }
+			.map(\.id)
+		let expected: [String]
+		switch schema.id {
+		case "pi-settings-0.87": expected = ["shell"]
+		case "claude-code": expected = ["claude-mcp"]
+		default: expected = []
+		}
+		equal(identical, expected, "\(schema.id)：中英同名的分组标题只有本来就同名的那个")
+		check(schema.title.text(for: .zhHans) != schema.title.text(for: .en), "\(schema.id)：表标题中英不同")
+	}
+
+	// The size of each schema. Not bookkeeping: the field table is transcribed
+	// from the upstream reference, and a missing key means a setting silently
+	// disappears from the pane.
+	equal(SettingsSchema.pi087.fields.count, 68, "pi 68 个字段")
+	equal(SettingsSchema.pi087.sections.count, 9, "pi 9 个分组")
+	equal(SettingsSchema.codex0157.fields.count, 69, "codex 69 个字段")
+	equal(SettingsSchema.codex0157.sections.count, 6, "codex 6 个分组")
+	equal(SettingsSchema.claudeCode.fields.count, 78, "claude 78 个字段")
+	equal(SettingsSchema.claudeCode.sections.count, 7, "claude 7 个分组")
+	equal(SettingsSchema.all.reduce(0) { $0 + $1.fields.count }, 215, "三个 schema 合计 215 个字段")
+	equal(
+		SettingsSchema.all.map(\.id), ["pi-settings-0.87", "codex-0.157", "claude-code"],
+		"schema id 没变（描述文件按 id 引用）"
+	)
 }
 
 group("SettingsEditor")
@@ -1726,8 +1827,14 @@ do {
 	equal(byName["SKILL.md"]?.isDirectory, false, "SKILL.md 是文件")
 	equal(byName["scripts"]?.isDirectory, true, "scripts 是目录")
 	equal(byName["scripts"]?.childCount, 2, "scripts 有 2 个子项")
-	equal(byName["scripts"]?.displaySize, "2 项", "目录显示子项数")
-	equal(byName["empty"]?.displaySize, "空", "空目录说明是空的")
+	// The label itself is a localization concern: Messages.strings has its own
+	// assertions for the wording. Matching the exact Chinese here would tie a
+	// behaviour test to one language, and would go red the day someone pins the
+	// test language. So: the count has to reach the label, and an empty
+	// directory has to say something rather than render blank.
+	check(byName["scripts"]?.displaySize.contains("2") == true, "目录标签里带上子项数")
+	check(byName["empty"]?.children.isEmpty == true, "空目录没有子项")
+	check(byName["empty"]?.displaySize.isEmpty == false, "空目录也给出一句说明，不是空白")
 	equal(byName["references"]?.childCount, 1, "references 有 1 个子项")
 	equal(byName["notes.txt"]?.bytes, 3000, "文件大小按字节")
 	equal(byName["notes.txt"]?.displaySize, "2.9 KB", "大小格式化")
@@ -2043,10 +2150,253 @@ do {
 	for table in tables {
 		let zh = keys(root.appendingPathComponent("zh-Hans/\(table)"))
 		let en = keys(root.appendingPathComponent("en/\(table)"))
+		// A .strings file that does not parse yields an empty dictionary on both
+		// sides, so the two differences below are empty too and the parity check
+		// passes while every message silently falls back to the Chinese literal
+		// at its call site. Prove each table is readable before comparing keys.
+		check(!zh.isEmpty, "\(table)：中文表能解析出内容", "解析失败时全部消息静默回退，中英都不报错")
+		check(!en.isEmpty, "\(table)：英文表能解析出内容", "解析失败时全部消息静默回退，中英都不报错")
 		let missingInEnglish = zh.subtracting(en).sorted()
 		let missingInChinese = en.subtracting(zh).sorted()
 		check(missingInEnglish.isEmpty, "\(table)：中文有而英文没有的键", missingInEnglish.joined(separator: ", "))
 		check(missingInChinese.isEmpty, "\(table)：英文有而中文没有的键", missingInChinese.joined(separator: ", "))
+	}
+}
+
+group("i18n：代码里引用的键都存在于表里")
+
+do {
+	// A key that is not in its table is invisible at runtime: L.t falls back to
+	// the Chinese literal at the call site, so the app keeps working and only the
+	// English build quietly shows Chinese. The parity check above compares the
+	// two tables with each other and cannot see a key that is missing from both,
+	// so this walks the sources and looks every literal key up.
+	let repository = URL(fileURLWithPath: #filePath)
+		.deletingLastPathComponent()
+		.deletingLastPathComponent()
+	let localizationRoot = repository.appendingPathComponent("Resources/Localization")
+
+	func tableKeys(_ name: String) -> Set<String> {
+		let path = localizationRoot.appendingPathComponent("zh-Hans/\(name).strings")
+		guard let dictionary = NSDictionary(contentsOf: path) as? [String: String] else { return [] }
+		return Set(dictionary.keys)
+	}
+	let messages = tableKeys("Messages")
+	let ui = tableKeys("UI")
+	check(!messages.isEmpty && !ui.isEmpty, "两张表都读到了，否则这一组会静默通过")
+
+	func sourceFiles(_ relative: String) -> [URL] {
+		let root = repository.appendingPathComponent(relative)
+		guard let walker = FileManager.default.enumerator(at: root, includingPropertiesForKeys: nil) else { return [] }
+		var out: [URL] = []
+		for case let url as URL in walker where url.pathExtension == "swift" { out.append(url) }
+		return out
+	}
+
+	/// The key of the `L.t(...)` this line starts, and the table it names.
+	///
+	/// A wrapped call puts the literal on a following line and the `table:`
+	/// argument a little further down, so a few lines are folded into one window
+	/// before looking. Anything that is not a plain literal (interpolation, a
+	/// variable) is skipped rather than guessed at.
+	func reference(in lines: [String], at index: Int) -> (key: String, table: String)? {
+		guard let call = lines[index].range(of: "L.t(") else { return nil }
+		var window = String(lines[index][call.upperBound...])
+		for offset in 1...3 where index + offset < lines.count {
+			window += "\n" + lines[index + offset]
+		}
+		guard let open = window.firstIndex(of: "\"") else { return nil }
+		var key = ""
+		var cursor = window.index(after: open)
+		while cursor < window.endIndex {
+			let character = window[cursor]
+			if character == "\\" {
+				cursor = window.index(cursor, offsetBy: 2, limitedBy: window.endIndex) ?? window.endIndex
+				continue
+			}
+			if character == "\"" { break }
+			key.append(character)
+			cursor = window.index(after: cursor)
+		}
+		guard key.range(of: "^[A-Za-z][A-Za-z0-9._-]*$", options: .regularExpression) != nil else { return nil }
+		return (key, window.contains("table: .messages") ? "Messages" : "UI")
+	}
+
+	var references = 0
+	var unknown: [String] = []
+	let directories = ["Sources/Core", "Sources/Surfaces", "Sources/App", "Sources/Views"]
+	for file in directories.flatMap(sourceFiles) {
+		guard let text = try? String(contentsOf: file, encoding: .utf8) else { continue }
+		let lines = text.components(separatedBy: "\n")
+		let name = file.path.replacingOccurrences(of: repository.path + "/", with: "")
+		for (index, line) in lines.enumerated() {
+			// Doc comments show example calls; they are not references.
+			let trimmed = line.trimmingCharacters(in: .whitespaces)
+			if trimmed.hasPrefix("//") || trimmed.hasPrefix("*") || trimmed.hasPrefix("/*") { continue }
+			guard let found = reference(in: lines, at: index) else { continue }
+			references += 1
+			let known = found.table == "Messages" ? messages : ui
+			if !known.contains(found.key) {
+				unknown.append("\(name):\(index + 1) \(found.key) → \(found.table).strings")
+			}
+		}
+	}
+	check(references > 0, "扫到了 L.t 引用，否则这条断言没在测任何东西")
+	check(unknown.isEmpty, "代码里引用的每个键都能在它指定的表里查到", unknown.prefix(8).joined(separator: " | "))
+}
+
+group("i18n：内置描述文件两种语言都写了")
+
+do {
+	let repository = URL(fileURLWithPath: #filePath)
+		.deletingLastPathComponent()
+		.deletingLastPathComponent()
+	let agentsDirectory = repository.appendingPathComponent("Resources/Agents")
+
+	// 1. 向后兼容：用户自己写的描述文件里还是纯字符串。
+	//    这条是硬要求 —— 类型同时解两种形态，真正的保证在这里：升级之后
+	//    `~/.config/agentkit/agents/*.json` 里的 "title": "字符串" 不许变成空标签。
+	let userJSON = #"""
+	{
+	  "descriptorVersion": 1,
+	  "id": "custom",
+	  "name": "我的 Agent",
+	  "subtitle": "my-agent",
+	  "root": { "default": "$ROOT" },
+	  "surfaces": [
+	    { "id": "settings", "kind": "settings", "title": "我的设置", "file": "$ROOT/settings.json" }
+	  ]
+	}
+	"""#
+	let user = try JSONDecoder().decode(AgentDescriptor.self, from: Data(userJSON.utf8))
+	equal(user.name.text(for: .zhHans), "我的 Agent", "纯字符串 name 在中文下就是它本身")
+	equal(user.name.text(for: .en), "我的 Agent", "纯字符串 name 在英文下也是它本身")
+	check(user.name.isPlain, "纯字符串被标记为通用（没有分语言）")
+	equal(user.surfaces[0].title.text(for: .zhHans), "我的设置", "纯字符串 title 在中文下可用")
+	equal(user.surfaces[0].title.text(for: .en), "我的设置", "纯字符串 title 在英文下可用")
+
+	// 2. 按语言分的字典：各取各的。
+	let bothJSON = #"""
+	{
+	  "descriptorVersion": 1,
+	  "id": "custom",
+	  "name": { "zh-Hans": "甲", "en": "Alpha" },
+	  "root": { "default": "$ROOT" },
+	  "surfaces": [
+	    { "id": "sessions", "kind": "sessions", "root": "$ROOT/s",
+	      "title": { "zh-Hans": "会话", "en": "Sessions" } }
+	  ]
+	}
+	"""#
+	let both = try JSONDecoder().decode(AgentDescriptor.self, from: Data(bothJSON.utf8))
+	equal(both.name.text(for: .zhHans), "甲", "字典 name 按语言取值（中）")
+	equal(both.name.text(for: .en), "Alpha", "字典 name 按语言取值（英）")
+	check(!both.name.isPlain, "两种语言都给了就不算通用")
+	equal(both.surfaces[0].title.text(for: .zhHans), "会话", "字典 title 按语言取值（中）")
+	equal(both.surfaces[0].title.text(for: .en), "Sessions", "字典 title 按语言取值（英）")
+
+	// 3. 字典缺一种语言：回退到另一种，而不是空串（空标签比外文更糟）。
+	let halfJSON = #"""
+	{
+	  "descriptorVersion": 1,
+	  "id": "custom",
+	  "name": { "zh-Hans": "只有中文" },
+	  "root": { "default": "$ROOT" },
+	  "surfaces": [
+	    { "id": "sessions", "kind": "sessions", "root": "$ROOT/s",
+	      "title": { "only-a-language-we-do-not-ship": "谁能想到" } }
+	  ]
+	}
+	"""#
+	let half = try JSONDecoder().decode(AgentDescriptor.self, from: Data(halfJSON.utf8))
+	equal(half.name.text(for: .zhHans), "只有中文", "缺英文时中文仍然取到")
+	equal(half.name.text(for: .en), "只有中文", "缺英文时回退到中文，而不是空串")
+	check(!half.surfaces[0].title.text(for: .en).isEmpty, "一个都不认识的语言也不返回空串")
+
+	// 4. 界面读的是解析后的访问器：换语言，agent 名与面板标题立刻跟着变。
+	let pi = try JSONDecoder().decode(
+		AgentDescriptor.self,
+		from: Data(contentsOf: agentsDirectory.appendingPathComponent("pi.json"))
+	)
+	let previousLanguage = Localization.shared.language
+	defer { Localization.shared.language = previousLanguage }
+	Localization.shared.language = .zhHans
+	equal(pi.surface(id: "sessions")?.titleText, "会话", "中文下 titleText 是中文")
+	Localization.shared.language = .en
+	equal(pi.surface(id: "sessions")?.titleText, "Sessions", "英文下 titleText 是英文")
+
+	// 整条装载路径也要通：三个内置描述文件改成字典之后仍然能载入。
+	let outcome = DescriptorLoader.loadAll(
+		builtinDirectory: agentsDirectory,
+		userDirectory: fixtureRoot.appendingPathComponent("no-user-descriptors"),
+		environment: [:],
+		appSupport: fixtureRoot.appendingPathComponent("localized-support")
+	)
+	equal(outcome.agents.count, 3, "三个内置描述文件都能载入")
+	let decodeErrors = outcome.issues.filter { $0.severity == .error }
+	check(decodeErrors.isEmpty, "内置描述文件没有解码错误", decodeErrors.map(\.message).joined(separator: "; "))
+	equal(outcome.agents.first { $0.id == "claude" }?.name, "Claude Code", "agent 名走解析后的访问器")
+	equal(outcome.agents.first { $0.id == "claude" }?.subtitle, "claude (Anthropic)", "副标题走解析后的访问器")
+
+	// 5. 三个内置文件里**每个给人看的字段**都写了两种语言。
+	//    isPlain 为真就是漏翻 —— 那正是 LocalizedText.isPlain 存在的理由：
+	//    漏了不会报错，只会在英文界面里显示中文，没人会知道。
+	let expectedEnglish = [
+		"模型与 Provider": "Models & Providers",
+		"MCP 服务器": "MCP Servers",
+		"Skills": "Skills",
+		"会话": "Sessions",
+		"全局指令": "Instructions",
+		"子 Agents": "Subagents",
+		"通用设置": "Settings",
+		"主题 · 扩展 · Packages": "Themes, Extensions & Packages",
+	]
+	// 英文取值里出现中文标点或汉字，只有一种可能：忘了翻，或者复制过来没改。
+	func hasChinese(_ text: String) -> Bool {
+		text.unicodeScalars.contains { scalar in
+			(0x2E80...0x2EFF).contains(scalar.value)			// 部首补充
+				|| (0x3000...0x303F).contains(scalar.value)		// 中文标点
+				|| (0x3400...0x4DBF).contains(scalar.value)		// 扩展 A
+				|| (0x4E00...0x9FFF).contains(scalar.value)		// 基本区
+				|| (0xF900...0xFAFF).contains(scalar.value)		// 兼容汉字
+				|| (0xFF00...0xFFEF).contains(scalar.value)		// 全角
+		}
+	}
+
+	for id in ["pi", "codex", "claude"] {
+		let descriptor = try JSONDecoder().decode(
+			AgentDescriptor.self,
+			from: Data(contentsOf: agentsDirectory.appendingPathComponent("\(id).json"))
+		)
+
+		check(!descriptor.name.isPlain, "\(id)：agent 名两种语言都写了")
+		check(!(descriptor.subtitle?.isPlain ?? true), "\(id)：agent 副标题两种语言都写了")
+		check(!hasChinese(descriptor.name.text(for: .en)), "\(id)：agent 名的英文里没有中文", descriptor.name.text(for: .en))
+		check(!hasChinese(descriptor.subtitle?.text(for: .en) ?? ""), "\(id)：副标题的英文里没有中文")
+
+		for surface in descriptor.surfaces {
+			check(!surface.title.isPlain, "\(id)/\(surface.id)：面板标题两种语言都写了")
+			let chinese = surface.title.text(for: .zhHans)
+			let english = surface.title.text(for: .en)
+			// 同一个概念在三个文件里必须用同一个英文词，这张表就是那把尺。
+			equal(english, expectedEnglish[chinese] ?? "命名表里没有 “\(chinese)”", "\(id)/\(surface.id)：英文标题与统一命名表一致")
+			check(!hasChinese(english), "\(id)/\(surface.id)：英文标题里没有中文", english)
+		}
+
+		// MCP 配置层的 note。claude 的 ~/.claude.json 那一段最长，最该翻。
+		for layer in descriptor.surface(id: "mcp")?.layers ?? [] {
+			guard let note = layer.note else { continue }
+			check(!note.isPlain, "\(id)：MCP 层 \(layer.path) 的 note 两种语言都写了")
+			check(!note.text(for: .en).isEmpty, "\(id)：MCP 层 \(layer.path) 的 note 英文不是空的")
+			check(!hasChinese(note.text(for: .en)), "\(id)：MCP 层 \(layer.path) 的 note 英文里没有中文")
+		}
+
+		// legacy notice 也是给人读的句子（MCPPane 的说明条会原样显示）。
+		for legacy in descriptor.surface(id: "mcp")?.legacy ?? [] {
+			guard let notice = legacy.notice else { continue }
+			check(!notice.isPlain, "\(id)：legacy \(legacy.path) 的 notice 两种语言都写了")
+			check(!hasChinese(notice.text(for: .en)), "\(id)：legacy notice 的英文里没有中文")
+		}
 	}
 }
 
@@ -2159,6 +2509,13 @@ do {
 		  "http://127.0.0.1:8080/v1", "嵌套表")
 	equal(document.value(at: ["mcp_servers", "computer-use", "enabled"])?.boolValue, false, "带连字符的表名")
 	equal(document.source?.valueText(at: ["model"]), "\"gpt-5.4\"", "值区间精确到字面量")
+
+	// A scalar's span must not carry the whitespace before the delimiter. Strings
+	// were always exact, which is why the assertion above never caught that the
+	// borrowed span for integers, floats, booleans and dates ran to the delimiter.
+	let spaced = try TOMLParser.parseWithSource("num =   1_000   \nflag = true  \n")
+	equal(spaced.source.valueText(at: ["num"]), "1_000", "数字区间不含两侧空格")
+	equal(spaced.source.valueText(at: ["flag"]), "true", "布尔区间不含行尾空格")
 
 	// A leaf change is spliced into the original bytes: comments survive.
 	var edited = document.editableValue

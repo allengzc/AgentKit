@@ -26,21 +26,27 @@ struct RootView: View {
 			ToolbarItem(placement: .automatic) {
 				if model.isSelectedAgentRunning {
 					Label(
-						"\(model.selectedAgent?.descriptor.detect?.cli?.name ?? "CLI") 正在运行",
+						String(
+							format: L.t("agent.running", "%@ 正在运行"),
+							model.selectedAgent?.descriptor.detect?.cli?.name ?? "CLI"
+						),
 						systemImage: "bolt.horizontal.circle"
 					)
 					.font(.caption)
 					.foregroundStyle(.orange)
-					.help("配置改动需要 /reload 或重启才会生效")
+					.help(L.t("help.reloadNeeded", "配置改动需要 /reload 或重启才会生效"))
 				}
 			}
 			ToolbarItem(placement: .automatic) {
 				Button {
 					showDiagnostics = true
 				} label: {
-					Label("诊断", systemImage: diagnosticCount > 0 ? "exclamationmark.triangle.fill" : "checkmark.seal")
+					Label(
+						L.t("pane.diagnostics.title", "诊断"),
+						systemImage: diagnosticCount > 0 ? "exclamationmark.triangle.fill" : "checkmark.seal"
+					)
 				}
-				.help("描述文件与配置的诊断信息")
+				.help(L.t("pane.diagnostics.help", "描述文件与配置的诊断信息"))
 			}
 		}
 		.sheet(isPresented: $showDiagnostics) {
@@ -64,7 +70,7 @@ struct RootView: View {
 				model.projects.select(nil)
 			} label: {
 				Label(
-					"全局（不加载项目配置）",
+					L.t("project.scope.global", "全局（不加载项目配置）"),
 					systemImage: model.projectURL == nil ? "checkmark" : "globe"
 				)
 			}
@@ -79,19 +85,19 @@ struct RootView: View {
 				}
 			}
 			Divider()
-			Button("选择目录…") { model.projects.chooseWithPanel() }
-			Button("在 Finder 中显示当前项目") {
+			Button(L.t("button.chooseDirectory", "选择目录…")) { model.projects.chooseWithPanel() }
+			Button(L.t("button.revealCurrentProject", "在 Finder 中显示当前项目")) {
 				if let project = model.projectURL { ShellActions.reveal(project) }
 			}
 			.disabled(model.projectURL == nil)
 			if model.projects.scanning {
 				Divider()
-				Text("正在从会话历史中整理项目…")
+				Text(L.t("project.scanning", "正在从会话历史中整理项目…"))
 			}
 		} label: {
 			Label(model.projects.currentLabel, systemImage: model.projectURL == nil ? "globe" : "folder")
 		}
-		.help("项目作用域：" + model.projects.currentDisplayPath)
+		.help(String(format: L.t("help.projectScope", "项目作用域：%@"), model.projects.currentDisplayPath))
 	}
 
 	private var diagnosticCount: Int {
@@ -134,8 +140,11 @@ struct RootView: View {
 		} else {
 			EmptyStateView(
 				icon: "square.stack.3d.up.slash",
-				title: "没有可用的 Agent",
-				message: "把一份描述文件 JSON 放到 ~/.config/agentkit/agents/ 就能接入一个 agent。应用内置了一份 pi 的描述文件作为例子。"
+				title: L.t("empty.noAgents.title", "没有可用的 Agent"),
+				message: L.t(
+					"empty.noAgents.message",
+					"把一份描述文件 JSON 放到 ~/.config/agentkit/agents/ 就能接入一个 agent。应用内置了一份 pi 的描述文件作为例子。"
+				)
 			)
 		}
 	}
@@ -150,12 +159,15 @@ struct UnsupportedPane: View {
 		VStack(alignment: .leading, spacing: 14) {
 			HStack(spacing: 8) {
 				Text(surface.titleText).font(.title3.weight(.semibold))
-				StatusBadge(text: "不支持", level: .warning)
+				StatusBadge(text: L.t("badge.unsupported", "不支持"), level: .warning)
 			}
 			InfoBanner(
 				kind: .warning,
-				title: "本版本不认识面板类型 “\(kind)”",
-				detail: "描述文件比这个 App 新。其余面板不受影响；升级 AgentKit，或者把该面板的类型改成本版本支持的取值。"
+				title: String(format: L.t("pane.unsupported.title", "本版本不认识面板类型 “%@”"), kind),
+				detail: L.t(
+					"pane.unsupported.detail",
+					"描述文件比这个 App 新。其余面板不受影响；升级 AgentKit，或者把该面板的类型改成本版本支持的取值。"
+				)
 			)
 			Spacer()
 		}
@@ -170,15 +182,15 @@ struct DiagnosticsSheet: View {
 	var body: some View {
 		VStack(alignment: .leading, spacing: 0) {
 			HStack {
-				Text("诊断").font(.headline)
+				Text(L.t("pane.diagnostics.title", "诊断")).font(.headline)
 				Spacer()
-				Button("关闭", action: onClose)
+				Button(L.t("button.close", "关闭"), action: onClose)
 					.keyboardShortcut(.defaultAction)
 			}
 			.padding(14)
 			Divider()
 			if issues.isEmpty {
-				EmptyStateView(icon: "checkmark.seal", title: "没有发现问题")
+				EmptyStateView(icon: "checkmark.seal", title: L.t("empty.noIssues", "没有发现问题"))
 			} else {
 				ScrollView {
 					VStack(alignment: .leading, spacing: 10) {
@@ -196,7 +208,7 @@ struct DiagnosticsSheet: View {
 											.fixedSize(horizontal: false, vertical: true)
 									}
 									if let surface = issue.surfaceID {
-										Text("面板：\(surface)")
+										Text(String(format: L.t("diagnostics.paneLabel", "面板：%@"), surface))
 											.font(.caption2)
 											.foregroundStyle(.tertiary)
 									}

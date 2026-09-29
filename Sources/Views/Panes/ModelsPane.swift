@@ -112,9 +112,18 @@ struct ModelsPane: View {
 			HStack(spacing: 8) {
 				Text(surface.titleText).font(.title3.weight(.semibold))
 				if let snapshot {
-					StatusBadge(text: "\(snapshot.providers.count) 个 provider", level: .info)
 					StatusBadge(
-						text: "\(snapshot.providers.reduce(0) { $0 + $1.models.count }) 个自定义 model",
+						text: String(
+							format: L.t(snapshot.providers.count == 1 ? "models.badge.providerCount.one" : "models.badge.providerCount", "%d 个 provider"),
+							snapshot.providers.count
+						),
+						level: .info
+					)
+					StatusBadge(
+						text: String(
+							format: L.t(snapshot.providers.reduce(0) { $0 + $1.models.count } == 1 ? "models.badge.customModelCount.one" : "models.badge.customModelCount", "%d 个自定义 model"),
+							snapshot.providers.reduce(0) { $0 + $1.models.count }
+						),
 						level: .muted
 					)
 				}
@@ -122,38 +131,42 @@ struct ModelsPane: View {
 				Button {
 					checkAuth()
 				} label: {
-					Label("检查认证", systemImage: "key.horizontal")
+					Label(L.t("button.checkAuth", "检查认证"), systemImage: "key.horizontal")
 				}
 				.controlSize(.small)
 				.disabled(agent.cliURL == nil || checkingAuth || snapshot?.providers.isEmpty != false)
 				if checkingAuth { ProgressView().controlSize(.mini) }
 				Menu {
-					Button("新增 provider…") { beginNewProvider() }
+					Button(L.t("button.addProvider", "新增 provider…")) { beginNewProvider() }
 				} label: {
-					Label("新增", systemImage: "plus")
+					Label(L.t("button.add", "新增"), systemImage: "plus")
 				}
 				.controlSize(.small)
 			}
 			if let snapshot, let provider = snapshot.defaults.provider {
 				HStack(spacing: 6) {
-					Text("启动默认：").font(.caption).foregroundStyle(.secondary)
+					Text(L.t("models.defaults.label", "启动默认：")).font(.caption).foregroundStyle(.secondary)
 					Text("\(provider)/\(snapshot.defaults.model ?? "—")")
 						.font(.system(.caption, design: .monospaced))
 					if let thinking = snapshot.defaults.thinking {
 						StatusBadge(text: "thinking: \(thinking)", level: .muted)
 					}
-					Button("改…") { editDefaults() }
+					Button(L.t("button.editDefaults", "改…")) { editDefaults() }
 						.controlSize(.mini)
 				}
 			} else {
-				Text("settings.json 里没有设置启动默认模型；pi 会自己选一个。")
+				Text(L.t("models.defaults.empty", "settings.json 里没有设置启动默认模型；pi 会自己选一个。"))
 					.font(.caption)
 					.foregroundStyle(.secondary)
 			}
 			if let banner { InfoBanner(kind: .info, title: banner) }
 			if let errorText { InfoBanner(kind: .error, title: errorText) }
 			if let reason = snapshot?.malformedReason {
-				InfoBanner(kind: .error, title: "models.json 无法解析，编辑已停用", detail: reason)
+				InfoBanner(
+					kind: .error,
+					title: L.t("models.badge.malformed", "models.json 无法解析，编辑已停用"),
+					detail: reason
+				)
 			}
 		}
 		.padding(14)
@@ -173,12 +186,16 @@ struct ModelsPane: View {
 							Image(systemName: "key.fill")
 								.font(.system(size: 9))
 								.foregroundStyle(provider.keyIsEnvReference ? Color.orange : Color.green)
-								.help(provider.keyIsEnvReference ? "apiKey 是环境变量/命令引用" : "已配置 apiKey")
+								.help(
+									provider.keyIsEnvReference
+										? L.t("models.help.apiKeyEnvRef", "apiKey 是环境变量/命令引用")
+										: L.t("models.help.apiKeySet", "已配置 apiKey")
+								)
 						} else {
 							Image(systemName: "key.slash")
 								.font(.system(size: 9))
 								.foregroundStyle(.tertiary)
-								.help("没有 apiKey，pi 会依赖 auth.json 或环境变量")
+								.help(L.t("models.help.noAPIKey", "没有 apiKey，pi 会依赖 auth.json 或环境变量"))
 						}
 						Spacer(minLength: 0)
 						if let status = authResults[provider.id] {
@@ -193,7 +210,7 @@ struct ModelsPane: View {
 						.foregroundStyle(.tertiary)
 						.lineLimit(1)
 						.truncationMode(.middle)
-					Text("\(provider.models.count) 个 model")
+					Text(String(format: L.t(provider.models.count == 1 ? "models.badge.modelCount.one" : "models.badge.modelCount", "%d 个 model"), provider.models.count))
 						.font(.caption2)
 						.foregroundStyle(.tertiary)
 				}
@@ -223,9 +240,12 @@ struct ModelsPane: View {
 					VStack(alignment: .leading, spacing: 6) {
 						HStack(spacing: 8) {
 							Text(provider.name ?? provider.id).font(.title3.weight(.semibold))
-							StatusBadge(text: provider.api ?? "api 未设置", level: .muted)
+							StatusBadge(
+								text: provider.api ?? L.t("models.badge.apiUnset", "api 未设置"),
+								level: .muted
+							)
 							if !provider.hasKey {
-								StatusBadge(text: "无 apiKey", level: .warning)
+								StatusBadge(text: L.t("models.badge.noAPIKey", "无 apiKey"), level: .warning)
 							}
 						}
 						Text(provider.baseUrl ?? "—")
@@ -239,11 +259,13 @@ struct ModelsPane: View {
 						row(
 							"apiKey",
 							provider.hasKey
-								? (provider.keyIsEnvReference ? "环境变量 / 命令引用（未展开）" : "已配置（已隐藏，AgentKit 不读取明文）")
-								: "未配置"
+								? (provider.keyIsEnvReference
+									? L.t("models.apiKeyEnvRef", "环境变量 / 命令引用（未展开）")
+									: L.t("models.apiKeyConfigured", "已配置（已隐藏，AgentKit 不读取明文）"))
+								: L.t("models.apiKeyUnset", "未配置")
 						)
 						if !provider.compatKeys.isEmpty {
-							row("compat", provider.compatKeys.joined(separator: "、"), monospaced: true)
+							row("compat", provider.compatKeys.joined(separator: L.t("listSeparator", "、")), monospaced: true)
 						}
 						if let status = authResults[provider.id] {
 							row("pi auth check", status)
@@ -253,18 +275,21 @@ struct ModelsPane: View {
 					if !provider.unknownKeys.isEmpty {
 						InfoBanner(
 							kind: .info,
-							title: "这个 provider 还有 AgentKit 不认识的键，编辑时会原样保留",
-							detail: provider.unknownKeys.joined(separator: "、")
+							title: L.t(
+								"models.unknownKeys.title",
+								"这个 provider 还有 AgentKit 不认识的键，编辑时会原样保留"
+							),
+							detail: provider.unknownKeys.joined(separator: L.t("listSeparator", "、"))
 						)
 					}
 
 					HStack(spacing: 8) {
-						Button("编辑 provider…") { beginEdit(provider) }
-						Button("在 Finder 中显示") {
+						Button(L.t("button.editProvider", "编辑 provider…")) { beginEdit(provider) }
+						Button(L.t("button.revealInFinder", "在 Finder 中显示")) {
 							if let providerURL { ShellActions.reveal(providerURL) }
 						}
 						Button(role: .destructive) { deleteProvider(provider) } label: {
-							Text("删除 provider…")
+							Text(L.t("button.deleteProvider", "删除 provider…"))
 						}
 						Spacer()
 					}
@@ -278,21 +303,29 @@ struct ModelsPane: View {
 							Button {
 								addModel(provider)
 							} label: {
-								Label("新增 model", systemImage: "plus")
+								Label(L.t("button.addModel", "新增 model"), systemImage: "plus")
 							}
 							.controlSize(.small)
 						}
 
 						if provider.models.isEmpty {
-							Text("这个 provider 没有自定义 model 条目。")
+							Text(L.t("empty.noModels", "这个 provider 没有自定义 model 条目。"))
 								.font(.callout)
 								.foregroundStyle(.secondary)
 						}
 					} else {
 						InfoBanner(
 							kind: .info,
-							title: "这个 agent 的 provider 不声明模型列表",
-							detail: "模型 id 由 \(providerKeys.api == nil ? "api" : "接口") 侧决定，这里只配置连接方式。"
+							title: L.t("models.noModelList.title", "这个 agent 的 provider 不声明模型列表"),
+							detail: String(
+								format: L.t(
+									"models.noModelList.detail",
+									"模型 id 由 %@ 侧决定，这里只配置连接方式。"
+								),
+								providerKeys.api == nil
+									? "api"
+									: L.t("models.noModelList.providerSide", "接口")
+							)
 						)
 					}
 
@@ -302,21 +335,25 @@ struct ModelsPane: View {
 							HStack(spacing: 7) {
 								Text(entry.id)
 									.font(.system(.callout, design: .monospaced))
-								if entry.reasoning == true { StatusBadge(text: "推理", level: .info) }
-								if entry.supportsImages { StatusBadge(text: "图片", level: .muted) }
+								if entry.reasoning == true { StatusBadge(text: L.t("badge.reasoning", "推理"), level: .info) }
+								if entry.supportsImages { StatusBadge(text: L.t("badge.images", "图片"), level: .muted) }
 								Spacer()
 								Button(role: .destructive) { deleteModel(provider, entry) } label: {
 									Image(systemName: "minus.circle")
 								}
 								.buttonStyle(.borderless)
-								.help("删除这个 model 条目")
+								.help(L.t("models.help.deleteModel", "删除这个 model 条目"))
 							}
 							HStack(spacing: 12) {
 								if let context = entry.contextWindow ?? catalog?.contextWindow {
-									Text("上下文 \(formatCount(context))").font(.caption2).foregroundStyle(.tertiary)
+									Text(String(format: L.t("models.contextWindow", "上下文 %@"), formatCount(context)))
+										.font(.caption2)
+										.foregroundStyle(.tertiary)
 								}
 								if let max = entry.maxTokens ?? catalog?.maxTokens {
-									Text("最大输出 \(formatCount(max))").font(.caption2).foregroundStyle(.tertiary)
+									Text(String(format: L.t("models.maxOutput", "最大输出 %@"), formatCount(max)))
+										.font(.caption2)
+										.foregroundStyle(.tertiary)
 								}
 								if entry.name != nil, entry.name != entry.id {
 									Text(entry.name ?? "").font(.caption2).foregroundStyle(.tertiary)
@@ -337,9 +374,9 @@ struct ModelsPane: View {
 		} else {
 			EmptyStateView(
 				icon: "cpu",
-				title: "models.json 里还没有 provider",
+				title: L.t("empty.noProviders.title", "models.json 里还没有 provider"),
 				message: providerURL?.path,
-				action: ("新增 provider…", { beginNewProvider() })
+				action: (L.t("button.addProvider", "新增 provider…"), { beginNewProvider() })
 			)
 		}
 	}
@@ -393,18 +430,23 @@ struct ModelsPane: View {
 		let prepared = preparedProviderEdit(draft)
 		return VStack(alignment: .leading, spacing: 0) {
 			VStack(alignment: .leading, spacing: 10) {
-				Text(draft.isNew ? "新增 provider" : "编辑 \(draft.originalID ?? "")").font(.headline)
+				Text(
+					draft.isNew
+						? L.t("models.editor.newTitle", "新增 provider")
+						: String(format: L.t("models.editor.editTitle", "编辑 %@"), draft.originalID ?? "")
+				)
+					.font(.headline)
 				Grid(alignment: .leading, horizontalSpacing: 10, verticalSpacing: 8) {
 					GridRow {
 						Text("id").gridColumnAlignment(.trailing)
-						TextField("例如 openrouter", text: binding(\.identifier, draft))
+						TextField(L.t("models.field.idPlaceholder", "例如 openrouter"), text: binding(\.identifier, draft))
 							.textFieldStyle(.roundedBorder)
 							.font(.system(.body, design: .monospaced))
 							.disabled(!draft.isNew)
 					}
 					GridRow {
 						Text(providerKeys.name ?? "name").gridColumnAlignment(.trailing)
-						TextField("显示名", text: binding(\.name, draft))
+						TextField(L.t("models.field.displayNamePlaceholder", "显示名"), text: binding(\.name, draft))
 							.textFieldStyle(.roundedBorder)
 					}
 					GridRow {
@@ -433,14 +475,16 @@ struct ModelsPane: View {
 					GridRow {
 						Text(providerKeys.apiKey ?? "apiKey").gridColumnAlignment(.trailing)
 						SecureField(
-							draft.isNew ? "可留空，改用 auth.json 或环境变量" : "留空表示不改动现有值",
+							draft.isNew
+								? L.t("models.field.apiKeyPlaceholderNew", "可留空，改用 auth.json 或环境变量")
+								: L.t("models.field.apiKeyPlaceholderEdit", "留空表示不改动现有值"),
 							text: binding(\.apiKey, draft)
 						)
 						.textFieldStyle(.roundedBorder)
 					}
 				}
 				VStack(alignment: .leading, spacing: 4) {
-					Text("models（JSON 数组）").font(.caption.weight(.medium))
+					Text(L.t("models.field.modelsLabel", "models（JSON 数组）")).font(.caption.weight(.medium))
 					TextEditor(text: binding(\.modelsText, draft))
 						.font(.system(size: 11, design: .monospaced))
 						.frame(height: 150)
@@ -451,7 +495,10 @@ struct ModelsPane: View {
 				}
 				if let prepared, prepared.preview.hasChanges {
 					VStack(alignment: .leading, spacing: 4) {
-						Text("写入 \(prepared.url.path) 的改动").font(.caption.weight(.medium))
+						Text(
+							String(format: L.t("sheet.changesTo", "写入 %@ 的改动"), prepared.url.path)
+						)
+						.font(.caption.weight(.medium))
 						DiffPreviewList(diff: prepared.preview.diff)
 					}
 				}
@@ -460,13 +507,13 @@ struct ModelsPane: View {
 			Divider()
 			HStack {
 				if draft.isNew {
-					Text("新增的 provider 会追加到 models.json 的 providers 下。")
+					Text(L.t("models.editor.appendNote", "新增的 provider 会追加到 models.json 的 providers 下。"))
 						.font(.caption2)
 						.foregroundStyle(.tertiary)
 				}
 				Spacer()
-				Button("取消") { providerDraft = nil }
-				Button(draft.isNew ? "新增" : "写入") { applyProvider(draft) }
+				Button(L.t("button.cancel", "取消")) { providerDraft = nil }
+				Button(draft.isNew ? L.t("button.add", "新增") : L.t("button.write", "写入")) { applyProvider(draft) }
 					.buttonStyle(.borderedProminent)
 					.disabled(prepared?.problem != nil || prepared?.preview.hasChanges != true)
 			}
@@ -499,13 +546,17 @@ struct ModelsPane: View {
 	}
 
 	private func providerProblem(_ draft: ProviderDraft, existing: JSONDocument) -> String? {
-		if draft.identifier.trimmingCharacters(in: .whitespaces).isEmpty { return "id 不能为空" }
-		if draft.baseUrl.trimmingCharacters(in: .whitespaces).isEmpty { return "baseUrl 不能为空" }
+		if draft.identifier.trimmingCharacters(in: .whitespaces).isEmpty {
+			return L.t("error.provider.idEmpty", "id 不能为空")
+		}
+		if draft.baseUrl.trimmingCharacters(in: .whitespaces).isEmpty {
+			return L.t("error.provider.baseUrlEmpty", "baseUrl 不能为空")
+		}
 		if draft.isNew, existing.value(at: [currentProvidersKey, draft.identifier]) != nil {
-			return "providers 下已经有 \(draft.identifier) 了"
+			return String(format: L.t("error.provider.duplicate", "providers 下已经有 %@ 了"), draft.identifier)
 		}
 		guard let parsed = try? JSONParser.parse(draft.modelsText), parsed.arrayValue != nil else {
-			return "models 必须是一个 JSON 数组"
+			return L.t("error.provider.modelsNotArray", "models 必须是一个 JSON 数组")
 		}
 		return nil
 	}
@@ -553,7 +604,9 @@ struct ModelsPane: View {
 		value.setValue(buildProvider(draft, existing: document), at: [currentProvidersKey, draft.identifier])
 		do {
 			let result = try JSONFile.write(value, document: document, scope: resolver, policy: policy)
-			banner = result.backupURL.map { "已写入，备份 \($0.lastPathComponent)" } ?? "已写入"
+			banner = result.backupURL.map {
+				String(format: L.t("banner.writtenWithBackup", "已写入，备份 %@"), $0.lastPathComponent)
+			} ?? L.t("banner.written", "已写入")
 			errorText = nil
 			providerDraft = nil
 			selectedProviderID = draft.identifier
@@ -571,8 +624,10 @@ struct ModelsPane: View {
 		value.removeValue(at: [currentProvidersKey, provider.id])
 		do {
 			let result = try JSONFile.write(value, document: document, scope: resolver, policy: policy)
-			banner = "已删除 provider \(provider.id)"
-				+ (result.backupURL.map { "，备份 \($0.lastPathComponent)" } ?? "")
+			banner = String(format: L.t("banner.providerDeleted", "已删除 provider %@"), provider.id)
+				+ (result.backupURL.map {
+					String(format: L.t("banner.backupSuffix", "，备份 %@"), $0.lastPathComponent)
+				} ?? "")
 			errorText = nil
 			load()
 		} catch {
@@ -589,8 +644,13 @@ struct ModelsPane: View {
 		value.setValue(.array(models), at: [currentProvidersKey, provider.id, "models"])
 		do {
 			let result = try JSONFile.write(value, document: document, scope: resolver, policy: policy)
-			banner = "已在 \(provider.id) 下新增一个 model 条目，请编辑它的 id"
-				+ (result.backupURL.map { "（备份 \($0.lastPathComponent)）" } ?? "")
+			banner = String(
+				format: L.t("banner.modelAdded", "已在 %@ 下新增一个 model 条目，请编辑它的 id"),
+				provider.id
+			)
+				+ (result.backupURL.map {
+					String(format: L.t("banner.backupSuffixParen", "（备份 %@）"), $0.lastPathComponent)
+				} ?? "")
 			errorText = nil
 			load()
 			if let refreshed = snapshot?.providers.first(where: { $0.id == provider.id }) {
@@ -610,7 +670,11 @@ struct ModelsPane: View {
 		value.setValue(.array(models), at: [currentProvidersKey, provider.id, "models"])
 		do {
 			_ = try JSONFile.write(value, document: document, scope: resolver, policy: policy)
-			banner = "已删除 \(provider.id)/\(entry.id)"
+			banner = String(
+				format: L.t("banner.modelDeleted", "已删除 %@/%@"),
+				provider.id,
+				entry.id
+			)
 			errorText = nil
 			load()
 		} catch {
@@ -632,8 +696,13 @@ struct ModelsPane: View {
 	private func defaultsSheet(_ draft: DefaultsDraft) -> some View {
 		let models = snapshot?.providers.first { $0.id == draft.provider }?.models ?? []
 		return VStack(alignment: .leading, spacing: 12) {
-			Text("启动默认模型").font(.headline)
-			Text("写入 settings.json 的 defaultProvider / defaultModel / defaultThinkingLevel。")
+			Text(L.t("models.defaults.title", "启动默认模型")).font(.headline)
+			Text(
+				L.t(
+					"models.defaults.detail",
+					"写入 settings.json 的 defaultProvider / defaultModel / defaultThinkingLevel。"
+				)
+			)
 				.font(.caption)
 				.foregroundStyle(.secondary)
 			Grid(alignment: .leading, horizontalSpacing: 10, verticalSpacing: 8) {
@@ -680,14 +749,17 @@ struct ModelsPane: View {
 			if models.isEmpty {
 				InfoBanner(
 					kind: .info,
-					title: "这个 provider 在 models.json 里没有自定义 model",
-					detail: "pi 会用内置目录里的模型；这里只能设置 provider 级别的默认值。"
+					title: L.t("models.defaults.noModels.title", "这个 provider 在 models.json 里没有自定义 model"),
+					detail: L.t(
+						"models.defaults.noModels.detail",
+						"pi 会用内置目录里的模型；这里只能设置 provider 级别的默认值。"
+					)
 				)
 			}
 			HStack {
 				Spacer()
-				Button("取消") { defaultsDraft = nil }
-				Button("保存…") { applyDefaults(draft) }
+				Button(L.t("button.cancel", "取消")) { defaultsDraft = nil }
+				Button(L.t("button.save", "保存…")) { applyDefaults(draft) }
 					.buttonStyle(.borderedProminent)
 					.disabled(draft.provider.isEmpty)
 			}
@@ -745,8 +817,11 @@ struct ModelsPane: View {
 			if let type = object["authType"] as? String { return "\(status) · \(type)" }
 			return status
 		}
-		if text.isEmpty { return result.succeeded ? "ok" : "无法检查" }
-		return text.split(separator: "\n").first.map(String.init) ?? "无法检查"
+		if text.isEmpty {
+			return result.succeeded ? "ok" : L.t("models.authCheck.unavailable", "无法检查")
+		}
+		return text.split(separator: "\n").first.map(String.init)
+			?? L.t("models.authCheck.unavailable", "无法检查")
 	}
 
 	// MARK: - Load

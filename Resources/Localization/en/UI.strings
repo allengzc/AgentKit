@@ -1,11 +1,17 @@
 /* AgentKit UI strings (en)
  *
- * 键名点分层级：pane.* button.* mcp.* skill.* session.*
- * 两份表的 key 集合必须完全一致 —— Tests/main.swift 里有断言在查。
- * 由 task-3 填充。
+ * Keys are dotted and grouped by area: pane.* button.* mcp.* skill.* session.*
+ * Both tables must carry exactly the same key set — Tests/main.swift asserts it.
+ * Filled in by task-3.
+ *
+ * Interface English, not a literal translation of the Chinese: buttons are
+ * imperatives ("Reload", not "Reload data"), empty states say what to do next,
+ * and product terms (MCP, skills, sessions, provider, descriptor) are left
+ * untranslated. Keys that name identifiers a user must type — id / name /
+ * apiKey / tools / models — stay as the real key names in both languages.
  */
 
-/* Application menu */
+/* Application menu (shipped by the i18n groundwork; do not change) */
 "menu.reload" = "Reload Descriptors and Configuration";
 "menu.language" = "Language";
 "menu.about" = "AgentKit Help";
@@ -13,3 +19,448 @@
 /* Sidebar */
 "sidebar.section.panels" = "Panels";
 
+/* Shared buttons
+ *
+ * button.save carries an ellipsis: it opens the write-confirmation sheet first.
+ * button.saveImmediate writes straight through, with no confirmation sheet. */
+"button.cancel" = "Cancel";
+"button.close" = "Close";
+"button.write" = "Write";
+"button.save" = "Save…";
+"button.saveImmediate" = "Save";
+"button.delete" = "Delete…";
+"button.deleteWithConfirm" = "Delete";
+"button.edit" = "Edit…";
+"button.reload" = "Reload";
+"button.reloadFile" = "Reload";
+"button.rescan" = "Rescan";
+"button.enable" = "Enable";
+"button.disable" = "Disable";
+"button.create" = "Create";
+"button.add" = "Add";
+"button.moveToTrash" = "Move to Trash";
+"button.revealInFinder" = "Reveal in Finder";
+"button.openInDefaultApp" = "Open in Default App";
+"button.discardChanges" = "Discard Changes";
+"button.restoreDefault" = "Restore Default";
+"button.collapse" = "Collapse";
+"button.terminal" = "Terminal";
+"button.export" = "Export";
+
+/* Shared status badges */
+"badge.default" = "Default";
+"badge.exists" = "Exists";
+"badge.newFile" = "New file";
+"badge.missing" = "Missing";
+"badge.symlink" = "Symlink";
+"badge.unsavedChanges" = "Unsaved changes";
+"badge.inSync" = "In sync with disk";
+"badge.disabled" = "Disabled";
+"badge.readOnly" = "Read-only";
+"badge.shared" = "Shared";
+"badge.malformedJSON" = "Malformed JSON";
+"badge.unsupported" = "Unsupported";
+"badge.customDescriptor" = "Custom descriptor";
+"badge.notInstalled" = "Not installed";
+"badge.lookingUpCLI" = "Looking up CLI…";
+"badge.scopeGlobal" = "Global";
+"badge.scopeProject" = "Project";
+"badge.scopeUser" = "User";
+"badge.scopeProjectLevel" = "Project-level";
+"badge.scopeUserLevel" = "User-level";
+"badge.reasoning" = "Reasoning";
+"badge.images" = "Images";
+"badge.fileMissing" = "File does not exist";
+
+/* Write results and notice banners
+ *
+ * banner.writtenWithBackup is "Written, backed up to <name>". banner.backupSuffix
+ * appends a backup note to another sentence; banner.backupSuffixParen is the
+ * parenthesised form. */
+"banner.noChanges" = "Nothing to write";
+"banner.written" = "Written";
+"banner.writtenWithBackup" = "Written, backed up to %@";
+"banner.writtenTo" = "Written to %@";
+"banner.backupSuffix" = ", backed up to %@";
+"banner.backupSuffixParen" = " (backed up to %@)";
+"banner.movedToTrash" = "Moved %@ to the trash";
+"banner.createdAt" = "Created %@";
+"banner.enabled" = "Enabled %@";
+"banner.disabled" = "Disabled %@";
+"banner.notes" = "Notes";
+
+/* Shared errors */
+"error.fileUnreadable" = "This file cannot be read";
+"error.fileExists" = "%@ already exists";
+
+/* How lists of names are joined in the interface */
+"listSeparator" = ", ";
+
+/* Sidebar: agent picker and footer */
+"sidebar.noAgent" = "No agent detected";
+"sidebar.addAgentHint" = "Drop a descriptor JSON into ~/.config/agentkit/agents/ to add an agent";
+/* Counts of one get their own key: Chinese has no plural form, so both keys
+ * carry the same Chinese text and only the English table differs. */
+"sidebar.diagnosticsCount" = "%d diagnostics";
+"sidebar.diagnosticsCount.one" = "%d diagnostic";
+"sidebar.reloadedAt" = "Reloaded at";
+
+/* Project scope (toolbar menu plus the banners panes show) */
+"project.scope.global" = "Global (project config not loaded)";
+"project.scope.globalShort" = "Global";
+"project.scope.globalLong" = "Global scope (project config not loaded)";
+"project.scanning" = "Collecting projects from session history…";
+"project.choose.prompt" = "Choose Project";
+"project.choose.message" = "AgentKit reads project-level configuration from this directory (for example .pi/ or .codex/)";
+"banner.projectScope.title" = "%d project-scoped paths are not loaded";
+"banner.projectScope.detail" = "This pane reads configuration from the project directory. The current scope is global, so those paths are skipped.";
+"banner.projectScope.current" = "Project scope: %@";
+"button.chooseProject" = "Choose Project…";
+"button.chooseDirectory" = "Choose Directory…";
+"button.backToGlobal" = "Back to Global";
+"button.revealCurrentProject" = "Reveal Current Project in Finder";
+"help.projectScope" = "Project scope: %@";
+"help.projectGlobalScope" = "Currently global scope; project-level configuration is not loaded";
+"help.projectBackToGlobal" = "Click to go back to global scope";
+"help.needsProject" = "Select a project directory first";
+
+/* Shared agent wording */
+"agent.subtitle.fallback" = "Configuration";
+"agent.running" = "%@ is running";
+"app.cliMissing" = "Cannot find %@; features that need the command line are disabled";
+"help.reloadNeeded" = "Configuration changes take effect after /reload or a restart";
+"help.unsupportedPane" = "This build does not support this pane type";
+
+/* Diagnostics */
+"pane.diagnostics.title" = "Diagnostics";
+"pane.diagnostics.help" = "Diagnostics for descriptors and configuration";
+"empty.noIssues" = "No problems found";
+"diagnostics.paneLabel" = "Pane: %@";
+
+/* A pane type this build does not know / no agents at all */
+"pane.unsupported.title" = "This build does not know the pane type “%@”";
+"pane.unsupported.detail" = "The descriptor is newer than this app. Other panes are unaffected; update AgentKit, or change this pane's type to a value this build supports.";
+"empty.noAgents.title" = "No agents available";
+"empty.noAgents.message" = "Drop a descriptor JSON into ~/.config/agentkit/agents/ to add an agent. A descriptor for pi ships with the app as an example.";
+
+/* Write-confirmation sheet and the shared file editor */
+"sheet.confirmWrite.title" = "Confirm Write";
+"sheet.changesTo" = "Changes to %@";
+"sheet.noChangesInline" = "No changes.";
+/* Counts of one get their own key: Chinese has no plural form, so both keys
+ * carry the same Chinese text and only the English table differs. */
+"diff.lineCount" = "%d lines in the file";
+"diff.lineCount.one" = "%d line in the file";
+"diff.wrapLongLines" = "Wrap long lines";
+"diff.backupNotice" = "Backed up to %@ before writing";
+"diff.lossy.title" = "This write does not preserve the file byte for byte";
+"diff.moreLines" = "… more differences";
+"editor.mode.edit" = "Edit";
+"editor.mode.preview" = "Preview";
+"editor.stats" = "Characters: %d · Lines: %d";
+
+/* Global instructions pane */
+"instructions.scan.note" = "These files apply to every working directory.";
+"instructions.scan.noProject" = " Select a project to also list the project-level instruction files found along the way.";
+"instructions.scan.project" = "Current project: %@";
+"instructions.section.global" = "Global";
+"instructions.section.project" = "Project (read-only)";
+"instructions.row.missing" = "Missing";
+"instructions.role.override" = "Overrides AGENTS.md / CLAUDE.md in the same directory";
+"instructions.role.instructions" = "Global instructions";
+"instructions.role.systemReplace" = "Replaces the system prompt";
+"instructions.role.systemAppend" = "Appends to the system prompt";
+"instructions.role.project" = "Project-level instructions (read-only)";
+"instructions.duplicate.title" = "%@ is the same file";
+"instructions.duplicate.detail" = "The descriptor declares two names, but this volume is case-insensitive, so they point to the same file. Editing either one is the same.";
+"instructions.projectReadOnly.title" = "Project-level instructions are read-only";
+"instructions.projectReadOnly.detail" = "They belong to the project, and AgentKit does not change them here. Use the buttons below to edit them.";
+"badge.overrideRole" = "Override wins over instructions in the same directory";
+"badge.sameFileAs" = "Same as %@";
+"empty.noInstructionFiles" = "No instruction files to edit";
+
+/* MCP pane: overview and lists */
+/* Counts of one get their own key: Chinese has no plural form, so both keys
+ * carry the same Chinese text and only the English table differs. */
+"mcp.badge.effectiveCount" = "%d active servers";
+"mcp.badge.effectiveCount.one" = "%d active server";
+/* Counts of one get their own key: Chinese has no plural form, so both keys
+ * carry the same Chinese text and only the English table differs. */
+"mcp.badge.problemCount" = "%d problems";
+"mcp.badge.problemCount.one" = "%d problem";
+/* MCP says "disabled" where the resources and skills panes say "disable", so it
+ * gets its own keys: two different source strings are two keys, even when the
+ * English happens to collide. */
+"mcp.badge.disabled" = "Disabled";
+"mcp.button.disable" = "Disable";
+/* Counts of one get their own key: Chinese has no plural form, so both keys
+ * carry the same Chinese text and only the English table differs. */
+"mcp.badge.shadowed" = "Shadowed in %d places";
+"mcp.badge.shadowed.one" = "Shadowed in %d place";
+"mcp.badge.winner" = "Active";
+"mcp.note.merge" = "All configuration layers are merged from lowest to highest precedence; a later layer overrides an earlier one. The shared layer written by default is ~/.config/mcp/mcp.json.";
+"mcp.legacy.title" = "%@ is no longer read";
+"mcp.legacy.declared" = "Declares %d servers%@.";
+"mcp.legacy.alsoKeys" = ", plus %@";
+"mcp.section.conflicts" = "Name conflicts";
+"mcp.section.effective" = "Active servers";
+"mcp.section.layers" = "Configuration layers (lowest to highest precedence)";
+"mcp.section.imports" = "MCP configuration from other tools";
+/* Counts of one get their own key: Chinese has no plural form, so both keys
+ * carry the same Chinese text and only the English table differs. */
+"mcp.layer.serverCount" = "%d servers";
+"mcp.layer.serverCount.one" = "%d server";
+"mcp.layerReadOnly" = "This layer is read-only";
+"mcp.note.imports" = "These are compatibility inputs for pi-mcp-adapter and are not loaded by default (hostConfigDiscovery is off). They are shown for reference only; AgentKit will not change them for you.";
+"button.addServer" = "Add Server";
+"button.viewRepairPlan" = "View Repair Plan…";
+"empty.noMCPServers" = "No MCP servers are active. Use Add Server above to declare one.";
+"empty.noImports" = "No MCP configuration found for Cursor, Claude, Codex, opencode, or similar tools.";
+
+/* MCP pane: repair sheet */
+"mcp.repair.title" = "Repair Plan";
+"mcp.repair.detail" = "These are all the steps AgentKit will run, in order. Each one is an atomic write with its own .bak-agentkit-* backup; if a step fails, the plan stops there.";
+"mcp.repair.includeServers" = "Merge this file's mcpServers into the shared global layer";
+"mcp.repair.done" = "Repair complete";
+"mcp.repair.interrupted" = "Repair interrupted";
+"button.runRepair" = "Run Repair";
+
+/* MCP pane: server editor sheet */
+"mcp.editor.newTitle" = "New MCP Server";
+"mcp.editor.editTitle" = "Edit %@";
+"mcp.editor.hint" = "One argument per line in args; set either command or url, not both.";
+"mcp.field.name" = "Name";
+"mcp.field.commandPlaceholder" = "Executable for a local server";
+"mcp.field.urlPlaceholder" = "URL for a remote server";
+"mcp.field.disabledToggle" = "Disabled (keep the configuration, do not load it)";
+
+/* Models pane: overview */
+/* Counts of one get their own key: Chinese has no plural form, so both keys
+ * carry the same Chinese text and only the English table differs. */
+"models.badge.providerCount" = "%d providers";
+"models.badge.providerCount.one" = "%d provider";
+/* Counts of one get their own key: Chinese has no plural form, so both keys
+ * carry the same Chinese text and only the English table differs. */
+"models.badge.customModelCount" = "%d custom models";
+"models.badge.customModelCount.one" = "%d custom model";
+/* Counts of one get their own key: Chinese has no plural form, so both keys
+ * carry the same Chinese text and only the English table differs. */
+"models.badge.modelCount" = "%d models";
+"models.badge.modelCount.one" = "%d model";
+"models.badge.apiUnset" = "api not set";
+"models.badge.noAPIKey" = "No apiKey";
+"models.badge.malformed" = "models.json cannot be parsed; editing is disabled";
+"models.defaults.label" = "Startup defaults:";
+"models.defaults.empty" = "settings.json sets no startup default model; pi picks one itself.";
+"models.help.apiKeyEnvRef" = "apiKey is an environment variable or command reference";
+"models.help.apiKeySet" = "apiKey is configured";
+"models.help.noAPIKey" = "No apiKey; pi will fall back to auth.json or the environment";
+"models.help.deleteModel" = "Delete this model entry";
+"models.apiKeyEnvRef" = "Environment variable / command reference (not expanded)";
+"models.apiKeyConfigured" = "Configured (hidden; AgentKit does not read the plaintext)";
+"models.apiKeyUnset" = "Not configured";
+"models.unknownKeys.title" = "This provider has keys AgentKit does not recognize; they are preserved as-is when you edit";
+"models.noModelList.title" = "This agent's provider does not declare a model list";
+"models.noModelList.detail" = "Model ids are decided by the %@ side; only the connection is configured here.";
+"models.noModelList.providerSide" = "provider";
+"models.contextWindow" = "Context %@";
+"models.maxOutput" = "Max output %@";
+"models.authCheck.unavailable" = "Cannot check";
+"button.checkAuth" = "Check Authentication";
+"button.addProvider" = "Add Provider…";
+"button.editDefaults" = "Change…";
+"button.editProvider" = "Edit Provider…";
+"button.deleteProvider" = "Delete Provider…";
+"button.addModel" = "Add Model";
+"empty.noModels" = "This provider has no custom model entries. Use Add Model to declare one.";
+"empty.noProviders.title" = "No providers in models.json yet";
+
+/* Models pane: provider editor sheet */
+"models.editor.newTitle" = "New Provider";
+"models.editor.editTitle" = "Edit %@";
+"models.editor.appendNote" = "The new provider is appended under providers in models.json.";
+"models.field.idPlaceholder" = "e.g. openrouter";
+"models.field.displayNamePlaceholder" = "Display name";
+"models.field.apiKeyPlaceholderNew" = "Leave empty to use auth.json or an environment variable";
+"models.field.apiKeyPlaceholderEdit" = "Leave empty to keep the current value";
+"models.field.modelsLabel" = "models (JSON array)";
+"error.provider.idEmpty" = "id cannot be empty";
+"error.provider.baseUrlEmpty" = "baseUrl cannot be empty";
+"error.provider.duplicate" = "providers already has %@";
+"error.provider.modelsNotArray" = "models must be a JSON array";
+"banner.providerDeleted" = "Deleted provider %@";
+"banner.modelAdded" = "Added a model entry under %@; edit its id";
+"banner.modelDeleted" = "Deleted %@/%@";
+
+/* Models pane: startup defaults sheet */
+"models.defaults.title" = "Startup Default Model";
+"models.defaults.detail" = "Writes defaultProvider / defaultModel / defaultThinkingLevel in settings.json.";
+"models.defaults.noModels.title" = "This provider has no custom models in models.json";
+"models.defaults.noModels.detail" = "pi uses models from its built-in catalog; only provider-level defaults can be set here.";
+
+/* Resources pane (themes / extensions / prompt templates / packages) */
+"resources.section.themes" = "Themes";
+"resources.section.extensions" = "Extensions";
+"resources.section.prompts" = "Prompt Templates";
+"resources.section.packages" = "Packages";
+/* Counts of one get their own key: Chinese has no plural form, so both keys
+ * carry the same Chinese text and only the English table differs. */
+"resources.badge.fileCount" = "%d resource files";
+"resources.badge.fileCount.one" = "%d resource file";
+"resources.badge.currentTheme" = "Current theme";
+"resources.note.extensions" = "Enabling and disabling extensions follows pi's convention: a file name ending in .off is not loaded. The buttons here rename the file directly, after asking for confirmation.";
+"resources.scannedRoots" = "Scanned:";
+"resources.noRoots" = "The descriptor declares no root directory for this category";
+"resources.packages.title" = "Packages declared in settings.json";
+"resources.piListOutput" = "pi list output";
+"resources.packages.note" = "Install and remove packages from the command line: `pi install <source>` / `pi remove <source>`. AgentKit only reads the declarations; it does not change the packages array for you.";
+"button.runPiList" = "Run pi list";
+"empty.noResources" = "No resource files in this category.";
+"empty.noPackages" = "No packages are declared.";
+
+/* Sessions pane: list and detail */
+"sessions.grouping.project" = "By project";
+"sessions.grouping.time" = "By time";
+/* Counts of one get their own key: Chinese has no plural form, so both keys
+ * carry the same Chinese text and only the English table differs. */
+"sessions.badge.sessionCount" = "%d sessions";
+"sessions.badge.sessionCount.one" = "%d session";
+"sessions.indexing" = "Indexing %d/%d";
+"sessions.indexingShort" = "Indexing…";
+"sessions.searchPlaceholder" = "Search session name, first message, project path, or id";
+"sessions.forkedFrom" = "Forked from another session";
+/* Counts of one get their own key: Chinese has no plural form, so both keys
+ * carry the same Chinese text and only the English table differs. */
+"sessions.messageCount" = "%d messages";
+"sessions.messageCount.one" = "%d message";
+"sessions.detail.id" = "Session id";
+"sessions.detail.cwd" = "Working directory";
+"sessions.detail.started" = "Started";
+"sessions.detail.modified" = "Last modified";
+"sessions.detail.messages" = "Messages";
+"sessions.detail.cost" = "Cost";
+"sessions.detail.models" = "Models";
+"sessions.detail.fileSize" = "File size";
+"sessions.detail.forkedFrom" = "Forked from";
+"sessions.directoryFallback" = "the sessions directory";
+
+/* Sessions pane: rename */
+"sessions.rename.title" = "Rename Session";
+"sessions.rename.placeholder" = "Session name";
+"sessions.rename.detail" = "This appends a rename record to the end of the session file and leaves the existing content alone. A backup is written to the same directory first.";
+"sessions.rename.banner" = "Renamed to “%@”";
+"sessions.rename.append" = "Appends a rename record";
+"sessions.rename.agentRunning" = "The agent is running; rewriting session files is not safe";
+"sessions.rename.unavailableIndex" = "%@ keeps session names in an index file; AgentKit cannot rewrite them here";
+"sessions.rename.unavailableNoName" = "%@ does not store names in session files; AgentKit cannot rewrite them here";
+"sessions.noRename.title" = "This agent's session names are not stored in session files";
+"sessions.noRename.indexDetail" = "Their names live in a separate index file that AgentKit only reads; it does not write to it.";
+"sessions.noRename.noNameDetail" = "This agent does not store names in session files, so AgentKit cannot rename them for you.";
+"sessions.agentRunning.title" = "%@ is running";
+"sessions.agentRunning.detail" = "Renaming appends to the session file, and a running agent may write that file at the same time, so this is disabled for now.";
+
+/* Sessions pane: delete and export */
+"sessions.delete.title" = "Delete this session?";
+"sessions.delete.message" = "%@\n\nIt moves to the trash and can be recovered.";
+"sessions.export.title" = "Export Session as HTML";
+"sessions.export.detail" = "Runs `%@ --export <session file>`; the output directory is:";
+"sessions.export.note" = "The file name is generated by the command-line tool; Finder opens the export when it finishes.";
+"sessions.export.banner" = "Exported to %@";
+"sessions.export.error" = "Export failed: %@";
+"button.exportHTML" = "Export HTML";
+"button.rename" = "Rename";
+"error.sessionsLayout" = "The descriptor does not describe this agent's session layout (no sessions mapping)";
+"empty.noSessions" = "No sessions yet";
+"empty.noMatchingSessions" = "No matching sessions";
+"empty.noSessions.message" = "No .jsonl session files found under %@.";
+
+/* Settings pane */
+"empty.settingsLoadFailed.title" = "Cannot load settings";
+"error.settingsNoFile" = "The descriptor declares no file for this pane";
+"error.schemaNotFound" = "No schema named “%@”";
+"error.schemaUnspecified" = "unspecified";
+"settings.readOnly.detail" = "The raw file is shown below; nothing is written until it is fixed.";
+"settings.help.hashPrefix" = "First 7 characters of the file's SHA-256";
+"settings.unknownSection.title" = "Other keys (preserved)";
+"settings.unknownSection.detail" = "These keys are not part of %@. AgentKit cannot interpret them, so they are shown read-only; they are preserved as-is on write and will not be lost.";
+"settings.pickSection" = "Select a section";
+"settings.useDefault" = "(Use default)";
+/* Counts of one get their own key: Chinese has no plural form, so both keys
+ * carry the same Chinese text and only the English table differs. */
+"settings.badge.invalidInputs" = "%d invalid inputs";
+"settings.badge.invalidInputs.one" = "%d invalid input";
+
+/* Skills pane: list and detail */
+/* Counts of one get their own key: Chinese has no plural form, so both keys
+ * carry the same Chinese text and only the English table differs. */
+"skills.badge.skillCount" = "%d skills";
+"skills.badge.skillCount.one" = "%d skill";
+/* Counts of one get their own key: Chinese has no plural form, so both keys
+ * carry the same Chinese text and only the English table differs. */
+"skills.badge.problemCount" = "%d with problems";
+"skills.badge.problemCount.one" = "%d with a problem";
+"skills.badge.disabledCount" = "%d disabled";
+"skills.badge.manualOnly" = "Manual invocation only";
+"skills.searchPlaceholder" = "Search";
+"skills.missingRoots.title" = "These directories do not exist and were skipped";
+"skills.missingManifest" = "Directories without SKILL.md";
+"skills.notDiscovered" = "Not discovered";
+"skills.help.symlink" = "Symlink → %@";
+"skills.issues.title" = "pi may not load this skill";
+"skills.warnings.title" = "Warnings";
+"skills.detail.directory" = "Directory";
+"skills.detail.symlinkTarget" = "Symlink target";
+"skills.detail.declaredName" = "Declared name";
+"skills.detail.undeclared" = "(not declared)";
+"skills.disabledSection.title" = "Disabled (AgentKit convention, under .disabled/)";
+"skills.bundled.title" = "Bundled files";
+/* Counts of one get their own key: Chinese has no plural form, so both keys
+ * carry the same Chinese text and only the English table differs. */
+"skills.bundled.count" = "%d items";
+"skills.bundled.count.one" = "%d item";
+"skills.bundled.showAll" = "Show all %d items";
+"skills.help.folderExpanded" = "%@ (expanded)";
+"skills.help.folderCollapsed" = "%@ (collapsed)";
+"button.newSkill" = "New Skill";
+"button.editSkillFile" = "Edit SKILL.md";
+"empty.noSkills" = "No skills found";
+"empty.noMatchingSkills" = "No matching skills";
+"empty.noSkills.scanned" = "Scanned:\n%@";
+
+/* Skills pane: create and delete */
+"skills.create.namePlaceholder" = "Lowercase letters, digits, hyphens";
+"skills.create.invalidName" = "name does not follow the Agent Skills spec (lowercase letters, digits and hyphens only)";
+"skills.create.detail" = "Creates %@, containing SKILL.md and a scripts/ directory.";
+"skills.delete.title" = "Delete this skill?";
+"skills.delete.message" = "%@\n\nThe whole directory moves to the trash and can be recovered.";
+"skills.disable.title" = "Disable this skill?";
+"skills.disable.message" = "pi has no per-skill switch, so AgentKit uses its own convention: it moves %@ into a sibling .disabled/ directory, where pi will no longer find it. You can enable it again from this pane at any time.";
+"skills.disable.banner" = "Disabled; the directory moved to .disabled/";
+
+/* Subagents pane */
+/* Counts of one get their own key: Chinese has no plural form, so both keys
+ * carry the same Chinese text and only the English table differs. */
+"subagents.badge.count" = "%d subagents";
+"subagents.badge.count.one" = "%d subagent";
+"subagents.note" = "Subagents are loaded by the subagent extension: name and description in the frontmatter are required, and model is given as `provider/modelId`.";
+"subagents.issues.title" = "pi may not load this file";
+"subagents.issue.missingName" = "Missing name; pi will skip this file";
+"subagents.issue.missingDescription" = "Missing description; pi will skip this file";
+"subagents.issue.missingFile" = "File does not exist";
+"subagents.field.namePlaceholder" = "Subagent name";
+"subagents.field.nameExample" = "e.g. code-reviewer";
+"subagents.body.label" = "Body (system prompt)";
+"subagents.modelMissing.title" = "%@ is not in models.json";
+"subagents.modelMissing.detail" = "That is fine if pi uses its built-in catalog or another source; otherwise it falls back to the default model at startup.";
+"subagents.error.nameEmpty" = "name cannot be empty";
+"subagents.error.descriptionEmpty" = "description cannot be empty";
+"subagents.error.nameSlash" = "name cannot contain a slash";
+"subagents.create.detail" = "Writes %@";
+"subagents.create.bodyPlaceholder" = "\nWrite this subagent's system prompt here.\n";
+"subagents.delete.title" = "Delete this subagent?";
+"subagents.delete.message" = "%@\n\nIt moves to the trash and can be recovered.";
+"button.newSubagent" = "New Subagent";
+"field.descriptionPlaceholder" = "What it does and when to use it";
+"empty.noSubagents" = "No subagents yet";
+"empty.noSubagent.title" = "No subagents";
+"empty.noSubagent.message" = "Create one with the New Subagent button in the top right; it writes a Markdown file with frontmatter into the selected root directory.";

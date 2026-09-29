@@ -153,15 +153,15 @@ public enum TOMLParser {
 			if isArray { index += 1 }
 
 			let path = try parseDottedKey()
-			guard !path.isEmpty else { throw error("表名不能为空") }
+			guard !path.isEmpty else { throw error(L.t("parse.toml.tableNameEmpty", "表名不能为空", table: .messages)) }
 			skipInlineWhitespace()
 			guard !isAtEnd, bytes[index] == UInt8(ascii: "]") else {
-				throw error("表头缺少 ]")
+				throw error(L.t("parse.toml.headerUnclosed", "表头缺少 ]", table: .messages))
 			}
 			index += 1
 			if isArray {
 				guard !isAtEnd, bytes[index] == UInt8(ascii: "]") else {
-					throw error("数组表头缺少 ]]")
+					throw error(L.t("parse.toml.arrayHeaderUnclosed", "数组表头缺少 ]]", table: .messages))
 				}
 				index += 1
 			}
@@ -171,7 +171,7 @@ public enum TOMLParser {
 				skipToEndOfLine()
 			}
 			guard isAtEnd || bytes[index] == 0x0A || bytes[index] == 0x0D else {
-				throw error("表头后面有多余内容")
+				throw error(L.t("parse.toml.headerTrailing", "表头后面有多余内容", table: .messages))
 			}
 
 			closeTable(at: headerStart, nextHeaderStart: headerStart)
@@ -181,10 +181,10 @@ public enum TOMLParser {
 				// `[[a.b]]` appends to the array at `a.b`, resolving `a` first so
 				// `[[a]]` + `[a.b]` style nesting lands in the right element.
 				let parent = try ensureTable(Array(path.dropLast()))
-				guard let name = path.last else { throw error("表名不能为空") }
+				guard let name = path.last else { throw error(L.t("parse.toml.tableNameEmpty", "表名不能为空", table: .messages)) }
 				let container = parent + [name]
 				if let existing = root.value(at: container), existing.arrayValue == nil {
-					throw error("\(container.joined(separator: ".")) 不是数组表")
+					throw error(String(format: L.t("parse.toml.notArrayTable", "%@ 不是数组表", table: .messages), container.joined(separator: ".")))
 				}
 				var list = root.value(at: container)?.arrayValue ?? []
 				list.append(.object(JSONObject()))
@@ -197,14 +197,14 @@ public enum TOMLParser {
 
 		mutating func parseKeyValue() throws {
 			let key = try parseDottedKey()
-			guard !key.isEmpty else { throw error("缺少键名") }
+			guard !key.isEmpty else { throw error(L.t("parse.toml.keyMissingName", "缺少键名", table: .messages)) }
 			skipInlineWhitespace()
 			guard !isAtEnd, bytes[index] == UInt8(ascii: "=") else {
-				throw error("键 \(key.joined(separator: ".")) 后面缺少 =")
+				throw error(String(format: L.t("parse.toml.keyMissingEquals", "键 %@ 后面缺少 =", table: .messages), key.joined(separator: ".")))
 			}
 			index += 1
 			skipInlineWhitespace()
-			guard !isAtEnd else { throw error("键 \(key.joined(separator: ".")) 缺少值") }
+			guard !isAtEnd else { throw error(String(format: L.t("parse.toml.keyMissingValue", "键 %@ 缺少值", table: .messages), key.joined(separator: "."))) }
 
 			let valueStart = index
 			let value = try parseValue(path: currentPath + key)
@@ -212,7 +212,7 @@ public enum TOMLParser {
 
 			let full = currentPath + key
 			if root.value(at: full) != nil {
-				throw error("键 \(full.joined(separator: ".")) 重复定义")
+				throw error(String(format: L.t("parse.toml.keyDuplicate", "键 %@ 重复定义", table: .messages), full.joined(separator: ".")))
 			}
 			root.setValue(value, at: full)
 
@@ -222,7 +222,7 @@ public enum TOMLParser {
 				skipToEndOfLine()
 			}
 			guard isAtEnd || bytes[index] == 0x0A || bytes[index] == 0x0D else {
-				throw error("值后面有多余内容")
+				throw error(L.t("parse.toml.valueTrailing", "值后面有多余内容", table: .messages))
 			}
 		}
 
@@ -233,7 +233,7 @@ public enum TOMLParser {
 			var path: [String] = []
 			while true {
 				skipInlineWhitespace()
-				guard !isAtEnd else { throw error("键名不完整") }
+				guard !isAtEnd else { throw error(L.t("parse.toml.keyNameIncomplete", "键名不完整", table: .messages)) }
 				switch bytes[index] {
 				case UInt8(ascii: "\""):
 					path.append(try parseBasicString(multiline: false))
@@ -243,7 +243,7 @@ public enum TOMLParser {
 					let start = index
 					while !isAtEnd, isBareKeyByte(bytes[index]) { index += 1 }
 					guard index > start, let text = String(bytes: bytes[start..<index], encoding: .utf8) else {
-						throw error("不是合法的键名")
+						throw error(L.t("parse.toml.keyNameInvalid", "不是合法的键名", table: .messages))
 					}
 					path.append(text)
 				}
@@ -271,7 +271,7 @@ public enum TOMLParser {
 		// MARK: Values
 
 		mutating func parseValue(path: [String]) throws -> JSONValue {
-			guard !isAtEnd else { throw error("缺少值") }
+			guard !isAtEnd else { throw error(L.t("parse.toml.missingValue", "缺少值", table: .messages)) }
 			switch bytes[index] {
 			case UInt8(ascii: "\""):
 				if peek(1) == UInt8(ascii: "\""), peek(2) == UInt8(ascii: "\"") {
@@ -305,7 +305,7 @@ public enum TOMLParser {
 			if multiline, !isAtEnd, bytes[index] == 0x0A { index += 1 }
 
 			while true {
-				guard !isAtEnd else { throw error("字符串没有闭合") }
+				guard !isAtEnd else { throw error(L.t("parse.string.unclosed", "字符串没有闭合", table: .messages)) }
 				let byte = bytes[index]
 
 				if byte == UInt8(ascii: "\"") {
@@ -331,7 +331,7 @@ public enum TOMLParser {
 						continue
 					}
 					index += 1
-					guard !isAtEnd else { throw error("转义序列不完整") }
+					guard !isAtEnd else { throw error(L.t("parse.escape.incomplete", "转义序列不完整", table: .messages)) }
 					let escape = bytes[index]
 					index += 1
 					switch escape {
@@ -344,18 +344,18 @@ public enum TOMLParser {
 					case UInt8(ascii: "t"): out.append(0x09)
 					case UInt8(ascii: "u"): out.append(contentsOf: Array(String(try readHexScalar(4)).utf8))
 					case UInt8(ascii: "U"): out.append(contentsOf: Array(String(try readHexScalar(8)).utf8))
-					default: throw error("无法识别的转义")
+					default: throw error(L.t("parse.toml.escapeUnknown", "无法识别的转义", table: .messages))
 					}
 					continue
 				}
 
-				if !multiline, byte == 0x0A { throw error("字符串没有闭合") }
+				if !multiline, byte == 0x0A { throw error(L.t("parse.string.unclosed", "字符串没有闭合", table: .messages)) }
 				out.append(byte)
 				index += 1
 			}
 
 			guard let string = String(bytes: out, encoding: .utf8) else {
-				throw error("字符串不是合法的 UTF-8")
+				throw error(L.t("parse.string.notUTF8", "字符串不是合法的 UTF-8", table: .messages))
 			}
 			return string
 		}
@@ -367,7 +367,7 @@ public enum TOMLParser {
 			if multiline, !isAtEnd, bytes[index] == 0x0A { index += 1 }
 
 			while true {
-				guard !isAtEnd else { throw error("字符串没有闭合") }
+				guard !isAtEnd else { throw error(L.t("parse.string.unclosed", "字符串没有闭合", table: .messages)) }
 				if bytes[index] == UInt8(ascii: "'") {
 					if multiline {
 						if peek(1) == UInt8(ascii: "'"), peek(2) == UInt8(ascii: "'") {
@@ -383,13 +383,13 @@ public enum TOMLParser {
 						break
 					}
 				}
-				if !multiline, bytes[index] == 0x0A { throw error("字符串没有闭合") }
+				if !multiline, bytes[index] == 0x0A { throw error(L.t("parse.string.unclosed", "字符串没有闭合", table: .messages)) }
 				out.append(bytes[index])
 				index += 1
 			}
 
 			guard let string = String(bytes: out, encoding: .utf8) else {
-				throw error("字符串不是合法的 UTF-8")
+				throw error(L.t("parse.string.notUTF8", "字符串不是合法的 UTF-8", table: .messages))
 			}
 			return string
 		}
@@ -409,16 +409,16 @@ public enum TOMLParser {
 		}
 
 		mutating func readHexScalar(_ length: Int) throws -> Unicode.Scalar {
-			guard index + length <= bytes.count else { throw error("\\u 转义不完整") }
+			guard index + length <= bytes.count else { throw error(L.t("parse.escape.unicodeIncomplete", "\\u 转义不完整", table: .messages)) }
 			var value: UInt32 = 0
 			for _ in 0..<length {
 				guard let digit = TOMLParser.hexDigit(bytes[index]) else {
-					throw error("\\u 转义里出现了非十六进制字符")
+					throw error(L.t("parse.escape.unicodeNonHex", "\\u 转义里出现了非十六进制字符", table: .messages))
 				}
 				value = value << 4 | UInt32(digit)
 				index += 1
 			}
-			guard let scalar = Unicode.Scalar(value) else { throw error("不合法的 \\u 转义") }
+			guard let scalar = Unicode.Scalar(value) else { throw error(L.t("parse.escape.badUnicode", "不合法的 \\u 转义", table: .messages)) }
 			return scalar
 		}
 
@@ -427,7 +427,7 @@ public enum TOMLParser {
 			var items: [JSONValue] = []
 			while true {
 				skipWhitespaceAndComments()
-				guard !isAtEnd else { throw error("数组没有闭合") }
+				guard !isAtEnd else { throw error(L.t("parse.array.unclosed", "数组没有闭合", table: .messages)) }
 				if bytes[index] == UInt8(ascii: "]") {
 					index += 1
 					break
@@ -437,7 +437,7 @@ public enum TOMLParser {
 				spans[JSONSource.pathKey(path + [String(items.count)])] = itemStart..<index
 				items.append(item)
 				skipWhitespaceAndComments()
-				guard !isAtEnd else { throw error("数组没有闭合") }
+				guard !isAtEnd else { throw error(L.t("parse.array.unclosed", "数组没有闭合", table: .messages)) }
 				if bytes[index] == UInt8(ascii: ",") {
 					index += 1
 					continue
@@ -446,7 +446,7 @@ public enum TOMLParser {
 					index += 1
 					break
 				}
-				throw error("数组里期望 , 或 ]")
+				throw error(L.t("parse.array.expectedCommaOrBracket", "数组里期望 , 或 ]", table: .messages))
 			}
 			return .array(items)
 		}
@@ -478,7 +478,7 @@ public enum TOMLParser {
 				let key = try parseDottedKey()
 				skipInlineWhitespace()
 				guard !isAtEnd, bytes[index] == UInt8(ascii: "=") else {
-					throw error("内联表里缺少 =")
+					throw error(L.t("parse.toml.inlineMissingEquals", "内联表里缺少 =", table: .messages))
 				}
 				index += 1
 				skipInlineWhitespace()
@@ -487,7 +487,7 @@ public enum TOMLParser {
 				spans[JSONSource.pathKey(path + key)] = valueStart..<index
 				object[key.count == 1 ? key[0] : key.joined(separator: ".")] = value
 				skipInlineWhitespace()
-				guard !isAtEnd else { throw error("内联表没有闭合") }
+				guard !isAtEnd else { throw error(L.t("parse.toml.inlineUnclosed", "内联表没有闭合", table: .messages)) }
 				if bytes[index] == UInt8(ascii: ",") {
 					index += 1
 					continue
@@ -496,7 +496,7 @@ public enum TOMLParser {
 					index += 1
 					break
 				}
-				throw error("内联表里期望 , 或 }")
+				throw error(L.t("parse.toml.inlineExpectedCommaOrBrace", "内联表里期望 , 或 }", table: .messages))
 			}
 			return .object(object)
 		}
@@ -517,10 +517,15 @@ public enum TOMLParser {
 			var end = index
 			while end > start, bytes[end - 1] == 0x20 || bytes[end - 1] == 0x09 { end -= 1 }
 			guard end > start, let raw = String(bytes: bytes[start..<end], encoding: .utf8) else {
-				throw error("缺少值")
+				throw error(L.t("parse.toml.missingValue", "缺少值", table: .messages))
 			}
+			// The scan runs up to the next delimiter, so leaving `index` there
+			// would make the caller record a span that carries the spaces before
+			// the delimiter. Rewind to the trimmed end; every caller skips the
+			// separator again anyway.
+			index = end
 			guard let value = TOMLParser.classify(raw) else {
-				throw error("无法识别的值 \(raw)")
+				throw error(String(format: L.t("parse.toml.unknownValue", "无法识别的值 %@", table: .messages), raw))
 			}
 			return value
 		}
@@ -539,13 +544,13 @@ public enum TOMLParser {
 				if let existing = root.value(at: candidate) {
 					if let array = existing.arrayValue {
 						guard !array.isEmpty else {
-							throw error("表 \(candidate.joined(separator: ".")) 是空数组")
+							throw error(String(format: L.t("parse.toml.emptyArrayTable", "表 %@ 是空数组", table: .messages), candidate.joined(separator: ".")))
 						}
 						resolved = candidate + [String(array.count - 1)]
 					} else if existing.objectValue != nil {
 						resolved = candidate
 					} else {
-						throw error("\(candidate.joined(separator: ".")) 已经是标量，不能再当表")
+						throw error(String(format: L.t("parse.toml.scalarTable", "%@ 已经是标量，不能再当表", table: .messages), candidate.joined(separator: ".")))
 					}
 				} else {
 					root.setValue(.object(JSONObject()), at: candidate)

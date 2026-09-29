@@ -98,8 +98,11 @@ public final class ProjectStore {
 		panel.canChooseFiles = false
 		panel.canChooseDirectories = true
 		panel.allowsMultipleSelection = false
-		panel.prompt = "选择项目"
-		panel.message = "AgentKit 会读取这个目录下的项目级配置（例如 .pi/ 或 .codex/）"
+		panel.prompt = L.t("project.choose.prompt", "选择项目")
+		panel.message = L.t(
+			"project.choose.message",
+			"AgentKit 会读取这个目录下的项目级配置（例如 .pi/ 或 .codex/）"
+		)
 		panel.directoryURL = current ?? PathResolver.homeDirectory()
 		if panel.runModal() == .OK, let url = panel.url {
 			select(url)
@@ -181,13 +184,15 @@ public final class ProjectStore {
 	}
 
 	public var currentLabel: String {
-		guard let current else { return "全局" }
+		guard let current else { return L.t("project.scope.globalShort", "全局") }
 		return current.lastPathComponent.isEmpty ? current.path : current.lastPathComponent
 	}
 
 	/// A shorter form for the sidebar: the last two path components.
 	public var currentDisplayPath: String {
-		guard let current else { return "全局作用域（不加载项目配置）" }
+		guard let current else {
+			return L.t("project.scope.globalLong", "全局作用域（不加载项目配置）")
+		}
 		let parts = current.pathComponents
 		return parts.count >= 2 ? parts.suffix(2).joined(separator: "/") : current.path
 	}
