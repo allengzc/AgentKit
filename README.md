@@ -1,11 +1,10 @@
 # AgentKit
 
-一个原生 macOS GUI，用来配置和管理本地的 coding agent。
+**一个原生 macOS GUI，用描述文件驱动地配置和管理本地 coding agent。**
 
-> 改这个仓库的代码请先读 [`AGENTS.md`](AGENTS.md)（根规范 + 各目录一份）。
-> 这一页是给使用者看的。
+[中文](README.md) · [English](README.en.md)
 
-现在支持三个 agent：
+现支持三个 agent：
 
 | Agent | 配置根 | 覆盖的面板 |
 |---|---|---|
@@ -14,90 +13,23 @@
 | **Claude Code**（`claude`） | `~/.claude` | MCP、Skills、子 Agents、会话、全局指令、通用设置 |
 
 **支持哪个 agent 由一份 JSON 描述文件决定** —— 加一个新 agent = 加一个 JSON，不改代码。
+三个 agent 的字段差异怎么被一张表兜住 → [描述文件](docs/descriptors.md)。
 
-![pi 通用设置](docs/settings.png)
+![pi 的通用设置面板](docs/settings.png)
 
----
+> 截图由 `Tools/make-demo.py` 造的一套假配置渲染而来：provider、会话、skill、项目路径
+> 全是编的，**不来自任何人的真实机器**。重新生成 → [截图流水线](docs/development.md#截图流水线)。
 
-## 图标
-
-<img src="docs/icon.png" width="180" alt="AgentKit 图标">
-
-三张配置文件卡片向左上退去，最前面那张带两行键值 —— 一个形状说清这个产品在做什么：
-好几种不同形状的配置文件，被摆成一个界面。
-
-`Resources/Icon.svg` 是数据源，`Resources/AppIcon.icns` 是包里真正用的那份。
-两者都由 `Tools/make-icon.py` 生成：
-
-```bash
-python3 Tools/make-icon.py     # 重新生成 Icon.svg / Icon-simple.svg / AppIcon.icns
-```
-
-几个刻意的决定：
-
-- **圆角不是圆角矩形**。macOS 11 起用的是连续曲率圆角，形状由
-  `RoundedRectangle(style: .continuous)` 决定。`Tools/iconpath.swift` 直接问系统要
-  那条路径再转成 SVG，而不是手搓贝塞尔去逼近 —— 这样它的轮廓和 Dock 里其它图标是一致的。
-  画布 1024、贴片 824、圆角 185.4、居中留出阴影空间，都是 Apple 的栅格。
-- **后面两张卡是不透明浅色，不是半透明白**。白色 50% 叠在饱和蓝上会变成淡蓝，
-  一叠淡蓝读起来像雾或者运动模糊，而不像几张分开的纸。
-- **16 和 32 点用简化版**（`Icon-simple.svg`）：那个尺寸下后排卡片和两行字都是亚像素，
-  留着只会把轮廓搅浑。同一个剪影、同一个色，只留一张卡。
-- **所有尺寸都是算出来的**，十个 PNG 一次生成，不需要手工导出。
+> 改这个仓库的代码请先读 [`AGENTS.md`](AGENTS.md)（根规范 + 各目录一份）。本页给使用者。
 
 ---
-
-## 为什么是描述文件驱动的
-
-本地 coding agent 的配置从来不是"一个文件"，而且**同一个概念在不同 agent 里形状都不一样**。
-三个 agent 摆在一张表里看：
-
-| 配置面 | pi | Codex | Claude Code |
-|---|---|---|---|
-| 会话头部 | 第一行 | 第一行 | **没有头部行**，`sessionId` 每行都有、`cwd` 只在部分行上 |
-| 会话的消息类型 | 一种 | 一种 | **两种**（`user` + `assistant`） |
-| token | 每条一个总数 | 累计事件取最后一个 | **四个字段相加**（含两种 cache） |
-| 会话名 | 文件内的记录 | 单独的索引文件 | 不保存，所以不能改名 |
-| 指令文件 | `AGENTS.md` | `AGENTS.md` | `CLAUDE.md` / `CLAUDE.local.md` |
-| MCP 开关 | `disabled` | `enabled` | **没有**，所以这个面板不提供开关 |
-| 子 Agents | `~/.pi/agent/agents` | 无 | `~/.claude/agents` |
-
-下面这张表是老的两个 agent 的细节对照：
-
-| 配置面 | pi | Codex |
-|---|---|---|
-| 格式 | JSON | **TOML**（`config.toml`） |
-| provider 容器 | `providers` | `model_providers` |
-| 字段拼写 | `baseUrl` / `api` / `apiKey` | `base_url` / `wire_api` / `env_key` |
-| MCP 容器 | `mcpServers`（多文件分层） | `mcp_servers`（单文件） |
-| 服务器开关 | `disabled = true` | `enabled = false`（**极性相反**） |
-| 会话布局 | `sessions/<cwd 分组>/<时间戳>.jsonl` | `sessions/<年>/<月>/<日>/rollout-*.jsonl` |
-| 会话字段 | 顶层 `id` / `cwd` | 全部嵌在 `payload` 下 |
-| 会话名 | 文件里的 `session_info` 记录 | 单独的 `session_index.jsonl` |
-| token 统计 | 每条消息的 `usage`（求和） | `event_msg` 里的累计值（取最后一个） |
-
-把这些硬编码进一个 App，等于每支持一个新 agent 就重写一遍。AgentKit 的做法是：
-
-- **描述文件（数据）** 声明路径、层次、字段名、形状；
-- **面板处理器（代码）** 是一组有限且封闭的文件形状：`typed-json`、`providers-map`、
-  `mcp-servers-map`、`skill-dirs`、`jsonl-sessions`、`md-frontmatter`、`md`；
-- 描述文件引用到本版本不认识的 `kind`，那个面板降级成占位符，**其它面板照常可用，不崩**。
-
-内置描述文件：[`Resources/Agents/pi.json`](Resources/Agents/pi.json)、
-[`Resources/Agents/codex.json`](Resources/Agents/codex.json)。
-
----
-
-> 本文所有截图都由 `Tools/make-demo.py` 生成的一套假配置渲染而来 ——
-> provider、会话、skill、项目路径全是编的，**不来自任何人的真实机器**。
-> 重新生成：`./Tools/make-screenshots.sh`。
 
 ## 快速开始
 
 ```bash
 ./build.sh          # 编译到 out/AgentKit.app（只需要 swiftc）
 ./install.sh        # 再复制到 /Applications/AgentKit.app 并提示入口
-./run-tests.sh      # 549 项离线断言，不需要窗口、不需要网络
+./run-tests.sh      # 全部离线断言，不需要窗口、不需要网络
 ```
 
 要求：macOS 14+、Xcode 命令行工具（Swift 6.x）、一个用于签名的 Apple Development
@@ -112,221 +44,18 @@ AGENTKIT_PROJECT=~/code/my-repo open -a AgentKit      # 指定项目作用域
 CODEX_HOME=/tmp/fixture open -a AgentKit              # 换一个配置根（夹具优先调试）
 ```
 
-### 项目作用域
-
-描述文件里有八条 `$CWD` 路径（项目的 MCP 层、 `.pi/skills`、`.pi/agents`、
-`.codex/config.toml` …）。**不选项目它们就全部不加载**，而静默消失是最糟的选项 ——
-看起来像项目配错了。所以：
-
-- 工具栏左边的文件夹菜单选项目，最近用过的和 agent 会话历史里出现过的目录都在里面；
-- 侧边栏显示当前作用域，点一下回到全局；
-- 没选项目时，受影响的每个面板顶部都会写明"有 N 条项目级路径没有加载"，并给一个选择按钮。
-
-会话历史里的目录是**从会话 header 的 `cwd` 读出来的**，不是从目录名反推的：pi 把路径里的
-`/` 换成 `-` 存成 slug，而真实目录名里可能本来就有连字符，反解会出错。
+对着假配置跑、断言怎么加、图标与截图流水线 → [开发与验收](docs/development.md)。
 
 ---
 
-## 面板
+## 文档
 
-### 模型与 Provider
-
-![pi 模型](docs/models.png)
-
-从描述文件声明的容器里读 provider 与 model。字段名按各 agent 的拼写走（pi 的
-`baseUrl`、Codex 的 `base_url`），`apiKey` **只显示"已配置/未配置"**：AgentKit 从不
-读取、显示或记录密钥明文。pi 走 `pi auth check --provider X --json --no-refresh` 检查
-认证；Codex 没有等价的子命令，就不显示这个按钮。编辑 provider 是**合并**而不是替换，
-`compat`、`requires_openai_auth` 这类 AgentKit 不认识的键原样保留。
-
-MCP 服务器编辑器同理：它只改表单上那四个字段，`env`、`cwd`、`type`、
-`startup_timeout_sec` 之类一律原样留着 —— 用表单重建整个条目会把这些悄悄删掉。
-什么都没改时它显示"没有改动。"并且写入按钮是灰的。
-
-### MCP 服务器
-
-![pi MCP](docs/mcp.png)
-
-按优先级合并全部配置层，标出每个服务器的来源层与被覆盖的层。
-
-对 pi，它还会指出"看起来配好了其实已经死了"的文件 —— 例如本机真实存在过的情况：
-
-```
-~/.pi/agent/mcp.json 已经不会被读取
-pi-mcp-adapter 已经不再读取这个文件：生效的是 ~/.config/mcp/mcp.json（共享全局层）。
-```
-
-一键修复是一个**分步计划**（迁移 adapter 专属键 → 并入服务器 → 重命名旧文件），
-每一步的 diff 都展示在确认页里，任何一步失败就停下。修复会把 `imports` 迁到
-`mcp-adapter.json`，把 `mcpServers` 并入共享全局层，并把死文件改名为
-`mcp.json.bak-agentkit-*`，之后诊断徽标消失。
-
-对 Codex，服务器来自 `[mcp_servers.*]`，并且**开关极性按 Codex 的约定**：
-`enabled = false` 显示为「已禁用」。
-
-![Codex MCP](docs/codex-mcp.png)
-
-### Skills
-
-![Skills](docs/skills.png)
-
-递归查找 `SKILL.md`，**穿过符号链接**（一个链接到别处仓库的 skill 目录也能正常列出），
-同时剪掉 `.git` / `node_modules` / `.venv` / `logs` 这类目录并限制
-深度。校验规则对齐规范：缺 `description` 即"不会被加载"，`name` 必须符合 Agent
-Skills 规范。
-
-随包文件是一张列表（图标 + 名字 + 大小 / 子项数），默认只显示前 7 项。这里原来是一排
-chip：一个 skill 带 30+ 个文件时，`HStack` 会把每个名字压到**每行只放一个字母**。
-文件名现在强制单行 + 中间截断 —— 列表里的名字不允许折行。
-
-目录用系统的 `DisclosureGroup` 展开，子项在扫描时就装好。两点都是刻意的：展开是唯一
-必须每次都成功的交互，所以命中判定交给系统而不是自绘按钮；而既然数据已经在了，
-展开就只是一次状态变更，不需要在点击回调里读文件系统。
-
-### 会话
-
-![pi 会话](docs/sessions.png)
-
-列表只用每个文件的**第一行**（header），消息数 / token / 成本由后台流式统计并按
-`(大小, mtime)` 缓存，所以上百个会话也能秒开 —— 尽管单个 Codex 会话文件能到 88 MB。支持搜索、按项目或按时间分组、在终端恢复、导出 HTML、重命名、
-移到废纸篓。
-
-![Codex 会话](docs/codex-sessions.png)
-
-![Claude Code 会话](docs/claude-sessions.png)
-
-Codex 的名字来自 `session_index.jsonl`，AgentKit **只读取不代写**，所以那个面板里
-「重命名」是禁用的，并且说明了原因。
-
-### 全局指令 / 子 Agents / 通用设置 / 主题 · 扩展
-
-![Codex 通用设置](docs/codex-settings.png)
-
-![Claude Code 通用设置](docs/claude-settings.png)
-
-![全局指令](docs/instructions.png)
-
-- **全局指令**：Markdown 编辑 + 预览（`MarkdownText` 在 Surfaces 层，不在视图里 ——
-  它崩过一次，整块 App 跟着一起死），列出 override / instructions / SYSTEM /
-  APPEND_SYSTEM 的生效关系，并从项目目录向上发现沿途命中的 `AGENTS.md`。
-- **子 Agents**（仅 pi）：frontmatter 表单（name / description / model / tools）+ 正文编辑，
-  `model` 会对着当前模型列表校验；`tools: read, grep` 这种逗号写法原样保留。
-- **通用设置**：按官方文档逐键生成的表单，含类型、枚举、范围与默认值。pi 的字段表
-  完全按其中文文档编写；Codex 的 69 项取自[上游配置参考](https://developers.openai.com/codex/config-reference)，
-  **标签是中文、说明保留上游英文原文**，方便逐条对照而不是信任翻译。未收录的键
-  （比如 Codex 的 `mcp_servers`、`model_providers`，它们有自己的面板）进入只读的
-  「其它键（保留）」区，写入时原样保留。
-- **主题 · 扩展 / Packages**（仅 pi）：沿用 `.off` 后缀约定做启用/停用。
-
----
-
-## 写入安全
-
-这是这个工具最不能出错的地方，所以所有写入都收敛到同一条路径：
-
-1. **读**：记下 `(大小, mtime, sha256)`。解析失败 → 该文件全部编辑入口禁用，
-   只提供原文视图与外部编辑器，**绝不覆盖**。
-2. **改**：在保序、保留未知键的树上做点号路径合并。
-3. **写**：先把改动渲染成文本，再走同目录临时文件 → `fsync` → `rename` 原子替换，
-   并保留原文件权限（`models.json` / `auth.json` / `config.toml` 是 0600，写回后仍是 0600）。
-4. **外科式修改**：改动只有一个或多个叶子值时，AgentKit 把新字面量**拼接进原始字节**，
-   不改动任何没碰过的行 —— 包括注释，也包括你自己写成一行的那种内联表/内联对象。
-5. **备份**：写入前在同目录生成 `<文件>.bak-agentkit-YYYYMMDD-HHMMSS`，每个文件保留 10 份。
-6. **确认**：任何写入都先弹 diff，确认才落盘。
-
-   ![diff 确认页](docs/diff.png)
-
-7. **并发**：落盘前比对 sha256，不一致就中止并提示"文件已被外部（很可能是 agent）改动"。
-8. **运行中提示**：检测到 agent CLI 在跑就提示改动需要 `/reload` 或重启；会话重命名
-   这类会改写进行中文件的动作直接禁用。
-9. **护栏**：解析后的写入路径必须落在描述文件声明的 `scopeGuard` 内。
-
-### 结构改动按格式分级
-
-| 改动 | JSON | TOML |
-|---|---|---|
-| 改一个值 | 按字节替换那一处 | 同左，注释与内联表全保留 |
-| 表里加/删一个键 | 整份重写（JSON 没有注释，无损） | **只重排那一张表**，其它表逐字节不动 |
-| 新增一张表 | 整份重写 | **追加新块**，原文件不动 |
-| 顶层增删键 | 整份重写 | 整份按标准格式重写，**确认页会明确提示注释会丢失** |
-
-确认页只在真的有损时才给警告 —— 纯追加一张表不会报警。
-
-### 夹具优先
-
-开发与验收都先对着副本跑，确认无误再碰真实配置：
-
-```bash
-rsync -a ~/.pi/agent/ /tmp/fixture/agent/
-PI_CODING_AGENT_DIR=/tmp/fixture/agent ./out/AgentKit.app/Contents/MacOS/AgentKit
-
-rsync -a ~/.codex/ /tmp/fixture/codex/ --exclude '*.sqlite*'
-CODEX_HOME=/tmp/fixture/codex ./out/AgentKit.app/Contents/MacOS/AgentKit
-```
-
----
-
-## 描述文件
-
-放在 `~/.config/agentkit/agents/*.json`（可用 `AGENTKIT_CONFIG_DIR` 覆盖）。
-`id` 与内置相同的会**整体覆盖**内置那一份，侧边栏会标「自定义描述」。
-
-```jsonc
-{
-  "descriptorVersion": 1,
-  "id": "codex",
-  "name": "Codex",
-  "icon": "chevron.left.forwardslash.chevron.right",
-
-  "root": { "env": "CODEX_HOME", "default": "~/.codex" },
-  "detect": {
-    "paths": ["~/.codex"],
-    "cli": { "name": "codex", "loginShellLookup": true,
-             "candidates": ["~/.nvm/versions/node/*/bin/codex", "/opt/homebrew/bin/codex"] }
-  },
-
-  "write": { "backup": { "suffix": ".bak-agentkit", "keep": 10 },
-             "scopeGuard": ["$ROOT", "$HOME", "/tmp"] },
-
-  "surfaces": [
-    { "id": "settings", "kind": "settings", "title": "通用设置",
-      "file": "$ROOT/config.toml", "format": "toml", "schema": "codex-0.157" },
-
-    { "id": "mcp", "kind": "mcp", "title": "MCP 服务器", "format": "toml",
-      "serverKey": "mcp_servers",           // 容器名
-      "toggleKey": "enabled",               // 开关叫 enabled
-      "toggleDisabledValue": false,         // 而且 false 才表示停用
-      "layers": [ { "path": "$ROOT/config.toml", "precedence": 10, "writable": true } ] },
-
-    { "id": "sessions", "kind": "sessions", "title": "会话",
-      "root": "$ROOT/sessions",
-      "sessions": {
-        "recursive": true,                  // sessions/年/月/日/
-        "headerType": "session_meta",
-        "header": { "id": "payload.id", "cwd": "payload.cwd", "timestamp": "timestamp" },
-        "index": { "file": "$ROOT/session_index.jsonl", "key": "id", "value": "thread_name" },
-        "message": { "type": "response_item", "payload": "payload",
-                     "role": "role", "text": "content" } } }
-  ]
-}
-```
-
-路径 token：`~`、`$ROOT`（agent 根）、`$CWD`（当前项目）、`$APP`（AgentKit 支持目录）、
-`$HOME`。`*` 只允许出现在 `cli.candidates`，并且按版本号取最高的那个。
-
-`format` 不写就按扩展名判断（`.toml` → TOML，其余 JSON）。
-
-### 加一个新 agent 的步骤
-
-1. 复制 `Resources/Agents/pi.json` 或 `codex.json`；
-2. 改 `id` / `name` / `root`；
-3. 按目标 agent 的真实文件结构调整各面板的路径与字段名；
-4. 丢进 `~/.config/agentkit/agents/`，重启 App。
-
-不需要重新编译。`settings` 面板的 `schema` 指向一份**内置的强类型字段表**；如果目标
-agent 没有对应的 schema，那个面板会显示"找不到 schema"并降级，其它面板照常。
-
-写坏了不会崩：侧边栏会给出解析失败的原因，其它 agent 照常可用。
+| 想知道 | 去哪 |
+|---|---|
+| 八个面板各自能做什么 | [面板](docs/panels.md) |
+| 写入会不会弄坏我的配置 | [写入安全](docs/safety.md) |
+| 描述文件怎么写、怎么加新 agent | [描述文件](docs/descriptors.md) |
+| 怎么构建、跑断言、重出截图 | [开发与验收](docs/development.md) |
 
 ---
 
@@ -337,10 +66,10 @@ agent 没有对应的 schema，那个面板会显示"找不到 schema"并降级�
 | `PI_CODING_AGENT_DIR` | 覆盖 pi 的配置根（pi 描述文件里 `root.env` 声明） |
 | `CODEX_HOME` | 覆盖 Codex 的配置根 |
 | `AGENTKIT_CONFIG_DIR` | 覆盖描述文件目录（默认 `~/.config/agentkit`） |
-| `AGENTKIT_OPEN=codex/mcp` | 启动直接进指定 agent 的指定面板 |
 | `AGENTKIT_HOME=/tmp/demo` | 把 `~` / `$HOME` 重定向到一次性目录，用于对着夹具跑，不碰真实配置 |
-| `AGENTKIT_DOC_STATE=…` | 生成文档截图用：置入预览/展开/diff、固定外观与窗口尺寸、让 App 渲染自身并退出 |
+| `AGENTKIT_OPEN=codex/mcp` | 启动直接进指定 agent 的指定面板 |
 | `AGENTKIT_PROJECT=~/repo` | 指定项目作用域（等价于在工具栏里选项目） |
+| `AGENTKIT_DOC_STATE=…` | 生成文档截图用：置入预览/展开/diff、固定外观与窗口尺寸、让 App 渲染自身并退出 |
 | `AGENTKIT_SIGN_IDENTITY` | 构建时指定签名身份 |
 | `AGENTKIT_TARGET` | 构建目标三元组，默认 `arm64-apple-macosx14.0` |
 
@@ -354,50 +83,22 @@ log show --last 5m --info --predicate 'subsystem == "com.allengzc.agentkit"'
 
 ## 已知限制
 
-- **同一文件的多个声明名会被标出来**：macOS 卷默认不区分大小写，pi 同时声明了
-  `AGENTS.md` 和 `AGENTS.MD`，它们其实是同一个文件。面板会标「同 AGENTS.md」并说明，
-  而不是假装有两份。
-- **项目作用域要手动选**：GUI 程序没有"当前工作目录"这种有意义的默认值，所以 AgentKit
-  不去猜，而是在工具栏让你选，并把没加载的路径数写在面板上。
-- **内置两个 agent**（pi 与 Codex）。架构为其它 agent 留好了接口，但描述文件只是数据 ——
-  如果目标 agent 用了第三种配置格式（YAML / INI），需要先给 Core 加一个解析器。
-- **TOML 的结构性改动不是逐字节的**：只重排受影响的表，其它表不动；顶层增删键会整份
-  按标准格式重写，此时注释会丢失，确认页会明确提示。
-- **Skills 的启用/停用是 AgentKit 自己的约定**（把目录移到同级 `.disabled/`），
-  因为 pi 没有单个 skill 的开关，只有全局的 `enableSkillCommands`。界面里写明了这一点。
-- **不接管密钥**：`apiKey` / `env_key` / `auth.json` 一律只做掩码显示。
-- **Codex 的会话重命名不支持**：它的名字存在单独的索引文件里，AgentKit 不代写。
-- **Claude Code 的 settings 字段表覆盖 78 项**（模型、权限、Hooks、MCP、插件、界面…），
-  由 `Tools/make-claude-schema.py` 从[上游设置参考](https://code.claude.com/docs/en/settings-reference)解析生成。
-  标签就是**字面的 JSON 键名**、说明是上游英文原文 —— 一百个键逐个编中文名反而会看不出自己在改哪个键。
-- **`~/.claude.json` 既是配置也是状态**：MCP 服务器在里面，但账号、用量统计和每个项目的历史也在里面，
-  而且 claude 几乎每次运行都会改写它。AgentKit 照常支持读写（有备份 + 落盘前比对哈希），
-  但正因为那个文件一直在变，写入被拒绝的概率比别的文件高。
-- **Claude Code 的 MCP 面板没有开关**：它用 `disabledMcpjsonServers` 这种项目级列表来停用服务器，
-  不是每个服务器一个布尔值，所以这里不假装有开关。
-- **Codex 的 settings 字段表覆盖 69 项**（模型、审批、沙盒、终端、凭据、工具）；
-  `features.*`、`mcp_servers.*`、`model_providers.*` 等宽表键落在只读的
-  「其它键（保留）」里，原样保留但不在这里编辑。
-- **Packages 只读**：`settings.packages` 的增删请用 `pi install` / `pi remove`。
-- **不做 schema 漂移自动合并**：agent 升级后新增的键会落到"其它键（保留）"里，
-  AgentKit 不会猜它的含义。
-- App 不做沙盒（必须读写 `~/.pi`、`~/.codex`、`~/.config`、`~/.agents` 并拉起终端）；
-  项目目录落在 `~/Documents`、`~/Desktop`、`~/Downloads` 时首次访问会触发系统授权弹窗。
+摘要，逐条详情在链接的专题页里，不藏。
+
+- **项目作用域要手动选**：GUI 程序没有"当前工作目录"这种有意义的默认值，AgentKit 不去猜 —— [面板](docs/panels.md#项目作用域)。
+- **TOML 的结构性改动不是逐字节的**：顶层增删键整份重写，注释会丢，确认页会明说 —— [写入安全](docs/safety.md#结构改动按格式分级)。
+- **不接管密钥**：`apiKey` / `env_key` / `auth.json` 一律只做掩码显示 —— [写入安全](docs/safety.md#不接管密钥)。
+- **`~/.claude.json` 既是配置也是状态**：claude 几乎每次都改写它，所以写入被拒绝的概率比别的文件高 —— [写入安全](docs/safety.md#被拒绝写入概率更高的文件)。
+- **Codex 的会话重命名不支持**：名字存在单独的索引文件里，AgentKit 不代写 —— [面板](docs/panels.md#会话)。
+- **Claude Code 的 MCP 面板没有开关**；Claude settings 覆盖 78 项、Codex 覆盖 69 项，未收录的键落在只读的「其它键（保留）」；Packages 只读 —— [面板](docs/panels.md#通用设置)。
+- **不做 schema 漂移自动合并**：agent 升级后新增的键不会被猜含义 —— [面板](docs/panels.md#通用设置)。
+- **换一种配置格式（YAML / INI）要先写代码**：描述文件只是数据，解析器在 Core 里 —— [描述文件](docs/descriptors.md#加一个新-agent-的步骤)。
+- **App 不做沙盒**：必须读写 `~/.pi`、`~/.codex`、`~/.config`、`~/.agents` 并拉起终端；
+  项目目录落在 `~/Documents` / `~/Desktop` / `~/Downloads` 时首次访问会触发系统授权弹窗。
+
+完整清单：[面板](docs/panels.md#已知限制) · [写入安全](docs/safety.md#已知限制) · [描述文件](docs/descriptors.md#已知限制)。
 
 ---
-
-## 目录结构
-
-```
-Sources/Core/        JSON/TOML 树与无损读写、按字节拼接与表级修补、路径解析、
-                     描述文件、Markdown/frontmatter、进程
-Sources/Surfaces/    各面板的纯逻辑（无 UI）：MCP 合并、会话解析、skills 扫描、设置 schema
-Sources/App/         状态、项目作用域、写入控制器、Finder/终端动作
-Sources/Views/       SwiftUI 界面
-Resources/Agents/    内置描述文件（pi.json、codex.json、claude.json）
-Resources/Icon.svg   图标数据源（AppIcon.icns 由它生成）
-Tests/main.swift     549 项离线断言
-```
 
 ## License
 

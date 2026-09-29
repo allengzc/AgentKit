@@ -17,8 +17,8 @@ struct RootView: View {
 		} detail: {
 			detail
 		}
-		.navigationTitle(model.selectedAgent.map { "\($0.name) · \($0.descriptor.subtitle ?? "配置")" } ?? "AgentKit")
-		.navigationSubtitle(model.selectedAgent?.descriptor.subtitle ?? "")
+		.navigationTitle(model.selectedAgent.map { "\($0.name) · \($0.subtitle ?? L.t("agent.subtitle.fallback", "配置"))" } ?? "AgentKit")
+		.navigationSubtitle(model.selectedAgent?.subtitle ?? "")
 		.toolbar {
 			ToolbarItem(placement: .navigation) {
 				projectMenu
@@ -149,7 +149,7 @@ struct UnsupportedPane: View {
 	var body: some View {
 		VStack(alignment: .leading, spacing: 14) {
 			HStack(spacing: 8) {
-				Text(surface.title).font(.title3.weight(.semibold))
+				Text(surface.titleText).font(.title3.weight(.semibold))
 				StatusBadge(text: "不支持", level: .warning)
 			}
 			InfoBanner(

@@ -62,6 +62,16 @@ if [[ ! -f "$RES/AppIcon.icns" ]]; then
 	exit 1
 fi
 cp "$RES/AppIcon.icns" "$APP/Contents/Resources/AppIcon.icns"
+
+# Localization tables. A hand-assembled bundle has no resource catalog, so the
+# loader asks for each localization explicitly — which only works if the files
+# sit in the standard `<lang>.lproj` directories.
+for lang in "$RES"/Localization/*/; do
+	[[ -d "$lang" ]] || continue
+	name="$(basename "$lang")"
+	mkdir -p "$APP/Contents/Resources/$name.lproj"
+	cp "$lang"/*.strings "$APP/Contents/Resources/$name.lproj/"
+done
 cp "$RES/Agents/"*.json "$APP/Contents/Resources/Agents/"
 printf 'APPL????' > "$APP/Contents/PkgInfo"
 

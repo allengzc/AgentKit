@@ -120,7 +120,7 @@ struct SessionsPane: View {
 	private var header: some View {
 		VStack(alignment: .leading, spacing: 7) {
 			HStack(spacing: 8) {
-				Text(surface.title).font(.title3.weight(.semibold))
+				Text(surface.titleText).font(.title3.weight(.semibold))
 				StatusBadge(text: "\(records.count) 个会话", level: .info)
 				if indexing {
 					HStack(spacing: 5) {

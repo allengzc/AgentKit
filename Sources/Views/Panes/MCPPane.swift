@@ -82,7 +82,7 @@ struct MCPPane: View {
 	private func header(_ snapshot: MCPSnapshot) -> some View {
 		VStack(alignment: .leading, spacing: 7) {
 			HStack(spacing: 8) {
-				Text(surface.title).font(.title3.weight(.semibold))
+				Text(surface.titleText).font(.title3.weight(.semibold))
 				StatusBadge(text: "\(snapshot.effective.count) 个生效服务器", level: .info)
 				if snapshot.problemCount > 0 {
 					StatusBadge(text: "\(snapshot.problemCount) 个问题", level: .warning)

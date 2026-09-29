@@ -118,6 +118,11 @@ public struct RootEntry: Codable {
 	public var isWritable: Bool { writable ?? true }
 }
 
+extension SurfaceSpec {
+	/// The title in the language in effect right now.
+	public var titleText: String { title.current }
+}
+
 /// One layer of an MCP-style stacked configuration.
 public struct ConfigSource: Codable {
 	public var path: String
@@ -257,7 +262,9 @@ public struct PointerRef: Codable {
 public struct SurfaceSpec: Codable {
 	public var id: String
 	public var kind: SurfaceKind
-	public var title: String
+	/// Per-language. A plain string means the same in every language, which is
+	/// what a hand-written descriptor contains.
+	public var title: LocalizedText
 	public var icon: String?
 	public var shape: String?
 
@@ -324,8 +331,8 @@ public struct SurfaceSpec: Codable {
 public struct AgentDescriptor: Codable {
 	public var descriptorVersion: Int
 	public var id: String
-	public var name: String
-	public var subtitle: String?
+	public var name: LocalizedText
+	public var subtitle: LocalizedText?
 	public var icon: String?
 	public var homepage: String?
 	public var root: RootSpec
@@ -402,7 +409,9 @@ public struct LoadedAgent: Identifiable {
 	public var origin: Origin = .builtin
 
 	public var id: String { descriptor.id }
-	public var name: String { descriptor.name }
+	/// The agent's display name, in the language in effect right now.
+	public var name: String { descriptor.name.current }
+	public var subtitle: String? { descriptor.subtitle?.current }
 
 	public var installed: Bool { rootExists }
 

@@ -1,0 +1,15 @@
+/* AgentKit UI strings (zh-Hans)
+ *
+ * 键名点分层级：pane.* button.* mcp.* skill.* session.*
+ * 两份表的 key 集合必须完全一致 —— Tests/main.swift 里有断言在查。
+ * 由 task-3 填充。
+ */
+
+/* 应用菜单 */
+"menu.reload" = "重新载入描述文件与配置";
+"menu.language" = "语言";
+"menu.about" = "AgentKit 说明";
+
+/* 侧边栏 */
+"sidebar.section.panels" = "面板";
+

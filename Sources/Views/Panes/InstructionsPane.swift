@@ -110,7 +110,7 @@ struct InstructionsPane: View {
 	private var header: some View {
 		VStack(alignment: .leading, spacing: 6) {
 			HStack(spacing: 8) {
-				Text(surface.title).font(.title3.weight(.semibold))
+				Text(surface.titleText).font(.title3.weight(.semibold))
 				StatusBadge(text: "同目录下 override 覆盖 instructions", level: .info)
 				Spacer()
 				Button {

@@ -198,8 +198,8 @@ struct SettingsPane: View {
 	private func header(current: SettingsEditor, document: JSONDocument) -> some View {
 		VStack(alignment: .leading, spacing: 7) {
 			HStack(spacing: 8) {
-				Text(surface.title).font(.title3.weight(.semibold))
-				StatusBadge(text: current.schema.title, level: .info)
+				Text(surface.titleText).font(.title3.weight(.semibold))
+				StatusBadge(text: current.schema.titleText, level: .info)
 				if document.isSymlink {
 					StatusBadge(text: "符号链接", level: .warning)
 				}
@@ -230,7 +230,7 @@ struct SettingsPane: View {
 				HStack(spacing: 7) {
 					Image(systemName: section.icon)
 						.frame(width: 16)
-					Text(section.title)
+					Text(section.titleText)
 					Spacer(minLength: 0)
 					let setCount = section.fields.filter { current.isSet($0) }.count
 					if setCount > 0 {
@@ -282,7 +282,7 @@ struct SettingsPane: View {
 	private func sectionHeader(_ section: SettingsSection) -> some View {
 		HStack(spacing: 7) {
 			Image(systemName: section.icon).foregroundStyle(.tint)
-			Text(section.title).font(.headline)
+			Text(section.titleText).font(.headline)
 			Spacer()
 		}
 		.padding(.bottom, 8)
@@ -291,9 +291,9 @@ struct SettingsPane: View {
 	@ViewBuilder
 	private func fieldRow(_ field: SettingField, current: SettingsEditor) -> some View {
 		FieldRow(
-			label: field.label,
-			help: field.help,
-			note: field.scopeNote,
+			label: field.labelText,
+			help: field.helpText,
+			note: field.scopeNoteText,
 			isDefault: !current.isSet(field),
 			error: current.errors[field.key]
 		) {
@@ -408,7 +408,7 @@ struct SettingsPane: View {
 	private func unknownSection(current: SettingsEditor) -> some View {
 		VStack(alignment: .leading, spacing: 10) {
 			Text("其它键（保留）").font(.headline)
-			Text("这些键不在 \(current.schema.title) 里，AgentKit 认识不了它们的含义，所以只读展示；写入时原样保留，不会丢失。")
+			Text("这些键不在 \(current.schema.titleText) 里，AgentKit 认识不了它们的含义，所以只读展示；写入时原样保留，不会丢失。")
 				.font(.caption)
 				.foregroundStyle(.secondary)
 			if let document {

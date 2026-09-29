@@ -17,7 +17,7 @@ struct Sidebar: View {
 			agentHeader
 			Divider()
 			List(selection: $model.selectedSurfaceID) {
-				Section("面板") {
+				Section(L.t("sidebar.section.panels", "面板")) {
 					ForEach(model.selectedAgent?.descriptor.surfaces ?? [], id: \.id) { surface in
 						surfaceRow(surface)
 							.tag(surface.id as String?)
@@ -110,7 +110,7 @@ struct Sidebar: View {
 			Image(systemName: surface.icon ?? "square.dashed")
 				.frame(width: 18)
 				.foregroundStyle(surface.isSupported ? Color.accentColor : Color.secondary)
-			Text(surface.title)
+			Text(surface.titleText)
 				.lineLimit(1)
 			Spacer(minLength: 0)
 			if !surface.isSupported {

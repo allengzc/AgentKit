@@ -16,23 +16,41 @@ struct AgentKitApp: App {
 			RootView()
 				.environment(model)
 				.frame(minWidth: 1000, minHeight: 620)
+				// Re-creating the tree is what makes a language switch take effect:
+				// every `L.t` is read while the body is built.
+				.id(model.languages.current)
 		}
 		.defaultSize(width: 1120, height: 700)
 		.commands {
 			CommandGroup(after: .newItem) {
-				Button("重新载入描述文件与配置") {
+				Button(L.t("menu.reload", "重新载入描述文件与配置")) {
 					model.reloadDescriptors()
 				}
 				.keyboardShortcut("r", modifiers: [.command])
 			}
+			CommandMenu(L.t("menu.language", "语言")) {
+				Picker(L.t("menu.language", "语言"), selection: languageBinding) {
+					ForEach(AppLanguage.allCases, id: \.self) { language in
+						Text(language.nativeName).tag(language)
+					}
+				}
+				.pickerStyle(.inline)
+			}
 			CommandGroup(replacing: .help) {
-				Button("AgentKit 说明") {
+				Button(L.t("menu.about", "AgentKit 说明")) {
 					if let url = URL(string: "https://github.com/allengzc/agentkit") {
 						NSWorkspace.shared.open(url)
 					}
 				}
 			}
 		}
+	}
+
+	private var languageBinding: Binding<AppLanguage> {
+		Binding(
+			get: { model.languages.current },
+			set: { model.languages.select($0) }
+		)
 	}
 }
 

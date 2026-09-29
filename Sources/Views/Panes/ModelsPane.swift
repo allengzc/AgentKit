@@ -110,7 +110,7 @@ struct ModelsPane: View {
 	private var header: some View {
 		VStack(alignment: .leading, spacing: 7) {
 			HStack(spacing: 8) {
-				Text(surface.title).font(.title3.weight(.semibold))
+				Text(surface.titleText).font(.title3.weight(.semibold))
 				if let snapshot {
 					StatusBadge(text: "\(snapshot.providers.count) 个 provider", level: .info)
 					StatusBadge(

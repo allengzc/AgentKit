@@ -61,27 +61,40 @@ public enum SettingFieldType: Equatable {
 
 public struct SettingField: Identifiable {
 	public let key: String
-	public let label: String
+	/// Per-language. A plain string (every language the same) is what a schema
+	/// that has not been translated yet contains.
+	public let label: LocalizedText
 	public let type: SettingFieldType
-	public let help: String
+	public let help: LocalizedText
+	/// The value a field takes when the file does not set it. Data, not prose —
+	/// it goes into the JSON as written, so it is never translated.
 	public let fallback: String
-	public let scopeNote: String?
+	public let scopeNote: LocalizedText?
 
 	public var id: String { key }
 	public var path: [String] { key.split(separator: ".").map(String.init) }
+
+	/// Resolved for the language in effect right now.
+	public var labelText: String { label.current }
+	public var helpText: String { help.current }
+	public var scopeNoteText: String? { scopeNote?.current }
 }
 
 public struct SettingsSection: Identifiable {
 	public let id: String
-	public let title: String
+	public let title: LocalizedText
 	public let icon: String
 	public let fields: [SettingField]
+
+	public var titleText: String { title.current }
 }
 
 public struct SettingsSchemaDefinition: Identifiable {
 	public let id: String
-	public let title: String
+	public let title: LocalizedText
 	public let sections: [SettingsSection]
+
+	public var titleText: String { title.current }
 
 	public var fields: [SettingField] { sections.flatMap(\.fields) }
 
@@ -95,7 +108,7 @@ public struct SettingsSchemaDefinition: Identifiable {
 // MARK: - Builder helpers
 
 func boolField(
-	_ key: String, _ label: String, fallback: Bool, _ help: String, scope: String? = nil
+	_ key: String, _ label: LocalizedText, fallback: Bool, _ help: LocalizedText, scope: LocalizedText? = nil
 ) -> SettingField {
 	SettingField(
 		key: key, label: label, type: .bool, help: help,
@@ -104,8 +117,8 @@ func boolField(
 }
 
 func intField(
-	_ key: String, _ label: String, fallback: Int?, min: Int? = nil, max: Int? = nil,
-	_ help: String, scope: String? = nil
+	_ key: String, _ label: LocalizedText, fallback: Int?, min: Int? = nil, max: Int? = nil,
+	_ help: LocalizedText, scope: LocalizedText? = nil
 ) -> SettingField {
 	SettingField(
 		key: key, label: label, type: .integer(min: min, max: max), help: help,
@@ -114,15 +127,15 @@ func intField(
 }
 
 func textField(
-	_ key: String, _ label: String, _ fallback: String = "", _ help: String,
-	type: SettingFieldType = .text, scope: String? = nil
+	_ key: String, _ label: LocalizedText, _ fallback: String = "", _ help: LocalizedText,
+	type: SettingFieldType = .text, scope: LocalizedText? = nil
 ) -> SettingField {
 	SettingField(key: key, label: label, type: type, help: help, fallback: fallback, scopeNote: scope)
 }
 
 func choiceField(
-	_ key: String, _ label: String, options: [String], fallback: String, _ help: String,
-	scope: String? = nil
+	_ key: String, _ label: LocalizedText, options: [String], fallback: String, _ help: LocalizedText,
+	scope: LocalizedText? = nil
 ) -> SettingField {
 	SettingField(
 		key: key, label: label, type: .choice(options), help: help,
@@ -131,14 +144,14 @@ func choiceField(
 }
 
 func listField(
-	_ key: String, _ label: String, _ help: String, type: SettingFieldType = .textList,
+	_ key: String, _ label: LocalizedText, _ help: LocalizedText, type: SettingFieldType = .textList,
 	fallback: String = "[]"
 ) -> SettingField {
 	SettingField(key: key, label: label, type: type, help: help, fallback: fallback, scopeNote: nil)
 }
 
 func jsonField(
-	_ key: String, _ label: String, _ help: String, fallback: String = "{}"
+	_ key: String, _ label: LocalizedText, _ help: LocalizedText, fallback: String = "{}"
 ) -> SettingField {
 	SettingField(key: key, label: label, type: .json, help: help, fallback: fallback, scopeNote: nil)
 }

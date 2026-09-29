@@ -1057,7 +1057,7 @@ do {
 		check(schema.field(key: key) != nil, "包含字段 \(key)")
 	}
 
-	equal(schema.field(key: "defaultProjectTrust")?.scopeNote?.isEmpty, false, "标注了作用域限制")
+	equal(schema.field(key: "defaultProjectTrust")?.scopeNoteText?.isEmpty, false, "标注了作用域限制")
 	equal(schema.field(key: "defaultThinkingLevel")?.type.choices.count, 7, "思考等级 7 个取值")
 	equal(schema.field(key: "transport")?.type.choices, ["auto", "sse", "websocket", "websocket-cached"], "传输方式取值")
 }
@@ -1954,6 +1954,100 @@ do {
 		SessionsSurface.header(of: blank, config: narrow) == nil,
 		"扫完预算仍没有 id 就当作不是会话"
 	)
+}
+
+group("i18n：按语言取值、查表、两张表 key 一致")
+
+do {
+	// A plain string is the same everywhere — this is what a hand-written
+	// descriptor contains, and it has to keep working.
+	let plain = LocalizedText("会话")
+	equal(plain.text(for: .zhHans), "会话", "纯字符串在中文下就是它本身")
+	equal(plain.text(for: .en), "会话", "纯字符串在英文下也是它本身")
+	check(plain.isPlain, "纯字符串被标记为未翻译")
+
+	let both = LocalizedText.both(zh: "会话", en: "Sessions")
+	equal(both.text(for: .zhHans), "会话", "按语言取值（中）")
+	equal(both.text(for: .en), "Sessions", "按语言取值（英）")
+	check(!both.isPlain, "两种语言都给了就不算未翻译")
+
+	// A missing language must not produce an empty label.
+	let halfDone = LocalizedText([.zhHans: "只有中文"])
+	equal(halfDone.text(for: .zhHans), "只有中文", "只有中文时中文取到")
+	equal(halfDone.text(for: .en), "只有中文", "缺英文时回退到另一种语言，而不是空字符串")
+
+	// Codable has to accept both shapes, or every existing descriptor breaks.
+	let decoder = JSONDecoder()
+	let fromString = try decoder.decode(LocalizedText.self, from: Data(#""通用设置""#.utf8))
+	equal(fromString.text(for: .en), "通用设置", "从纯字符串解码")
+	let fromObject = try decoder.decode(
+		LocalizedText.self,
+		from: Data(#"{"zh-Hans":"通用设置","en":"Settings"}"#.utf8)
+	)
+	equal(fromObject.text(for: .en), "Settings", "从按语言的对象解码")
+	let encoded = try JSONEncoder().encode(both)
+	check(String(data: encoded, encoding: .utf8)?.contains("Sessions") == true, "编码保留两种语言")
+
+	// Lookup: hit, miss, and the fixture directory standing in for the bundle
+	// (the test binary has no .lproj at all).
+	let localizationRoot = fixtureRoot.appendingPathComponent("localization")
+	for (language, text) in [(AppLanguage.zhHans, "跳过"), (.en, "Skip")] {
+		let directory = localizationRoot.appendingPathComponent(language.rawValue)
+		try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+		try "\"button.skip\" = \"\(text)\";\n".write(
+			to: directory.appendingPathComponent("UI.strings"), atomically: true, encoding: .utf8
+		)
+	}
+
+	let previousLanguage = Localization.shared.language
+	let previousDirectory = Localization.shared.resourceDirectory
+	Localization.shared.resourceDirectory = localizationRoot
+	Localization.shared.language = .zhHans
+	equal(L.t("button.skip", "回退值"), "跳过", "命中中文表")
+	equal(L.t("button.missing", "回退值"), "回退值", "未命中时用调用点的字面量兜底")
+	Localization.shared.language = .en
+	equal(L.t("button.skip", "回退值"), "Skip", "切到英文表")
+	Localization.shared.resourceDirectory = nil
+	equal(L.t("button.skip", "回退值"), "回退值", "没有表时仍然返回字面量，不会变空")
+	Localization.shared.language = previousLanguage
+	Localization.shared.resourceDirectory = previousDirectory
+}
+
+group("i18n：仓库里的字符串表两种语言必须对齐")
+
+do {
+	// The check that actually catches a forgotten translation: every key in the
+	// Chinese table must exist in the English one, and the other way round.
+	let root = URL(fileURLWithPath: #filePath)
+		.deletingLastPathComponent()
+		.deletingLastPathComponent()
+		.appendingPathComponent("Resources/Localization")
+
+	func keys(_ path: URL) -> Set<String> {
+		guard let dictionary = NSDictionary(contentsOf: path) as? [String: String] else { return [] }
+		return Set(dictionary.keys)
+	}
+
+	let languages = ["zh-Hans", "en"]
+	var tables: [String] = []
+	if let entries = try? FileManager.default.contentsOfDirectory(atPath: root.path) {
+		for language in entries where languages.contains(language) {
+			let directory = root.appendingPathComponent(language)
+			for file in (try? FileManager.default.contentsOfDirectory(atPath: directory.path)) ?? [] {
+				if file.hasSuffix(".strings"), !tables.contains(file) { tables.append(file) }
+			}
+		}
+	}
+	check(!tables.isEmpty, "仓库里至少有一张字符串表", tables.joined(separator: ", "))
+
+	for table in tables {
+		let zh = keys(root.appendingPathComponent("zh-Hans/\(table)"))
+		let en = keys(root.appendingPathComponent("en/\(table)"))
+		let missingInEnglish = zh.subtracting(en).sorted()
+		let missingInChinese = en.subtracting(zh).sorted()
+		check(missingInEnglish.isEmpty, "\(table)：中文有而英文没有的键", missingInEnglish.joined(separator: ", "))
+		check(missingInChinese.isEmpty, "\(table)：英文有而中文没有的键", missingInChinese.joined(separator: ", "))
+	}
 }
 
 group("指令文件路径解析")

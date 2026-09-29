@@ -1,0 +1,5 @@
+/* AgentKit user-facing messages (en)
+ *
+ * 出问题时唯一告诉用户发生了什么的东西：写入被拒、解析失败、校验不通过。
+ * 由 task-4 填充。
+ */

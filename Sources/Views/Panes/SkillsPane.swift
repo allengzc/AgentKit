@@ -129,7 +129,7 @@ struct SkillsPane: View {
 	private var header: some View {
 		VStack(alignment: .leading, spacing: 7) {
 			HStack(spacing: 8) {
-				Text(surface.title).font(.title3.weight(.semibold))
+				Text(surface.titleText).font(.title3.weight(.semibold))
 				if let snapshot {
 					StatusBadge(text: "\(snapshot.skills.count) 个 skill", level: .info)
 					if snapshot.problemCount > 0 {

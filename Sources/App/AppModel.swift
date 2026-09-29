@@ -24,6 +24,10 @@ public final class AppModel {
 	/// The project directory that `$CWD` resolves to. Selecting one is what makes
 	/// a repo's own `.pi/` or `.codex/` configuration reachable.
 	public let projects: ProjectStore
+
+	/// The interface language. Changing it re-creates the root view, which is how
+	/// every `L.t` call gets re-evaluated.
+	public let languages = LanguageStore()
 	public var projectURL: URL? { projects.current }
 
 	// MARK: - Runtime state
