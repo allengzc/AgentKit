@@ -1502,6 +1502,62 @@ do {
 	equal(AtomicFile.mode(of: modelsURL), 0o600, "写回后权限仍是 0600")
 }
 
+group("指令文件路径解析")
+
+do {
+	let root = PathResolver.homeDirectory().appendingPathComponent(".pi/agent")
+	let resolver = PathResolver(root: root, appSupport: fixtureRoot)
+	let surfaces = try? JSONDecoder().decode(
+		AgentDescriptor.self,
+		from: Data(try String(contentsOf: URL(fileURLWithPath: #filePath)
+			.deletingLastPathComponent()
+			.deletingLastPathComponent()
+			.appendingPathComponent("Resources/Agents/pi.json")).utf8)
+	)
+	let files = surfaces?.surface(id: "instructions")?.files ?? []
+	check(!files.isEmpty, "指令面板声明了文件")
+	for spec in files {
+		guard let url = try? resolver.expand(spec.path) else {
+			check(false, "\(spec.path) 应该能解析")
+			continue
+		}
+		check(url.path.hasPrefix("/"), "\(spec.path) 解析成绝对路径", url.path)
+		check(url.path.hasPrefix(root.path), "\(spec.path) 落在 agent 根目录下", url.path)
+	}
+	// The symptom the pane showed was a bare name reaching URL(fileURLWithPath:),
+	// which resolves against the process working directory rather than failing.
+	let relative = URL(fileURLWithPath: "AGENTS.MD").path
+	equal(relative, FileManager.default.currentDirectoryPath + "/AGENTS.MD",
+		  "相对路径被按进程工作目录解析（这就是那个 bug 的形状）")
+	check(relative != "AGENTS.MD", "它不会保持原样，所以坏得很安静")
+}
+
+group("同一文件判定")
+
+do {
+	let directory = fixtureRoot.appendingPathComponent("samefile")
+	try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+	let lower = directory.appendingPathComponent("AGENTS.md")
+	try "# hi\n".write(to: lower, atomically: true, encoding: .utf8)
+	let upper = directory.appendingPathComponent("AGENTS.MD")
+	let other = directory.appendingPathComponent("CLAUDE.md")
+	try "# other\n".write(to: other, atomically: true, encoding: .utf8)
+
+	check(PathResolver.isSameFile(lower, lower), "同一个 URL 是自己")
+	check(PathResolver.isSameFile(lower, URL(fileURLWithPath: lower.path)), "等价路径相同")
+
+	// Whether the case variant resolves to the same file depends on the volume,
+	// so assert against what the filesystem actually does rather than assuming.
+	let caseInsensitive = FileManager.default.fileExists(atPath: upper.path)
+	equal(
+		PathResolver.isSameFile(lower, upper),
+		caseInsensitive,
+		"大小写变体是否同一文件，与文件系统一致（本卷" + (caseInsensitive ? "不区分" : "区分") + "大小写）"
+	)
+	check(!PathResolver.isSameFile(lower, other), "不同文件判定为不同")
+	check(!PathResolver.isSameFile(lower, directory.appendingPathComponent("missing.md")), "不存在的文件之间不误判")
+}
+
 // MARK: - TOML
 
 group("TOML 解析与写入")

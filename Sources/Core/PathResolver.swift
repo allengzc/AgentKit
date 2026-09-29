@@ -203,6 +203,25 @@ public struct PathResolver {
 		}
 	}
 
+	/// True when two URLs point at the same file on disk.
+	///
+	/// macOS volumes are case-insensitive by default, so a descriptor that
+	/// declares both `AGENTS.md` and `AGENTS.MD` resolves to one file. Comparing
+	/// the paths as strings would call those two entries distinct and show the
+	/// same file twice without saying so.
+	public static func isSameFile(_ lhs: URL, _ rhs: URL) -> Bool {
+		if lhs.path == rhs.path { return true }
+		let manager = FileManager.default
+		guard let left = try? manager.attributesOfItem(atPath: lhs.path),
+			let right = try? manager.attributesOfItem(atPath: rhs.path),
+			let leftDevice = left[.systemNumber] as? NSNumber,
+			let rightDevice = right[.systemNumber] as? NSNumber,
+			let leftInode = left[.systemFileNumber] as? NSNumber,
+			let rightInode = right[.systemFileNumber] as? NSNumber
+		else { return false }
+		return leftDevice == rightDevice && leftInode == rightInode
+	}
+
 	/// Resolves a symlink target so writes go through the link rather than
 	/// replacing it with a regular file.
 	public static func writeTarget(for url: URL) -> URL {

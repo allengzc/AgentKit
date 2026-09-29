@@ -76,7 +76,7 @@ python3 Tools/make-icon.py     # 重新生成 Icon.svg / Icon-simple.svg / AppIc
 ```bash
 ./build.sh          # 编译到 out/AgentKit.app（只需要 swiftc）
 ./install.sh        # 再复制到 /Applications/AgentKit.app 并提示入口
-./run-tests.sh      # 480 项离线断言，不需要窗口、不需要网络
+./run-tests.sh      # 500 项离线断言，不需要窗口、不需要网络
 ```
 
 要求：macOS 14+、Xcode 命令行工具（Swift 6.x）、一个用于签名的 Apple Development
@@ -316,6 +316,9 @@ log show --last 5m --info --predicate 'subsystem == "com.allengzc.agentkit"'
 
 ## 已知限制
 
+- **同一文件的多个声明名会被标出来**：macOS 卷默认不区分大小写，pi 同时声明了
+  `AGENTS.md` 和 `AGENTS.MD`，它们其实是同一个文件。面板会标「同 AGENTS.md」并说明，
+  而不是假装有两份。
 - **项目作用域要手动选**：GUI 程序没有"当前工作目录"这种有意义的默认值，所以 AgentKit
   不去猜，而是在工具栏让你选，并把没加载的路径数写在面板上。
 - **内置两个 agent**（pi 与 Codex）。架构为其它 agent 留好了接口，但描述文件只是数据 ——
@@ -347,7 +350,7 @@ Sources/App/         状态、项目作用域、写入控制器、Finder/终端�
 Sources/Views/       SwiftUI 界面
 Resources/Agents/    内置描述文件（pi.json、codex.json）
 Resources/Icon.svg   图标数据源（AppIcon.icns 由它生成）
-Tests/main.swift     480 项离线断言
+Tests/main.swift     500 项离线断言
 ```
 
 ## License
