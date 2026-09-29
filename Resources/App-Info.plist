@@ -8,6 +8,8 @@
 	<string>AgentKit</string>
 	<key>CFBundleExecutable</key>
 	<string>AgentKit</string>
+	<key>CFBundleIconFile</key>
+	<string>AppIcon</string>
 	<key>CFBundleIdentifier</key>
 	<string>com.allengzc.agentkit</string>
 	<key>CFBundleInfoDictionaryVersion</key>

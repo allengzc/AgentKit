@@ -15,6 +15,34 @@
 
 ---
 
+## 图标
+
+<img src="docs/icon.png" width="180" alt="AgentKit 图标">
+
+三张配置文件卡片向左上退去，最前面那张带两行键值 —— 一个形状说清这个产品在做什么：
+好几种不同形状的配置文件，被摆成一个界面。
+
+`Resources/Icon.svg` 是数据源，`Resources/AppIcon.icns` 是包里真正用的那份。
+两者都由 `Tools/make-icon.py` 生成：
+
+```bash
+python3 Tools/make-icon.py     # 重新生成 Icon.svg / Icon-simple.svg / AppIcon.icns
+```
+
+几个刻意的决定：
+
+- **圆角不是圆角矩形**。macOS 11 起用的是连续曲率圆角，形状由
+  `RoundedRectangle(style: .continuous)` 决定。`Tools/iconpath.swift` 直接问系统要
+  那条路径再转成 SVG，而不是手搓贝塞尔去逼近 —— 这样它的轮廓和 Dock 里其它图标是一致的。
+  画布 1024、贴片 824、圆角 185.4、居中留出阴影空间，都是 Apple 的栅格。
+- **后面两张卡是不透明浅色，不是半透明白**。白色 50% 叠在饱和蓝上会变成淡蓝，
+  一叠淡蓝读起来像雾或者运动模糊，而不像几张分开的纸。
+- **16 和 32 点用简化版**（`Icon-simple.svg`）：那个尺寸下后排卡片和两行字都是亚像素，
+  留着只会把轮廓搅浑。同一个剪影、同一个色，只留一张卡。
+- **所有尺寸都是算出来的**，十个 PNG 一次生成，不需要手工导出。
+
+---
+
 ## 为什么是描述文件驱动的
 
 本地 coding agent 的配置从来不是"一个文件"。同样是"模型配置"，两个 agent 就长得完全不一样：
@@ -318,6 +346,7 @@ Sources/Surfaces/    各面板的纯逻辑（无 UI）：MCP 合并、会话解�
 Sources/App/         状态、项目作用域、写入控制器、Finder/终端动作
 Sources/Views/       SwiftUI 界面
 Resources/Agents/    内置描述文件（pi.json、codex.json）
+Resources/Icon.svg   图标数据源（AppIcon.icns 由它生成）
 Tests/main.swift     480 项离线断言
 ```
 

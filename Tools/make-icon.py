@@ -1,0 +1,221 @@
+#!/usr/bin/env python3
+"""Generate AgentKit's app icon.
+
+Writes the SVG sources and the .icns that `build.sh` copies into the bundle.
+
+    Tools/make-icon.py            # regenerate Resources/Icon*.svg and AppIcon.icns
+
+Needs `Tools/bin/iconpath` (built by build.sh) for the squircle path and
+`rsvg-convert` for rasterising. Everything is computed here rather than drawn by
+hand so the geometry stays consistent across the ten sizes macOS asks for.
+
+Design
+------
+Three configuration cards recede up and to the left, the front one carrying two
+rows. That is the product in one shape: several differently-shaped config files,
+presented as one pane.
+
+The receding cards are opaque light tints rather than translucent white. White at
+50% over a saturated blue is a pale blue, and a stack of pale blues reads as haze
+or motion blur instead of as separate sheets.
+
+Two artworks are produced. At 16 and 32 points the back cards and the rows are
+sub-pixel, so the small sizes use the same silhouette with a single card.
+"""
+
+import os
+import subprocess
+import sys
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+ROOT = os.path.dirname(HERE)
+RESOURCES = os.path.join(ROOT, "Resources")
+ICONPATH = os.path.join(HERE, "bin", "iconpath")
+
+CANVAS = 1024
+# Apple's grid: an 824 point tile centred in a 1024 canvas, so the baked-in
+# shadow has room. 185.4 is the documented corner radius for that size.
+TILE_SIDE = 824
+TILE_RADIUS = 185.4
+TILE_ORIGIN = (CANVAS - TILE_SIDE) / 2  # 100
+
+TOP = "#2BB2DC"
+BOTTOM = "#1747B6"
+INK = "#1A56C0"
+
+# Glyph geometry is written in tile-local coordinates (0…824) and shifted onto
+# the canvas when emitted, so the tile's centre is 412 locally and 512 on canvas.
+TILE_CENTRE = TILE_SIDE / 2
+
+# Front to back. All upright: rotation plus heavy overlap reads as motion blur.
+# Each one shrinks as it recedes, which is what makes the stack legible.
+CARDS = [
+    {"size": 340, "radius": 78, "offset": (0, 0), "fill": "#FFFFFF"},
+    {"size": 300, "radius": 69, "offset": (-46, -46), "fill": "#CEEFFA"},
+    {"size": 260, "radius": 60, "offset": (-86, -86), "fill": "#A6D8F0"},
+]
+
+ROW_WIDTH = 27
+
+
+def squircle(side, radius, offset=0.0):
+    """The system's continuous-corner path, as SVG path data."""
+    if not os.path.exists(ICONPATH):
+        sys.exit(f"missing {ICONPATH}; run ./build.sh first")
+    out = subprocess.run(
+        [ICONPATH, str(side), str(radius), str(offset)],
+        check=True, capture_output=True, text=True,
+    ).stdout.strip()
+    if not out.startswith("M"):
+        sys.exit("iconpath did not return path data")
+    return out
+
+
+def card_origin(spec):
+    """Canvas coordinates of a card's top-left corner."""
+    centre = (TILE_CENTRE + spec["offset"][0], TILE_CENTRE + spec["offset"][1])
+    return (
+        round(centre[0] - spec["size"] / 2 + TILE_ORIGIN, 2),
+        round(centre[1] - spec["size"] / 2 + TILE_ORIGIN, 2),
+    )
+
+
+def cards_markup():
+    """Back cards first, then the front one with its own shadow."""
+    back = []
+    for spec in CARDS[1:]:
+        path = squircle(spec["size"], spec["radius"])
+        x, y = card_origin(spec)
+        back.append(
+            f'    <path d="{path}" transform="translate({x} {y})" fill="{spec["fill"]}"/>'
+        )
+
+    front = CARDS[0]
+    path = squircle(front["size"], front["radius"])
+    x, y = card_origin(front)
+    front_markup = (
+        '    <g filter="url(#lift)">\n'
+        f'      <path d="{path}" transform="translate({x} {y})" fill="{front["fill"]}"/>\n'
+        "    </g>"
+    )
+    return "\n".join(back), front_markup, (x, y)
+
+
+def rows_markup(front_origin):
+    """Two rows on the front card: a key and a value, which is what the app shows."""
+    x, y = front_origin
+    left = round(x + 48, 2)
+    first = round(y + 124, 2)
+    second = round(first + 72, 2)
+    return f'''
+    <g stroke="{INK}" stroke-width="{ROW_WIDTH}" stroke-linecap="round">
+      <line x1="{left}" y1="{first}" x2="{round(left + 216, 2)}" y2="{first}"/>
+      <line x1="{left}" y1="{second}" x2="{round(left + 126, 2)}" y2="{second}" stroke-opacity="0.42"/>
+    </g>'''
+
+
+def document(simple):
+    tile = squircle(TILE_SIDE, TILE_RADIUS, TILE_ORIGIN)
+
+    if simple:
+        # One card, a little larger. The rows are sub-pixel at 16 points and the
+        # back cards would only muddy the silhouette, so both are dropped.
+        side = 372
+        path = squircle(side, 84)
+        x = round(TILE_CENTRE - side / 2 + TILE_ORIGIN, 2)
+        body = (
+            '    <g filter="url(#lift)">\n'
+            f'      <path d="{path}" transform="translate({x} {x})" fill="#FFFFFF"/>\n'
+            "    </g>"
+        )
+        rows = ""
+    else:
+        back, front, origin = cards_markup()
+        body = back + "\n" + front
+        rows = rows_markup(origin)
+
+    return f'''<svg xmlns="http://www.w3.org/2000/svg" width="{CANVAS}" height="{CANVAS}" viewBox="0 0 {CANVAS} {CANVAS}">
+  <!-- AgentKit app icon. Generated by Tools/make-icon.py; edit that, not this. -->
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="0.42" y2="1">
+      <stop offset="0" stop-color="{TOP}"/>
+      <stop offset="1" stop-color="{BOTTOM}"/>
+    </linearGradient>
+    <linearGradient id="gloss" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.16"/>
+      <stop offset="0.42" stop-color="#FFFFFF" stop-opacity="0"/>
+    </linearGradient>
+    <clipPath id="tileClip">
+      <path d="{tile}"/>
+    </clipPath>
+    <filter id="drop" x="-25%" y="-25%" width="150%" height="150%">
+      <feDropShadow dx="0" dy="10" stdDeviation="16" flood-color="#0A2A5C" flood-opacity="0.32"/>
+    </filter>
+    <filter id="lift" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#0A2A5C" flood-opacity="0.22"/>
+    </filter>
+  </defs>
+
+  <!-- Tile -->
+  <g filter="url(#drop)">
+    <path d="{tile}" fill="url(#tile)"/>
+    <g clip-path="url(#tileClip)">
+      <rect x="{TILE_ORIGIN}" y="{TILE_ORIGIN}" width="{TILE_SIDE}" height="{TILE_SIDE}" fill="url(#gloss)"/>
+    </g>
+    <!-- A hairline keeps the edge readable against pale backgrounds. -->
+    <path d="{tile}" fill="none" stroke="#FFFFFF" stroke-opacity="0.20" stroke-width="2"/>
+  </g>
+
+  <!-- Glyph -->
+  <g>
+{body}{rows}
+  </g>
+</svg>
+'''
+
+
+def rasterise(svg, size, out):
+    subprocess.run(
+        ["rsvg-convert", "-w", str(size), "-h", str(size), "-o", out, svg],
+        check=True,
+    )
+
+
+def main():
+    full_svg = os.path.join(RESOURCES, "Icon.svg")
+    simple_svg = os.path.join(RESOURCES, "Icon-simple.svg")
+    with open(full_svg, "w") as handle:
+        handle.write(document(simple=False))
+    with open(simple_svg, "w") as handle:
+        handle.write(document(simple=True))
+    print(f"wrote {os.path.relpath(full_svg, ROOT)}")
+    print(f"wrote {os.path.relpath(simple_svg, ROOT)}")
+
+    iconset = os.path.join(ROOT, "out", "AppIcon.iconset")
+    subprocess.run(["rm", "-rf", iconset], check=True)
+    os.makedirs(iconset, exist_ok=True)
+
+    # macOS asks for these ten files. 16 and 32 points get the simplified art.
+    plan = [
+        ("icon_16x16.png", 16, simple_svg),
+        ("icon_16x16@2x.png", 32, simple_svg),
+        ("icon_32x32.png", 32, simple_svg),
+        ("icon_32x32@2x.png", 64, full_svg),
+        ("icon_128x128.png", 128, full_svg),
+        ("icon_128x128@2x.png", 256, full_svg),
+        ("icon_256x256.png", 256, full_svg),
+        ("icon_256x256@2x.png", 512, full_svg),
+        ("icon_512x512.png", 512, full_svg),
+        ("icon_512x512@2x.png", 1024, full_svg),
+    ]
+    for name, size, svg in plan:
+        rasterise(svg, size, os.path.join(iconset, name))
+    print(f"rasterised {len(plan)} sizes")
+
+    icns = os.path.join(RESOURCES, "AppIcon.icns")
+    subprocess.run(["iconutil", "-c", "icns", iconset, "-o", icns], check=True)
+    print(f"wrote {os.path.relpath(icns, ROOT)} ({os.path.getsize(icns) // 1024} KB)")
+
+
+if __name__ == "__main__":
+    main()

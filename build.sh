@@ -26,6 +26,15 @@ CACHE_FLAGS=(
 
 TARGET="${AGENTKIT_TARGET:-arm64-apple-macosx14.0}"
 
+echo "==> building tool helpers"
+mkdir -p "$HERE/Tools/bin"
+for tool in iconpath windowid; do
+	swiftc -swift-version 5 -target "$TARGET" \
+		"${CACHE_FLAGS[@]}" \
+		-framework SwiftUI -framework CoreGraphics \
+		-o "$HERE/Tools/bin/$tool" "$HERE/Tools/$tool.swift"
+done
+
 echo "==> cleaning"
 rm -rf "$OUT"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources/Agents"
@@ -48,6 +57,11 @@ swiftc -O -swift-version 5 -target "$TARGET" \
 
 echo "==> assembling bundle"
 cp "$RES/App-Info.plist" "$APP/Contents/Info.plist"
+if [[ ! -f "$RES/AppIcon.icns" ]]; then
+	echo "!! $RES/AppIcon.icns is missing; run Tools/make-icon.py" >&2
+	exit 1
+fi
+cp "$RES/AppIcon.icns" "$APP/Contents/Resources/AppIcon.icns"
 cp "$RES/Agents/"*.json "$APP/Contents/Resources/Agents/"
 printf 'APPL????' > "$APP/Contents/PkgInfo"
 
