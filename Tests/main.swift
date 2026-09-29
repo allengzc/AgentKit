@@ -1626,6 +1626,52 @@ do {
 	equal(unterminated.count, 1, "未闭合的代码围栏也产出代码块")
 }
 
+group("skill 校验：description")
+
+do {
+	let root = fixtureRoot.appendingPathComponent("desc/skills")
+	let descriptor = try JSONDecoder().decode(
+		AgentDescriptor.self,
+		from: Data(try String(contentsOf: URL(fileURLWithPath: #filePath)
+			.deletingLastPathComponent()
+			.deletingLastPathComponent()
+			.appendingPathComponent("Resources/Agents/pi.json")).utf8)
+	)
+	let surface = descriptor.surface(id: "skills")!
+
+	func scan(_ name: String, _ frontmatter: String) -> SkillEntry? {
+		let directory = root.appendingPathComponent(name)
+		try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+		try? frontmatter.write(to: directory.appendingPathComponent("SKILL.md"), atomically: true, encoding: .utf8)
+		let snapshot = SkillsScanner.scan(
+			roots: [(spec: RootEntry(path: root.path, scope: "user", writable: true), url: root)],
+			ignore: Set(surface.ignore ?? []),
+			maxDepth: surface.maxDepth ?? 4,
+			policy: descriptor.backupPolicy
+		)
+		return snapshot.skills.first { $0.name == name }
+	}
+
+	let missing = scan("missing-desc", "---\nname: missing-desc\n---\n\n正文\n")
+	check(missing?.issues.isEmpty == false, "完全没有 description 会被报出来")
+
+	// `description:` with nothing after it parses to an empty string. It used to
+	// pass validation, which meant the pane offered a skill pi cannot use as its
+	// healthy default.
+	let empty = scan("empty-desc", "---\nname: empty-desc\ndescription:\n---\n\n正文\n")
+	check(empty?.issues.isEmpty == false, "空的 description 同样会被报出来")
+	check(
+		empty?.issues.contains { $0.contains("description") } == true,
+		"并且说清楚是 description 的问题"
+	)
+
+	let blank = scan("blank-desc", "---\nname: blank-desc\ndescription: \"   \"\n---\n\n正文\n")
+	check(blank?.issues.isEmpty == false, "只有空白的 description 也算缺失")
+
+	let good = scan("good-desc", "---\nname: good-desc\ndescription: Does a thing.\n---\n\n正文\n")
+	check(good?.issues.isEmpty == true, "正常的 description 没问题")
+}
+
 group("随包文件：结构化列表数据")
 
 do {

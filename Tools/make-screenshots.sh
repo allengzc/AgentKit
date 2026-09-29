@@ -1,18 +1,27 @@
 #!/usr/bin/env bash
 # Regenerate the screenshots under docs/ from the demo fixture.
 #
-#     Tools/make-screenshots.sh
+#     Tools/make-screenshots.sh            # everything
+#     Tools/make-screenshots.sh skills mcp # just these
 #
 # Everything in the pictures comes from Tools/make-demo.py: the providers, the
 # sessions, the skills and the project paths are invented, and `AGENTKIT_HOME`
 # makes the app resolve `~` inside that tree, so no real configuration is read.
 #
-# Each image is rendered by the app itself (`AGENTKIT_DOC_STATE=snapshot:…`),
-# not captured with `screencapture`. Screen capture needs permission for anything
-# narrower than a whole display, and it cannot see a window that is not on the
-# active Space, so it is unreliable on a machine someone is using. Asking AppKit
-# to draw its own view hierarchy needs neither, and gives the same bytes every
-# time. The app quits as soon as it has written the file.
+# Capture is `screencapture -l` on the app's window, which reads the window's own
+# backing store. Two false starts are worth recording:
+#
+#   * Rendering the view hierarchy from inside the app (`CALayer.render(in:)`)
+#     looked appealing — no Screen Recording permission, no need for the window
+#     to be in front — but it silently drops the sidebar, which is drawn through
+#     an NSVisualEffectView the window server composites. The result was a very
+#     convincing screenshot with an empty left column.
+#   * `windowid -o` lists windows belonging to instances that have already quit,
+#     so a previous run's dying window can be captured instead of the new one.
+#     Instances are therefore serialised, and only on-screen windows are used.
+#
+# Requires the display to be awake: while it is asleep every window capture
+# fails and a full-screen capture returns a stale blank frame.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -21,12 +30,11 @@ APP="$HERE/out/AgentKit.app/Contents/MacOS/AgentKit"
 SHOTS="$HERE/docs"
 
 [[ -x "$APP" ]] || { echo "!! build first: ./build.sh" >&2; exit 1; }
-command -v rsvg-convert >/dev/null || echo "(note: rsvg-convert is only needed for the icon)"
 
 python3 "$HERE/Tools/make-demo.py" "$DEMO"
 mkdir -p "$SHOTS"
 
-# name  agent/surface  AGENTKIT_DOC_STATE
+# name  agent/surface  extra AGENTKIT_DOC_STATE
 SHOTS_LIST=(
   "settings:pi/settings:"
   "models:pi/models:"
@@ -42,49 +50,92 @@ SHOTS_LIST=(
   "codex-sessions:codex/sessions:"
 )
 
-# The app writes to a fixed bundle id, so two instances must never overlap: a
-# window belonging to a previous, still-exiting instance can be captured instead
-# of the new one, and the result looks like a layout bug.
-previous_window=""
+quit_app() {
+  pkill -f "AgentKit.app/Contents/MacOS/AgentKit" 2>/dev/null || true
+  local waited=0
+  while pgrep -f "AgentKit.app/Contents/MacOS/AgentKit" >/dev/null 2>&1; do
+    sleep 0.5
+    waited=$((waited + 1))
+    if [[ $waited -gt 20 ]]; then
+      pkill -9 -f "AgentKit.app/Contents/MacOS/AgentKit" 2>/dev/null || true
+      break
+    fi
+  done
+}
+
+# The sidebar is the part a bad capture loses first, so it is what the acceptance
+# check looks at: a blank left column compresses to almost nothing.
+sidebar_bytes() {
+  sips -c 420 230 --cropOffset 150 12 "$1" --out /tmp/.sidebar-probe.png >/dev/null 2>&1 || true
+  stat -f%z /tmp/.sidebar-probe.png 2>/dev/null || echo 0
+}
 
 shoot() {
   local name="$1" target="$2" state="$3"
   local out="$SHOTS/$name.png"
-
-  # Every shot is taken in the same appearance, so a set of screenshots does not
-  # mix light and dark depending on the time of day it was generated.
-  local doc_state="appearance:light,snapshot:$out"
+  local doc_state="appearance:light"
   [[ -n "$state" ]] && doc_state="$doc_state,$state"
 
+  local attempt wid pid bytes
+  for attempt in 1 2 3; do
+    quit_app
+    rm -f "$out"
+    env AGENTKIT_HOME="$DEMO" \
+        AGENTKIT_OPEN="$target" \
+        AGENTKIT_DOC_STATE="$doc_state" \
+        "$APP" -ApplePersistenceIgnoreState YES >/dev/null 2>&1 &
+    pid=$!
+
+    wid=""
+    for _ in $(seq 1 30); do
+      sleep 1
+      kill -0 "$pid" 2>/dev/null || break
+      wid="$(Tools/bin/windowid AgentKit 2>/dev/null || true)"
+      [[ -n "$wid" ]] && break
+    done
+
+    if [[ -n "$wid" ]]; then
+      sleep 3
+      screencapture -x -o -l "$wid" "$out" 2>/dev/null || true
+    fi
+    kill "$pid" 2>/dev/null || true
+    wait "$pid" 2>/dev/null || true
+
+    if [[ -f "$out" ]] && [[ "$(sidebar_bytes "$out")" -gt 6000 ]]; then
+      sips -Z 1600 "$out" --out "$out" >/dev/null
+      bytes="$(du -h "$out" | cut -f1)"
+      printf '  %-20s %-6s %sx%s\n' "$name.png" "$bytes" \
+        "$(sips -g pixelWidth "$out" 2>/dev/null | awk '/pixelWidth/{print $2}')" \
+        "$(sips -g pixelHeight "$out" 2>/dev/null | awk '/pixelHeight/{print $2}')"
+      return 0
+    fi
+    echo "  $name: attempt $attempt produced no usable window, retrying"
+    sleep 2
+  done
+
+  echo "!! $name: gave up"
   rm -f "$out"
-  env AGENTKIT_HOME="$DEMO" \
-      AGENTKIT_OPEN="$target" \
-      AGENTKIT_DOC_STATE="$doc_state" \
-      "$APP" -ApplePersistenceIgnoreState YES >/dev/null 2>&1
-
-  if [[ ! -f "$out" ]]; then
-    echo "!! $name: the app produced no snapshot"
-    return 1
-  fi
-
-  # Half-size copies keep the repository small.
-  sips -Z 1600 "$out" --out "$out" >/dev/null
-  local width
-  width="$(sips -g pixelWidth "$out" 2>/dev/null | awk '/pixelWidth/{print $2}')"
-  printf '  %-20s %s  %sx%s\n' "$name.png" "$(du -h "$out" | cut -f1)" "$width" \
-    "$(sips -g pixelHeight "$out" 2>/dev/null | awk '/pixelHeight/{print $2}')"
+  return 1
 }
 
 echo "==> capturing"
+failures=0
 for entry in "${SHOTS_LIST[@]}"; do
   name="${entry%%:*}"
   rest="${entry#*:}"
   target="${rest%%:*}"
   state="${rest#*:}"
   [[ "$state" == "$rest" ]] && state=""
-  shoot "$name" "$target" "$state" || true
+
+  if [[ $# -gt 0 ]]; then
+    wanted=0
+    for only in "$@"; do [[ "$only" == "$name" ]] && wanted=1; done
+    [[ $wanted -eq 0 ]] && continue
+  fi
+
+  shoot "$name" "$target" "$state" || failures=$((failures + 1))
 done
-
-
+quit_app
 
 echo "==> done: $SHOTS"
+[[ $failures -eq 0 ]] || { echo "!! $failures shot(s) failed" >&2; exit 1; }

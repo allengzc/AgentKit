@@ -17,7 +17,6 @@
 
 import AppKit
 import Foundation
-import QuartzCore
 
 enum DocumentationState {
 	/// Parsed once: `key:value` pairs separated by commas, a bare `key` meaning "on".
@@ -34,53 +33,6 @@ enum DocumentationState {
 
 	static func isOn(_ key: String) -> Bool { values[key] != nil }
 	static func string(_ key: String) -> String? { values[key] }
-
-	/// `snapshot:/path/to.png` writes the window to a PNG and quits.
-	///
-	/// Rendered by the app itself rather than captured with `screencapture`,
-	/// which needs Screen Recording permission for anything narrower than the
-	/// whole display — and which cannot see a window that is not on the active
-	/// Space. Asking AppKit to draw its own view hierarchy needs neither, so the
-	/// screenshots can be regenerated on any machine, headless, in CI.
-	static func writeSnapshot(to path: String) {
-		let window = NSApp.windows
-			.filter { $0.contentView != nil && $0.frame.width > 400 }
-			.max { $0.frame.width * $0.frame.height < $1.frame.width * $1.frame.height }
-		guard let window, let content = window.contentView else {
-			FileHandle.standardError.write(Data("no window to snapshot\n".utf8))
-			return
-		}
-		// The theme frame, not the content view: it includes the title bar, which
-		// is what makes the picture recognisable as a macOS window.
-		let view = content.superview ?? content
-		guard let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { return }
-
-		// `cacheDisplay(in:to:)` walks `draw(_:)`, which a layer-backed SwiftUI
-		// hierarchy does not use — it produced shifted, half-empty frames. The
-		// layer tree is the real content, so render that.
-		if let layer = view.layer {
-			NSGraphicsContext.saveGraphicsState()
-			if let context = NSGraphicsContext(bitmapImageRep: rep) {
-				NSGraphicsContext.current = context
-				layer.render(in: context.cgContext)
-			}
-			NSGraphicsContext.restoreGraphicsState()
-		} else {
-			view.cacheDisplay(in: view.bounds, to: rep)
-		}
-
-		guard let data = rep.representation(using: .png, properties: [:]) else { return }
-		do {
-			try data.write(to: URL(fileURLWithPath: path))
-		} catch {
-			FileHandle.standardError.write(Data("snapshot failed: \(error)\n".utf8))
-		}
-	}
-
-	/// Seconds to wait before the snapshot, so the first scan has finished.
-	static var snapshotDelay: TimeInterval {
-		Double(values["snapshot_delay"] ?? "") ?? 6
-	}
 
 	/// True when any state was requested, so callers can skip the work entirely.
 	static var isActive: Bool { !values.isEmpty }

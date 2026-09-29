@@ -129,7 +129,11 @@ public struct SkillEntry: Identifiable {
 	public var issues: [String] {
 		var out: [String] = []
 		if !document.isReadable { out.append(document.problemReason ?? "文件无法读取") }
-		if frontmatter.string("description") == nil {
+		// An empty value is as unusable as an absent one: `description:` with
+		// nothing after it parses to "", and pi has nothing to match a request
+		// against. Treating that as valid meant a broken skill was picked as the
+		// healthy default.
+		if frontmatter.string("description")?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true {
 			out.append("缺少 description：pi 不会加载这个 skill")
 		} else if description.count > 1024 {
 			out.append("description 超过 1024 字符")

@@ -47,12 +47,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 		{
 			window.setFrame(NSRect(origin: window.frame.origin, size: size), display: true)
 		}
-		if let path = DocumentationState.string("snapshot"), path != "1" {
-			DispatchQueue.main.asyncAfter(deadline: .now() + DocumentationState.snapshotDelay) {
-				DocumentationState.writeSnapshot(to: path)
-				NSApp.terminate(nil)
-			}
-		}
 		Log.app.info("AgentKit launched")
 	}
 
