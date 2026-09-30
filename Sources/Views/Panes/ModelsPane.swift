@@ -226,6 +226,7 @@ struct ModelsPane: View {
 		}
 		.frame(width: 260)
 		.listStyle(.sidebar)
+		.paneListBackground()
 	}
 
 	// MARK: - Detail

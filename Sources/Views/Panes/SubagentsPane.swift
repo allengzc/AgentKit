@@ -241,6 +241,7 @@ struct SubagentsPane: View {
 		}
 		.frame(width: 260)
 		.listStyle(.sidebar)
+		.paneListBackground()
 		.overlay {
 			if entries.isEmpty {
 				Text(L.t("empty.noSubagents", "还没有子 agent"))

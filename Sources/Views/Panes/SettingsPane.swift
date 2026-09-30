@@ -282,6 +282,7 @@ struct SettingsPane: View {
 		}
 		.frame(width: 190)
 		.listStyle(.sidebar)
+		.paneListBackground()
 	}
 
 	@ViewBuilder

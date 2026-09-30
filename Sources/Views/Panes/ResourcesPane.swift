@@ -136,6 +136,7 @@ struct ResourcesPane: View {
 		}
 		.frame(width: 200)
 		.listStyle(.sidebar)
+		.paneListBackground()
 	}
 
 	@ViewBuilder

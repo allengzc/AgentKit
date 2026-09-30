@@ -279,3 +279,25 @@ struct ProjectScopeBanner: View {
 		}
 	}
 }
+
+extension View {
+	/// The background for a pane's *own* master list.
+	///
+	/// `.listStyle(.sidebar)` is what gives the app its row style and capsule
+	/// selection, but it also paints the window sidebar's translucent material.
+	/// Inside a pane that material sits next to the real sidebar with only a 1pt
+	/// divider between them, and the two columns then read as one gray band
+	/// running from the sidebar into the pane — measured on a screenshot of the
+	/// settings pane: sidebar `rgb(242,246,246)` against the list column
+	/// `rgb(230,230,234)`, both with the same rounded top-left corner, i.e. two
+	/// panels where the eye expects one edge.
+	///
+	/// Hiding it and filling with the flat `controlBackgroundColor` is what the
+	/// panes without a `List` already do for their master column (`SkillsPane`,
+	/// `SessionsPane`, `InstructionsPane`), so this also makes the six panes
+	/// agree with each other instead of with the window's sidebar.
+	func paneListBackground() -> some View {
+		scrollContentBackground(.hidden)
+			.background(Color(nsColor: .controlBackgroundColor))
+	}
+}
