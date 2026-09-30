@@ -8,6 +8,7 @@
   },
   "icon": "chevron.left.forwardslash.chevron.right",
   "glyph": "⬡",
+  "iconImage": "openai.svg",
   "tint": "#10A37F",
   "homepage": "https://github.com/openai/codex",
 

@@ -6,6 +6,7 @@
 //  fixture directory under /tmp) without touching a real config file.
 //
 
+import AppKit
 import Foundation
 
 // MARK: - Harness
@@ -3314,6 +3315,23 @@ do {
 	for descriptor in outcome.descriptors {
 		check(descriptor.tintRGB != nil, "\(descriptor.id)：底色能解析出 RGB")
 		check(!(descriptor.glyph ?? "").isEmpty, "\(descriptor.id)：给了自己的字形")
+		check(
+			descriptor.iconImage != nil || !(descriptor.glyph ?? "").isEmpty || descriptor.icon != nil,
+			"\(descriptor.id)：logo / 字形 / SF Symbol 至少有一个，否则头部画成默认的 cpu"
+		)
+
+		// A logo that cannot be read falls back to the glyph silently, so the file
+		// has to be named right *and* really be an image: fetching one of these
+		// once produced a 67-byte "couldn't find the requested file" text file,
+		// which looks fine in a directory listing and would have shipped as a blank
+		// badge.
+		if let name = descriptor.iconImage {
+			let url = repository.appendingPathComponent("Resources/Agents/\(name)")
+			check(FileManager.default.fileExists(atPath: url.path), "\(descriptor.id)：iconImage 指的文件在（\(name)）")
+			let image = NSImage(contentsOf: url)
+			check(image != nil, "\(descriptor.id)：这个文件真的是一张图", "取回来可能是一段错误文本而不是 SVG")
+			check((image?.size.width ?? 0) > 0, "\(descriptor.id)：图有尺寸")
+		}
 	}
 	equal(
 		Set(outcome.descriptors.compactMap(\.glyph)).count,

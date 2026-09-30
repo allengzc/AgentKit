@@ -84,6 +84,21 @@ done
 cp "$RES/Agents/"*.json "$APP/Contents/Resources/Agents/"
 printf 'APPL????' > "$APP/Contents/PkgInfo"
 
+# Agent marks: SVG logos a descriptor can point at with `iconImage`. Optional —
+# an agent described by a `glyph` or an SF Symbol needs none — but a logo that
+# did not make it into the bundle would silently draw the fallback instead, so
+# the count is checked.
+MARKS_SRC=$(find "$RES/Agents" -name '*.svg' | wc -l | tr -d ' ')
+if [[ "$MARKS_SRC" -gt 0 ]]; then
+	cp "$RES/Agents/"*.svg "$APP/Contents/Resources/Agents/"
+	MARKS_BUNDLED=$(find "$APP/Contents/Resources/Agents" -name '*.svg' | wc -l | tr -d ' ')
+	if [[ "$MARKS_BUNDLED" -ne "$MARKS_SRC" ]]; then
+		echo "!! bundled $MARKS_BUNDLED of $MARKS_SRC agent mark(s)" >&2
+		exit 1
+	fi
+	echo "    bundled $MARKS_SRC agent mark(s)"
+fi
+
 # The descriptors are the app's data model; a bundle without them shows nothing.
 DESCRIPTORS=$(find "$APP/Contents/Resources/Agents" -name '*.json' | wc -l | tr -d ' ')
 if [[ "$DESCRIPTORS" -eq 0 ]]; then

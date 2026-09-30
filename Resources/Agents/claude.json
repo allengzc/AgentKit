@@ -8,6 +8,7 @@
   },
   "icon": "sparkles",
   "glyph": "✳",
+  "iconImage": "claude.svg",
   "tint": "#D97757",
   "homepage": "https://code.claude.com/docs/en/settings",
 

@@ -309,12 +309,12 @@ extension View {
 
 /// The selected agent's mark.
 ///
-/// Three agents in one picker have to be told apart at a glance, and their own
-/// logos are not something this app can ship. A rounded badge tinted from the
-/// descriptor (`tint` + `glyph`) says which agent is selected without pretending
-/// to be somebody's trademark: π for pi, a hexagon for Codex, an asterisk for
-/// Claude Code. Both keys are optional, so a descriptor written before them keeps
-/// loading and falls back to its `icon` symbol in the app's tint.
+/// Three agents in one picker have to be told apart at a glance. The mark comes
+/// from the descriptor, in order of preference: `iconImage` (a logo shipped with
+/// the app), `glyph` (a character — pi's identity is the letter π, which has no
+/// SF Symbol), or the `icon` SF Symbol. All three are drawn inside the same
+/// tinted badge so the header looks the same whichever an agent uses, and both
+/// keys are optional so a descriptor written before them keeps loading.
 struct AgentBadge: View {
 	let descriptor: AgentDescriptor?
 	var size: CGFloat = 18
@@ -328,19 +328,54 @@ struct AgentBadge: View {
 		RoundedRectangle(cornerRadius: size * 0.27, style: .continuous)
 			.fill(color.opacity(0.16))
 			.frame(width: size, height: size)
-			.overlay {
-				if let glyph = descriptor?.glyph, !glyph.isEmpty {
-					Text(glyph)
-						.font(.system(size: size * 0.64, weight: .semibold))
-						.foregroundStyle(color)
-				} else {
-					Image(systemName: descriptor?.icon ?? "cpu")
-						.font(.system(size: size * 0.5, weight: .semibold))
-						.foregroundStyle(color)
-				}
-			}
+			.overlay { mark }
 			// The picker beside it already announces the agent's name; a badge
 			// that repeated it would just make VoiceOver read the header twice.
 			.accessibilityHidden(true)
+	}
+
+	@ViewBuilder
+	private var mark: some View {
+		if let logo = AgentMark.image(named: descriptor?.iconImage) {
+			// Template rendering: the logo is drawn in the agent's tint, which is
+			// also what keeps it visible in dark mode (OpenAI's mark is black).
+			Image(nsImage: logo)
+				.renderingMode(.template)
+				.resizable()
+				.interpolation(.high)
+				.scaledToFit()
+				.frame(width: size * 0.6, height: size * 0.6)
+				.foregroundStyle(color)
+		} else if let glyph = descriptor?.glyph, !glyph.isEmpty {
+			Text(glyph)
+				.font(.system(size: size * 0.64, weight: .semibold))
+				.foregroundStyle(color)
+		} else {
+			Image(systemName: descriptor?.icon ?? "cpu")
+				.font(.system(size: size * 0.5, weight: .semibold))
+				.foregroundStyle(color)
+		}
+	}
+}
+
+/// Logos shipped in `Contents/Resources/Agents/`, loaded once.
+///
+/// `NSImage` reads SVG on macOS 14 (`_NSSVGImageRep`), so the logo stays a vector
+/// and is sharp at any badge size — no rasterised copy to keep in step.
+@MainActor
+enum AgentMark {
+	private static var cache: [String: NSImage] = [:]
+
+	static func image(named name: String?) -> NSImage? {
+		guard let name, !name.isEmpty else { return nil }
+		if let hit = cache[name] { return hit }
+		let base = (name as NSString).deletingPathExtension
+		let ext = (name as NSString).pathExtension
+		guard let url = Bundle.main.url(
+			forResource: base, withExtension: ext.isEmpty ? nil : ext, subdirectory: "Agents"
+		), let image = NSImage(contentsOf: url) else { return nil }
+		image.isTemplate = true
+		cache[name] = image
+		return image
 	}
 }

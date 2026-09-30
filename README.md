@@ -2,7 +2,7 @@
 
 **一个原生 macOS GUI，用描述文件驱动地配置和管理本地 coding agent。**
 
-[中文](README.md) · [English](README.en.md)
+中文· [English](README.en.md)
 
 现支持三个 agent：
 
@@ -116,3 +116,8 @@ log show --last 5m --info --predicate 'subsystem == "com.allengzc.agentkit"'
 ## License
 
 MIT © 2026 allengzc
+
+`Resources/Agents/claude.svg` 与 `openai.svg`（侧栏头部那两个标记）取自
+[gilbarbara/logos](https://github.com/gilbarbara/logos)；**这些图形是 Anthropic 与 OpenAI
+的商标**，这里只用来指代对应的产品，不在 MIT 授权范围内 —— 见
+[Resources/Agents/README.md](Resources/Agents/README.md)。

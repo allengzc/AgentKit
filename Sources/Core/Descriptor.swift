@@ -347,6 +347,9 @@ public struct AgentDescriptor: Codable {
 	/// own — pi's mark is the letter π. Takes precedence over `icon`; optional
 	/// for the same reason as `tint`.
 	public var glyph: String?
+	/// A file name in the descriptors directory (`claude.svg`) for agents whose
+	/// mark is a logo rather than a glyph. Takes precedence over `glyph`; optional.
+	public var iconImage: String?
 	public var homepage: String?
 	public var root: RootSpec
 	public var detect: DetectSpec?
