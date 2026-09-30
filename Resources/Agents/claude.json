@@ -7,6 +7,8 @@
     "en": "claude (Anthropic)"
   },
   "icon": "sparkles",
+  "glyph": "✳",
+  "tint": "#D97757",
   "homepage": "https://code.claude.com/docs/en/settings",
 
   "root": { "env": "CLAUDE_CONFIG_DIR", "default": "~/.claude" },
@@ -78,7 +80,7 @@
       "id": "skills",
       "kind": "skills",
       "title": { "zh-Hans": "Skills", "en": "Skills" },
-      "icon": "shippingbox",
+      "icon": "puzzlepiece.extension",
       "shape": "skill-dirs",
       "ignore": [".git", "node_modules", ".venv", "venv", "logs", ".cache", "dist", "build"],
       "maxDepth": 5,

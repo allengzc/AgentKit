@@ -45,8 +45,24 @@ public final class AppModel {
 
 	public let appSupport: URL
 
-	public init(appSupport: URL = PathResolver.defaultAppSupport) {
+	/// Where the remembered agent and pane live.
+	///
+	/// The app opens on what you left it on instead of on the first agent every
+	/// time. `AGENTKIT_OPEN` still overrides for a single run, and is deliberately
+	/// *not* written back: that variable belongs to scripts and screenshots, not
+	/// to the user's choice.
+	private let defaults: UserDefaults
+
+	private enum DefaultsKey {
+		static let agent = "AgentKitSelectedAgent"
+		/// Per agent, because switching pi → Claude → pi should come back to the
+		/// pane you had open on pi, not to one shared "last pane".
+		static func surface(_ agentID: String) -> String { "AgentKitSurface.\(agentID)" }
+	}
+
+	public init(appSupport: URL = PathResolver.defaultAppSupport, defaults: UserDefaults = .standard) {
 		self.appSupport = appSupport
+		self.defaults = defaults
 		self.projects = ProjectStore(appSupport: appSupport)
 		reloadDescriptors()
 	}
@@ -87,13 +103,46 @@ public final class AppModel {
 		lastReload = Date()
 
 		if selectedAgentID == nil || !agents.contains(where: { $0.id == selectedAgentID }) {
-			selectedAgentID = agents.first?.id
+			selectedAgentID = Selection.resolved(
+				saved: selectedAgentID ?? defaults.string(forKey: DefaultsKey.agent),
+				available: agents.map(\.id)
+			)
 		}
-		if selectedSurfaceID == nil {
-			selectedSurfaceID = selectedAgent?.descriptor.surfaces.first?.id
+		if selectedSurfaceID == nil || selectedAgent?.descriptor.surface(id: selectedSurfaceID ?? "") == nil {
+			selectedSurfaceID = Selection.resolved(
+				saved: selectedSurfaceID ?? selectedAgent.flatMap { defaults.string(forKey: DefaultsKey.surface($0.id)) },
+				available: selectedAgent?.descriptor.surfaces.map(\.id) ?? []
+			)
 		}
+		rememberSelection()
 		restartWatcher()
 		Log.app.info("loaded \(self.agents.count, privacy: .public) agent(s)")
+	}
+
+	/// Writes the current choice back, so the next launch opens here.
+	private func rememberSelection() {
+		if let selectedAgentID { defaults.set(selectedAgentID, forKey: DefaultsKey.agent) }
+		if let selectedAgentID, let selectedSurfaceID {
+			defaults.set(selectedSurfaceID, forKey: DefaultsKey.surface(selectedAgentID))
+		}
+	}
+
+	/// The agent picker: remembers the choice and restores *this* agent's pane.
+	public func selectAgent(id: String) {
+		guard agents.contains(where: { $0.id == id }) else { return }
+		selectedAgentID = id
+		selectedSurfaceID = Selection.resolved(
+			saved: defaults.string(forKey: DefaultsKey.surface(id)),
+			available: selectedAgent?.descriptor.surfaces.map(\.id) ?? []
+		)
+		rememberSelection()
+	}
+
+	/// The pane list: `nil` is a legitimate value for `List(selection:)` (the
+	/// click that clears the highlight) and must not be remembered as a choice.
+	public func selectSurface(id: String?) {
+		selectedSurfaceID = id
+		rememberSelection()
 	}
 
 	public var selectedAgent: LoadedAgent? {
@@ -109,6 +158,7 @@ public final class AppModel {
 	public func select(agent: LoadedAgent, surface: SurfaceSpec) {
 		selectedAgentID = agent.id
 		selectedSurfaceID = surface.id
+		rememberSelection()
 	}
 
 	public func resolver(for agent: LoadedAgent) -> PathResolver {

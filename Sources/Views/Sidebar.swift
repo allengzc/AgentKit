@@ -11,12 +11,15 @@ struct Sidebar: View {
 	@Environment(AppModel.self) private var model
 
 	var body: some View {
-		@Bindable var model = model
-
-		return VStack(spacing: 0) {
+		VStack(spacing: 0) {
 			agentHeader
 			Divider()
-			List(selection: $model.selectedSurfaceID) {
+			// The binding exists because `List` needs one; the model stays the
+			// source of truth so the choice can be remembered (`selectSurface`).
+			List(selection: Binding(
+				get: { model.selectedSurfaceID },
+				set: { model.selectSurface(id: $0) }
+			)) {
 				Section(L.t("sidebar.section.panels", "面板")) {
 					ForEach(model.selectedAgent?.descriptor.surfaces ?? [], id: \.id) { surface in
 						surfaceRow(surface)
@@ -34,16 +37,11 @@ struct Sidebar: View {
 	private var agentHeader: some View {
 		VStack(alignment: .leading, spacing: 6) {
 			HStack(spacing: 8) {
-				Image(systemName: model.selectedAgent?.descriptor.icon ?? "cpu")
-					.font(.system(size: 15, weight: .semibold))
-					.foregroundStyle(.tint)
+				AgentBadge(descriptor: model.selectedAgent?.descriptor)
 				if model.agents.count > 1 {
 					Picker("", selection: Binding(
 						get: { model.selectedAgentID ?? "" },
-						set: { newValue in
-							model.selectedAgentID = newValue
-							model.selectedSurfaceID = model.selectedAgent?.descriptor.surfaces.first?.id
-						}
+						set: { model.selectAgent(id: $0) }
 					)) {
 						ForEach(model.agents) { agent in
 							Text(agent.name).tag(agent.id)

@@ -301,3 +301,41 @@ extension View {
 			.background(Color(nsColor: .controlBackgroundColor))
 	}
 }
+
+/// The selected agent's mark.
+///
+/// Three agents in one picker have to be told apart at a glance, and their own
+/// logos are not something this app can ship. A rounded badge tinted from the
+/// descriptor (`tint` + `glyph`) says which agent is selected without pretending
+/// to be somebody's trademark: π for pi, a hexagon for Codex, an asterisk for
+/// Claude Code. Both keys are optional, so a descriptor written before them keeps
+/// loading and falls back to its `icon` symbol in the app's tint.
+struct AgentBadge: View {
+	let descriptor: AgentDescriptor?
+	var size: CGFloat = 18
+
+	private var color: Color {
+		guard let rgb = descriptor?.tintRGB else { return .accentColor }
+		return Color(red: rgb.red, green: rgb.green, blue: rgb.blue)
+	}
+
+	var body: some View {
+		RoundedRectangle(cornerRadius: size * 0.27, style: .continuous)
+			.fill(color.opacity(0.16))
+			.frame(width: size, height: size)
+			.overlay {
+				if let glyph = descriptor?.glyph, !glyph.isEmpty {
+					Text(glyph)
+						.font(.system(size: size * 0.64, weight: .semibold))
+						.foregroundStyle(color)
+				} else {
+					Image(systemName: descriptor?.icon ?? "cpu")
+						.font(.system(size: size * 0.5, weight: .semibold))
+						.foregroundStyle(color)
+				}
+			}
+			// The picker beside it already announces the agent's name; a badge
+			// that repeated it would just make VoiceOver read the header twice.
+			.accessibilityHidden(true)
+	}
+}

@@ -3220,6 +3220,137 @@ do {
 	check(!ExternalChange.touches([], changed: [root.path]), "没有要关心的路径时永远不相关")
 }
 
+// MARK: - Panel order, agent marks, remembered selection
+
+group("面板顺序：三个 agent 的侧栏是同一套顺序")
+
+do {
+	let repository = URL(fileURLWithPath: #filePath)
+		.deletingLastPathComponent()
+		.deletingLastPathComponent()
+	let outcome = DescriptorLoader.readDescriptors(in: repository.appendingPathComponent("Resources/Agents"))
+	equal(outcome.descriptors.count, 3, "三个内置描述文件都读到了")
+	check(outcome.descriptors.allSatisfy { !$0.surfaces.isEmpty }, "每个都有面板")
+
+	// Ordered at load time, which is what the sidebar, the default selection and
+	// diagnostics all read — so asserting it here covers the wiring, not just the
+	// helper.
+	for descriptor in outcome.descriptors {
+		let ranks = descriptor.surfaces.map { SurfaceOrder.rank(of: $0.kind) }
+		check(
+			ranks == ranks.sorted(),
+			"\(descriptor.id)：面板已按统一顺序排列",
+			"实际 \(descriptor.surfaces.map(\.id))"
+		)
+	}
+
+	// Any two panes that more than one agent declares have to keep the same
+	// relative order, or switching agents moves them under the pointer — which is
+	// the thing being fixed.
+	let orders = outcome.descriptors.map { $0.surfaces.map(\.kind.rawValue) }
+	var disagreements: [String] = []
+	for left in 0..<orders.count {
+		for right in (left + 1)..<orders.count {
+			let shared = orders[left].filter { orders[right].contains($0) }
+			for a in shared {
+				for b in shared where a != b {
+					let inLeft = orders[left].firstIndex(of: a)! < orders[left].firstIndex(of: b)!
+					let inRight = orders[right].firstIndex(of: a)! < orders[right].firstIndex(of: b)!
+					if inLeft != inRight {
+						disagreements.append("\(outcome.descriptors[left].id):\(a)/\(b) 与 \(outcome.descriptors[right].id) 相反")
+					}
+				}
+			}
+		}
+	}
+	check(disagreements.isEmpty, "共有面板的先后关系在所有 agent 里一致", disagreements.joined(separator: "；"))
+
+	// Same pane, same icon. Once the order was unified the drift became visible:
+	// Claude's skills pane was the only one drawn with `shippingbox`, which is
+	// pi's 主题·扩展·Pack icon — two different panes looking identical.
+	var iconsByKind: [String: [String: String]] = [:]
+	for descriptor in outcome.descriptors {
+		for surface in descriptor.surfaces {
+			iconsByKind[surface.kind.rawValue, default: [:]][descriptor.id] = surface.icon ?? "(none)"
+		}
+	}
+	var iconDrift: [String] = []
+	for (kind, table) in iconsByKind where Set(table.values).count > 1 {
+		iconDrift.append("\(kind): \(table.sorted { $0.key < $1.key }.map { "\($0.key)=\($0.value)" }.joined(separator: " "))")
+	}
+	check(iconDrift.isEmpty, "同一个面板在所有 agent 里用同一个图标", iconDrift.joined(separator: "；"))
+
+	// A descriptor with a scrambled order, plus kinds this build does not know:
+	// the known ones get sorted, the unknown ones stay last and keep their
+	// declared order relative to each other.
+	let scrambled = try JSONDecoder().decode(AgentDescriptor.self, from: Data(#"""
+	{
+	  "descriptorVersion": 1, "id": "x", "name": "X",
+	  "root": { "default": "$ROOT" },
+	  "surfaces": [
+	    { "id": "sessions", "kind": "sessions", "title": "S", "root": "$ROOT/s" },
+	    { "id": "first-unknown", "kind": "brand.new.thing", "title": "U1", "root": "$ROOT/w" },
+	    { "id": "settings", "kind": "settings", "title": "T", "file": "$ROOT/c.json" },
+	    { "id": "second-unknown", "kind": "another.unknown", "title": "U2", "root": "$ROOT/w2" },
+	    { "id": "skills", "kind": "skills", "title": "K", "root": "$ROOT/k" }
+	  ]
+	}
+	"""#.utf8))
+	equal(
+		SurfaceOrder.ordered(scrambled.surfaces).map(\.id),
+		["settings", "skills", "sessions", "first-unknown", "second-unknown"],
+		"认识的面板排序，认不出的排最后且保持声明顺序"
+	)
+}
+
+group("agent 图标：底色与字形")
+
+do {
+	let repository = URL(fileURLWithPath: #filePath)
+		.deletingLastPathComponent()
+		.deletingLastPathComponent()
+	let outcome = DescriptorLoader.readDescriptors(in: repository.appendingPathComponent("Resources/Agents"))
+
+	for descriptor in outcome.descriptors {
+		check(descriptor.tintRGB != nil, "\(descriptor.id)：底色能解析出 RGB")
+		check(!(descriptor.glyph ?? "").isEmpty, "\(descriptor.id)：给了自己的字形")
+	}
+	equal(
+		Set(outcome.descriptors.compactMap(\.glyph)).count,
+		outcome.descriptors.count,
+		"三个字形互不相同，否则等于没区分"
+	)
+
+	// Parsing rules, including the shapes that must fall back rather than turn
+	// into black.
+	func tint(_ value: String) throws -> (red: Double, green: Double, blue: Double)? {
+		let json = """
+		{ "descriptorVersion": 1, "id": "x", "name": "X", "tint": "\(value)",
+		  "root": { "default": "$ROOT" }, "surfaces": [] }
+		"""
+		return try JSONDecoder().decode(AgentDescriptor.self, from: Data(json.utf8)).tintRGB
+	}
+
+	let orange = try tint("#D97757")
+	check(abs((orange?.red ?? 0) - 0.851) < 0.01, "带 # 的六位色解析正确（红）")
+	check(abs((orange?.green ?? 0) - 0.467) < 0.01, "带 # 的六位色解析正确（绿）")
+	check(abs((orange?.blue ?? 0) - 0.341) < 0.01, "带 # 的六位色解析正确（蓝）")
+	check(try tint("d97757") != nil, "不带 # 也认")
+	check(try tint("#D9775") == nil, "位数不对 → nil（回退到 App 自己的色，而不是变成黑色）")
+	check(try tint("#GGGGGG") == nil, "不是十六进制 → nil")
+}
+
+group("记住选择：还在就沿用，没了就退回第一个")
+
+do {
+	equal(Selection.resolved(saved: "claude", available: ["pi", "codex", "claude"]), "claude", "记得的那个还在就沿用")
+	equal(Selection.resolved(saved: "gone", available: ["pi", "codex"]), "pi", "记得的那个没了就退回第一个")
+	equal(Selection.resolved(saved: nil, available: ["pi"]), "pi", "从来没选过就用第一个")
+	equal(Selection.resolved(saved: "pi", available: []), nil, "一个都没有时没有可选的")
+	equal(Selection.resolved(saved: "", available: ["pi"]), "pi", "空字符串不算有效 id")
+	equal(Selection.resolved(saved: "settings", available: ["settings", "mcp"]), "settings", "面板名同样适用")
+}
+
 // MARK: - Summary
 
 print("")

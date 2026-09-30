@@ -6,15 +6,32 @@
 [描述文件](descriptors.md) 提供 —— 所以同一个面板在 pi / Codex / Claude Code 上
 长得一样、只看配置不同。
 
+侧栏顺序也是**统一的**，不听描述文件的声明顺序：`SurfaceOrder` 按 `kind` 排
+（通用设置 → 模型与 Provider → MCP → Skills → 子 Agents → 全局指令 → 会话 → 主题与扩展），
+某个 agent 没有的面板就跳过它那一格。之前 pi 从「模型与 Provider」开始、Claude Code 从
+「通用设置」开始，切换 agent 时常用面板会在指针底下换位置。同一个面板在三个 agent 上
+还必须用同一个图标 —— 这条有断言守着（Claude 的 Skills 曾经画成 `shippingbox`，
+也就是 pi「主题与扩展」的图标）。
+
+**打开过的 agent 与面板会记住**（`AgentKitSelectedAgent` / `AgentKitSurface.<agent>`），
+下次启动回到原处；每个 agent 各记一份，所以 pi → Claude Code → pi 会回到你在 pi 上最后
+开的面板。记住的那个不在了（描述文件删了、面板改名了）就退回第一个。`AGENTKIT_OPEN` 仍能
+覆盖一次，但**不会写回** —— 那是给脚本和截图用的。
+
+选中的 agent 在侧栏头部有自己的标记：底色 `tint` + 字形 `glyph` 都由描述文件给
+（π / 六边形 / 星号），不带这两个键的描述文件继续用 `icon` 里的 SF Symbol。
+
+下表按**侧栏顺序**编号；下文的章节按主题分组，顺序与侧栏不必一致。
+
 | # | 面板 | pi | Codex | Claude Code |
 |---|---|---|---|---|
-| 1 | [模型与 Provider](#模型与-provider) | ✅ | ✅ | — |
-| 2 | [MCP 服务器](#mcp-服务器) | ✅ | ✅ | ✅（无开关） |
-| 3 | [Skills](#skills) | ✅ | ✅ | ✅ |
-| 4 | [会话](#会话) | ✅ | ✅（不能改名） | ✅ |
-| 5 | [全局指令](#全局指令) | ✅ | ✅ | ✅ |
-| 6 | [子 Agents](#子-agents) | ✅ | — | ✅ |
-| 7 | [通用设置](#通用设置) | ✅ | ✅ | ✅ |
+| 1 | [通用设置](#通用设置) | ✅ | ✅ | ✅ |
+| 2 | [模型与 Provider](#模型与-provider) | ✅ | ✅ | — |
+| 3 | [MCP 服务器](#mcp-服务器) | ✅ | ✅ | ✅（无开关） |
+| 4 | [Skills](#skills) | ✅ | ✅ | ✅ |
+| 5 | [子 Agents](#子-agents) | ✅ | — | ✅ |
+| 6 | [全局指令](#全局指令) | ✅ | ✅ | ✅ |
+| 7 | [会话](#会话) | ✅ | ✅（不能改名） | ✅ |
 | 8 | [主题与扩展（Packages）](#主题与扩展packages) | ✅ | — | — |
 
 ---

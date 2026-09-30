@@ -7,6 +7,8 @@
     "en": "@earendil-works/pi-coding-agent"
   },
   "icon": "terminal.fill",
+  "glyph": "π",
+  "tint": "#2F7D6E",
   "homepage": "https://github.com/earendil-works/pi",
 
   "root": {

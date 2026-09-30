@@ -63,6 +63,8 @@
   "id": "codex",
   "name": "Codex",
   "icon": "chevron.left.forwardslash.chevron.right",
+  "glyph": "⬡",              // 侧栏头部那个标记里画的字（可不写）
+  "tint": "#10A37F",         // 标记的底色，#RRGGBB（可不写）
 
   "root": { "env": "CODEX_HOME", "default": "~/.codex" },
   "detect": {
@@ -99,6 +101,11 @@
 
 **路径 token**：`~`、`$ROOT`（agent 根）、`$CWD`（当前项目）、`$APP`（AgentKit 支持目录）、
 `$HOME`。`*` 只允许出现在 `cli.candidates`，并且按版本号取最高的那个。
+
+`icon` 是 SF Symbol，`glyph` / `tint` 只影响侧栏头部那个小标记：`glyph` 优先（pi 的 mark
+是字母 π，没有对应的 SF Symbol），`tint` 不是 `#RRGGBB` 就当没写、退回 App 自己的色。
+两个键都不写 = 只画 `icon` 的符号。**面板的顺序和图标不由描述文件决定**：顺序按 `kind`
+统一（见 [面板](panels.md)），同一个 `kind` 在哪个 agent 里都是同一个图标。
 
 `format` 不写就按扩展名判断（`.toml` → TOML，其余 JSON）。
 

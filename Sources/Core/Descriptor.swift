@@ -340,6 +340,13 @@ public struct AgentDescriptor: Codable {
 	public var name: LocalizedText
 	public var subtitle: LocalizedText?
 	public var icon: String?
+	/// Colour for the agent's badge, `#RRGGBB`. Optional: a descriptor written
+	/// before this key existed still loads and gets the app's tint.
+	public var tint: String?
+	/// A character to draw in the badge when the agent has no SF Symbol of its
+	/// own — pi's mark is the letter π. Takes precedence over `icon`; optional
+	/// for the same reason as `tint`.
+	public var glyph: String?
 	public var homepage: String?
 	public var root: RootSpec
 	public var detect: DetectSpec?
@@ -348,6 +355,25 @@ public struct AgentDescriptor: Codable {
 	public var write: WriteSpec?
 
 	public static let supportedVersion = 1
+
+	/// `tint` as components, or nil when it is absent or not `#RRGGBB`.
+	///
+	/// Parsing lives in this layer rather than in the view so it can be asserted:
+	/// a malformed colour has to fall back to the app's tint, not to black.
+	public var tintRGB: (red: Double, green: Double, blue: Double)? {
+		guard let tint else { return nil }
+		var text = tint.trimmingCharacters(in: .whitespaces)
+		if text.hasPrefix("#") { text.removeFirst() }
+		guard text.count == 6, text.allSatisfy({ $0.isHexDigit }) else { return nil }
+		let scanner = Scanner(string: text)
+		var value: UInt64 = 0
+		guard scanner.scanHexInt64(&value) else { return nil }
+		return (
+			red: Double((value >> 16) & 0xFF) / 255,
+			green: Double((value >> 8) & 0xFF) / 255,
+			blue: Double(value & 0xFF) / 255
+		)
+	}
 
 	public var backupPolicy: BackupPolicy {
 		let spec = write?.backup

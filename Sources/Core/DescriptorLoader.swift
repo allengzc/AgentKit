@@ -52,7 +52,12 @@ public enum DescriptorLoader {
 			do {
 				let data = try Data(contentsOf: url)
 				let decoder = JSONDecoder()
-				let descriptor = try decoder.decode(AgentDescriptor.self, from: data)
+				var descriptor = try decoder.decode(AgentDescriptor.self, from: data)
+				// Applied here, once, rather than in each place that walks the
+				// surfaces: the sidebar, the default selection and diagnostics all
+				// then agree, and a descriptor author cannot accidentally give one
+				// agent a different sidebar from the others. See `SurfaceOrder`.
+				descriptor.surfaces = SurfaceOrder.ordered(descriptor.surfaces)
 				descriptors.append(descriptor)
 				urls[descriptor.id] = url
 			} catch let error as DecodingError {
