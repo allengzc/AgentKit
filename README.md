@@ -2,7 +2,7 @@
 
 **一个原生 macOS GUI，用描述文件驱动地配置和管理本地 coding agent。**
 
-中文· [English](README.en.md)
+中文 · [English](README.en.md)
 
 现支持三个 agent：
 
