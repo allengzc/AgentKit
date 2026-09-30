@@ -136,12 +136,22 @@ public struct PathResolver {
 
 	/// Shell-style `*` expansion used only for `cli.candidates`.
 	///
-	/// A template with no wildcard resolves to itself when it exists.
+	/// A template with no wildcard resolves to itself when it exists and is
+	/// executable — the same test the glob branch below applies. Without it a
+	/// candidate that is nowhere on disk still came back as a hit, so
+	/// `CLILocator.locate` reported a binary that does not exist and the panes
+	/// were enabled around a path that could only fail at run time. Measured on
+	/// the fixture: `AGENTKIT_HOME=/tmp/agentkit-demo` resolved pi to
+	/// `/tmp/agentkit-demo/.bun/bin/pi`, which that tree never contains.
 	public func expandCandidates(_ templates: [String]) -> [URL] {
 		var out: [URL] = []
 		for template in templates {
 			guard template.contains("*") else {
-				if let url = try? expand(template) { out.append(url) }
+				if let url = try? expand(template),
+					FileManager.default.isExecutableFile(atPath: url.path)
+				{
+					out.append(url)
+				}
 				continue
 			}
 			let expanded = template.hasPrefix("~/")
