@@ -15,6 +15,10 @@ struct SkillsPane: View {
 	@Environment(AppModel.self) private var model
 	@State private var snapshot: SkillsSnapshot?
 	@State private var scanning = false
+	/// Set when something outside AgentKit changed a skill root. The header then
+	/// offers a rescan instead of the pane rescanning on its own — see the note at
+	/// `onChange(of: model.externalChangeToken)`.
+	@State private var stale = false
 	/// Seeded from `AGENTKIT_DOC_STATE=search:<text>` so a screenshot (or a
 	/// verification run) can put the row filter into a state that otherwise
 	/// needs typing into the field — the filtered list is the one path where a
@@ -96,7 +100,18 @@ struct SkillsPane: View {
 			showsAllBundled = false
 			expandedFolders = []
 		}
-		.onChange(of: model.externalChangeToken) { _, _ in scan() }
+		// An external edit used to rescan straight away. The watcher reports
+		// everything under an agent's root, and while the agent runs that includes
+		// its own session traffic — measured: 6 change batches in 2.5 s while a
+		// session log was being appended to, i.e. a full rescan ~2.4x per second.
+		// Each one replaced the snapshot, so the list was rebuilt (scroll position,
+		// hover and expanded folders reset) faster than anyone could read it.
+		//
+		// Now a change that touches a skill root only marks the list stale and the
+		// header offers the rescan: one click, at the moment the user wants it.
+		.onChange(of: model.externalChangeToken) { _, _ in
+			if model.externalChangeTouches(roots.map(\.url)) { stale = true }
+		}
 		.onChange(of: model.projectURL) { _, _ in scan() }
 		// "Rescan" left the header for the toolbar's ⋯ menu: the pane already
 		// rescans when a descriptor changes and when the project scope moves, so
@@ -201,6 +216,27 @@ struct SkillsPane: View {
 				}
 				if scanning { ProgressView().controlSize(.mini) }
 				Spacer()
+				// Sits in the existing first row rather than as its own banner: the
+				// header's height is what pushes the window's content past the
+				// window (see README 已知限制), so a "there is newer content"
+				// notice must not add a row to it.
+				if stale, !scanning {
+					Button {
+						scan()
+					} label: {
+						Label(
+							L.t("skills.stale.rescan", "有外部改动 · 重新扫描"),
+							systemImage: "arrow.clockwise"
+						)
+					}
+					.controlSize(.small)
+					.help(
+						L.t(
+							"skills.stale.help",
+							"skill 目录在 AgentKit 之外被改动了，列表是上次扫描的结果；点一下重新扫描"
+						)
+					)
+				}
 				Menu {
 					ForEach(Array(roots.enumerated()), id: \.offset) { _, entry in
 						Button(entry.url.path) { creating = CreateRequest(root: entry.url) }
@@ -502,6 +538,7 @@ struct SkillsPane: View {
 				guard generation == scanGeneration else { return }
 				self.snapshot = snapshot
 				self.scanning = false
+				self.stale = false
 				if selectedID == nil || !snapshot.skills.contains(where: { $0.id == selectedID }) {
 					// Opening on a skill that pi will not load is a poor first
 					// impression when a healthy one is right there.

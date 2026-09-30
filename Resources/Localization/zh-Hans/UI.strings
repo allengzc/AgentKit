@@ -389,6 +389,8 @@
 "skills.badge.disabledCount" = "%d 个已停用";
 "skills.badge.manualOnly" = "仅手动调用";
 "skills.searchPlaceholder" = "搜索";
+"skills.stale.rescan" = "有外部改动 · 重新扫描";
+"skills.stale.help" = "skill 目录在 AgentKit 之外被改动了，列表是上次扫描的结果；点一下重新扫描";
 "skills.missingRoots.title" = "以下目录不存在，已跳过";
 "skills.missingManifest" = "没有 SKILL.md 的目录";
 "skills.notDiscovered" = "不会被发现";

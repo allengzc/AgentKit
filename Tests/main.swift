@@ -3169,6 +3169,57 @@ do {
 	}
 }
 
+// MARK: - External changes: is this batch about my paths?
+
+group("外部改动：批次是否与面板自己的路径相关")
+
+do {
+	// The watcher watches the nearest *existing* ancestor of every declared path
+	// (so a file that does not exist yet is still noticed), which means a batch
+	// can carry anything under an agent's root — including the agent's own
+	// session traffic while it runs. Measured on a fixture: appending to a session
+	// log produced 6 batches in 2.5 s. A pane that reloads on all of them reloads
+	// continuously, so panes now ask which paths changed.
+	let root = fixtureRoot.appendingPathComponent("change/skills")
+	try FileManager.default.createDirectory(at: root.appendingPathComponent("demo"), withIntermediateDirectories: true)
+
+	func touches(_ changed: [String]) -> Bool {
+		ExternalChange.touches([root], changed: changed)
+	}
+
+	check(touches([root.path]), "批次正好是这条路径时算相关")
+	check(touches([root.appendingPathComponent("demo/SKILL.md").path]), "路径之下的文件算相关")
+	check(touches([root.appendingPathComponent("a/b/c.txt").path]), "多层之下也算相关")
+	check(!touches([]), "空批次不算相关")
+	check(
+		!touches([root.path + "-old/SKILL.md"]),
+		"只共享字符串前缀的兄弟目录不算相关",
+		"按路径分量比较，否则 skills-old 会被当成 skills 的内容"
+	)
+	check(
+		!touches([fixtureRoot.appendingPathComponent("change").path]),
+		"父目录本身不算相关",
+		"父目录的改动（新建一个兄弟文件）不影响这一列的内容"
+	)
+	check(
+		!touches([fixtureRoot.appendingPathComponent("change/other.json").path]),
+		"同级但不相干的文件不算相关"
+	)
+
+	// FSEvents reports the *resolved* path, so a base built from AGENTKIT_HOME
+	// (which says /tmp) and an event (which says /private/tmp) must still meet —
+	// otherwise the filter silently matches nothing and no pane ever reloads.
+	if root.path.hasPrefix("/tmp/") {
+		check(
+			touches(["/private" + root.path + "/demo/SKILL.md"]),
+			"/private/tmp 与 /tmp 视为同一条路径",
+			"FSEvents 报的是解析后的路径"
+		)
+	}
+
+	check(!ExternalChange.touches([], changed: [root.path]), "没有要关心的路径时永远不相关")
+}
+
 // MARK: - Summary
 
 print("")

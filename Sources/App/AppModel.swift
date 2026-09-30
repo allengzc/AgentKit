@@ -271,9 +271,23 @@ public final class AppModel {
 
 	public var externalChangeToken = UUID()
 
+	/// The paths in the most recent change batch.
+	///
+	/// Kept, not just counted, so a pane can ask whether the batch concerned
+	/// *its* files: the watcher reports everything under an agent's root,
+	/// including the agent's own session and log traffic while it runs, and a
+	/// pane that reloads on all of that reloads continuously.
+	public private(set) var externalChangePaths: [String] = []
+
+	/// True when the latest batch touched any of `urls`.
+	public func externalChangeTouches(_ urls: [URL]) -> Bool {
+		ExternalChange.touches(urls, changed: externalChangePaths)
+	}
+
 	private func handleExternalChange(paths: [String]) {
 		guard !paths.isEmpty else { return }
 		Log.app.debug("external change under \(paths.count, privacy: .public) path(s)")
+		externalChangePaths = paths
 		externalChangeToken = UUID()
 	}
 

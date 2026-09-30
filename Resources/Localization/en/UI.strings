@@ -418,6 +418,8 @@
 "skills.badge.disabledCount" = "%d disabled";
 "skills.badge.manualOnly" = "Manual invocation only";
 "skills.searchPlaceholder" = "Search";
+"skills.stale.rescan" = "Changed outside AgentKit · Rescan";
+"skills.stale.help" = "A skill directory changed outside AgentKit, so this list is from the last scan. Click to rescan.";
 "skills.missingRoots.title" = "These directories do not exist and were skipped";
 "skills.missingManifest" = "Directories without SKILL.md";
 "skills.notDiscovered" = "Not discovered";
