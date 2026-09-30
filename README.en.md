@@ -83,7 +83,7 @@ Running against fake config, writing assertions, icons and the screenshot pipeli
 | `AGENTKIT_HOME=/tmp/demo` | Redirects `~` / `$HOME` into a throwaway tree, so you can run against a fixture without touching real config |
 | `AGENTKIT_OPEN=codex/mcp` | Boots straight into the given agent's given panel |
 | `AGENTKIT_PROJECT=~/repo` | Sets the project scope (same as picking a project in the toolbar) |
-| `AGENTKIT_DOC_STATE=…` | Documentation screenshots only: force a preview/expand/diff state, fix appearance and window size, render and quit |
+| `AGENTKIT_DOC_STATE=…` | Documentation screenshots only: force a preview/expand/diff/search state, fix appearance and window size, render and quit |
 | `AGENTKIT_SIGN_IDENTITY` | Signing identity used at build time |
 | `AGENTKIT_TARGET` | Build target triple, default `arm64-apple-macosx14.0` |
 
@@ -99,6 +99,18 @@ log show --last 5m --info --predicate 'subsystem == "com.allengzc.agentkit"'
 
 A summary; the details live on the linked topic pages. Nothing is hidden.
 
+- **One extra banner in a pane header and the three columns slip (not fixed)**: the window's
+  content gets laid out taller than the window (measured: window 1100×874, `RootView` laid
+  out 1516 tall and centred vertically), so the columns draw past the window and the toolbar,
+  the pane title and the search field are pushed off the top of it. The trigger is a **second
+  `InfoBanner` in the pane header**; how long the list is does not matter. Measured on one
+  machine at one window size: the Skills pane with 5 skills and 2 banners slips, with 500
+  skills and 1 banner it is fine, and creating the missing skill root (which removes the
+  banner) fixes it immediately. The root cause is **still not located** — all that is
+  established is "the content's ideal height exceeds the window"; which view inflates it is
+  unknown (`InfoBanner`'s detail uses `fixedSize(vertical:)`, which refuses to compress
+  vertically, but the master-detail row's minimum height has not been measured). Workaround:
+  get rid of the banner, or make the window taller (that reduces it, it does not remove it).
 - **Project scope is chosen by hand**: a GUI has no meaningful "current working directory",
   so AgentKit does not guess — [Panels](docs/panels.md#项目作用域).
 - **Structural TOML edits are not byte-for-byte**: adding or removing a top-level key

@@ -15,7 +15,11 @@ struct SkillsPane: View {
 	@Environment(AppModel.self) private var model
 	@State private var snapshot: SkillsSnapshot?
 	@State private var scanning = false
-	@State private var query = ""
+	/// Seeded from `AGENTKIT_DOC_STATE=search:<text>` so a screenshot (or a
+	/// verification run) can put the row filter into a state that otherwise
+	/// needs typing into the field — the filtered list is the one path where a
+	/// row's cost used to depend on the size of the library.
+	@State private var query = DocumentationState.string("search") ?? ""
 	@State private var selectedID: String?
 	@State private var banner: String?
 	@State private var errorText: String?
@@ -23,6 +27,8 @@ struct SkillsPane: View {
 	@State private var confirmDelete: SkillEntry?
 	@State private var confirmDisable: SkillEntry?
 	@State private var token = UUID()
+	/// Bumped by every `scan()`; only the newest request may publish (see `scan`).
+	@State private var scanGeneration = 0
 	/// The bundled-file list starts as a short preview: a skill can ship 30+
 	/// files and the detail pane should stay readable.
 	@State private var showsAllBundled = false
@@ -50,27 +56,36 @@ struct SkillsPane: View {
 	private var filtered: [SkillEntry] {
 		guard let snapshot else { return [] }
 		guard !query.isEmpty else { return snapshot.skills }
+		// One `contains` against a precomputed lowercased haystack; matching the
+		// three fields separately meant three `lowercased()` allocations per
+		// skill per keystroke.
 		let needle = query.lowercased()
-		return snapshot.skills.filter {
-			$0.name.lowercased().contains(needle)
-				|| $0.description.lowercased().contains(needle)
-				|| $0.directory.path.lowercased().contains(needle)
-		}
+		return snapshot.skills.filter { $0.searchText.contains(needle) }
 	}
 
-	private var selected: SkillEntry? {
-		guard let selectedID else { return filtered.first }
-		return filtered.first { $0.id == selectedID } ?? filtered.first
+	/// The entry a row's highlight and the detail pane agree on.
+	///
+	/// Takes the already-filtered list: resolving it through `filtered` per row
+	/// made one body pass O(rows × skills) *and* re-ran the whole search filter
+	/// for every row, which measured 2.4 s with 500 skills and a query typed.
+	private func selected(in entries: [SkillEntry]) -> SkillEntry? {
+		guard let selectedID else { return entries.first }
+		return entries.first { $0.id == selectedID } ?? entries.first
 	}
+
+	/// The selection for callers outside `body` (the scan's completion handler).
+	private var selected: SkillEntry? { selected(in: filtered) }
 
 	var body: some View {
-		VStack(spacing: 0) {
+		let entries = filtered
+		let current = selected(in: entries)
+		return VStack(spacing: 0) {
 			header
 			Divider()
 			HStack(spacing: 0) {
-				list
+				list(entries, current: current)
 				Divider()
-				detail
+				detail(current)
 			}
 			// An HStack sizes to its children: without an explicit greedy frame a
 			// narrow empty state collapses the whole row and pushes the list inwards.
@@ -217,14 +232,14 @@ struct SkillsPane: View {
 
 	// MARK: - List
 
-	private var list: some View {
+	private func list(_ entries: [SkillEntry], current: SkillEntry?) -> some View {
 		ScrollView {
 			// 1pt, not 2: see the padding note in `row`. Rows are separated by
 			// their own padding now; this only keeps the selection highlights
 			// from touching.
 			LazyVStack(alignment: .leading, spacing: 1) {
-				ForEach(filtered) { entry in
-					row(entry)
+				ForEach(entries) { entry in
+					row(entry, isSelected: current?.id == entry.id)
 				}
 				if let snapshot, !snapshot.missingManifest.isEmpty {
 					Text(L.t("skills.missingManifest", "没有 SKILL.md 的目录"))
@@ -250,8 +265,7 @@ struct SkillsPane: View {
 		.background(Color(nsColor: .controlBackgroundColor))
 	}
 
-	private func row(_ entry: SkillEntry) -> some View {
-		let isSelected = selected?.id == entry.id
+	private func row(_ entry: SkillEntry, isSelected: Bool) -> some View {
 		// `description` may be absent, empty, or a block scalar of blanks; the
 		// row renders nothing for all three. See the note at the Text below.
 		let description = entry.description.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -323,8 +337,8 @@ struct SkillsPane: View {
 	// MARK: - Detail
 
 	@ViewBuilder
-	private var detail: some View {
-		if let entry = selected {
+	private func detail(_ entry: SkillEntry?) -> some View {
+		if let entry {
 			ScrollView {
 				VStack(alignment: .leading, spacing: 14) {
 					VStack(alignment: .leading, spacing: 6) {
@@ -470,6 +484,14 @@ struct SkillsPane: View {
 
 	private func scan() {
 		scanning = true
+		// A scan is requested by the file watcher, by a scope change and by the
+		// toolbar action, and a walk in flight cannot be cancelled mid-directory.
+		// Overlapping scans used to race on both the snapshot and the spinner:
+		// the first one to finish cleared `scanning`, and an *older* result could
+		// overwrite a newer one. The generation stamp lets only the last request
+		// publish.
+		scanGeneration += 1
+		let generation = scanGeneration
 		let roots = self.roots
 		let ignore = Set(surface.ignore ?? [])
 		let maxDepth = surface.maxDepth ?? 6
@@ -477,6 +499,7 @@ struct SkillsPane: View {
 		Task.detached(priority: .userInitiated) {
 			let snapshot = SkillsScanner.scan(roots: roots, ignore: ignore, maxDepth: maxDepth, policy: policy)
 			await MainActor.run {
+				guard generation == scanGeneration else { return }
 				self.snapshot = snapshot
 				self.scanning = false
 				if selectedID == nil || !snapshot.skills.contains(where: { $0.id == selectedID }) {

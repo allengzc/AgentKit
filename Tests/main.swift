@@ -177,6 +177,35 @@ do {
 	check(sorted.last?.path.contains("v24.12.0") == true, "版本比较选中 v24.12.0")
 	check(CLILocator.versionLess([20, 19, 5], [24, 12, 0]), "v20 < v24")
 	check(CLILocator.versionLess([9, 1, 0], [20, 19, 5]), "v9 < v20")
+
+	// A template with no wildcard has to pass the same test as the glob branch.
+	// It did not: the expanded path was returned unconditionally, so a candidate
+	// that is nowhere on disk still came back as a hit and beat the login-shell
+	// lookup — the panes were then enabled around a binary that can only fail at
+	// run time. Measured on the demo fixture, pi resolved to
+	// `/tmp/agentkit-demo/.bun/bin/pi`, which that tree never contains.
+	let phantom = root.appendingPathComponent(".bun/bin/pi")
+	check(
+		resolver.expandCandidates([phantom.path]).isEmpty,
+		"非通配候选不存在时不算命中",
+		"否则 locate 会把一个不存在的路径当成解析结果返回"
+	)
+
+	let hit = resolver.expandCandidates([versions.appendingPathComponent("node/v24.12.0/bin/pi").path])
+	equal(hit.count, 1, "存在的可执行候选仍然命中")
+	equal(hit.first?.lastPathComponent, "pi", "命中的是候选本身")
+
+	// Existing but not executable is not a candidate either: `locate` runs the
+	// path it returns.
+	let plain = root.appendingPathComponent("bin/notes")
+	try FileManager.default.createDirectory(at: plain.deletingLastPathComponent(), withIntermediateDirectories: true)
+	try "#\n".write(to: plain, atomically: true, encoding: .utf8)
+	try FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: plain.path)
+	check(
+		resolver.expandCandidates([plain.path]).isEmpty,
+		"存在但不可执行的候选不算命中",
+		"locate 会把返回的路径直接当可执行文件跑"
+	)
 }
 
 // MARK: - JSONFile
@@ -3037,6 +3066,107 @@ do {
 
 	let subagents = descriptor.surface(id: "subagents")!
 	equal(subagents.frontmatter?.required, ["name", "description"], "子 agent 必填字段")
+}
+
+// MARK: - CLI version parsing
+
+group("CLI 版本行：拆出版本号与产品名")
+
+do {
+	// The three agents answer `--version` in three different shapes. The sidebar
+	// labels only the number, while the raw line stays in the hover text — which
+	// is why the product name has to survive parsing rather than be dropped.
+	equal(CLILocator.parseVersion(from: "0.87.1")?.number, "0.87.1", "裸版本号：取到数字")
+	check(
+		CLILocator.parseVersion(from: "0.87.1")?.product == nil,
+		"裸版本号：没有产品名",
+		"整行就是一个版本号，去掉它之后剩下空字符串，该报 nil 而不是空串"
+	)
+	equal(CLILocator.parseVersion(from: "codex-cli 0.157.1")?.number, "0.157.1", "前缀产品名：取到数字")
+	equal(CLILocator.parseVersion(from: "codex-cli 0.157.1")?.product, "codex-cli", "前缀产品名：剩下的就是产品名")
+	equal(CLILocator.parseVersion(from: "2.1.283 (Claude Code)")?.number, "2.1.283", "括号产品名：取到数字")
+	equal(CLILocator.parseVersion(from: "2.1.283 (Claude Code)")?.product, "Claude Code", "括号产品名：成对的括号被剥掉")
+	check(
+		CLILocator.parseVersion(from: "unknown version") == nil,
+		"没有任何“数字.数字”形状的片段时返回 nil",
+		"否则侧栏会拿一段不是版本号的文本当版本号显示"
+	)
+	check(
+		CLILocator.parseVersion(from: "2") == nil,
+		"单个整数不算版本号",
+		"要求至少一个点，避免把 @openai/codex 这种名字里的数字当成版本"
+	)
+	equal(CLILocator.parseVersion(from: "  1.2.3  ")?.number, "1.2.3", "首尾空白不影响取数字")
+	equal(CLILocator.parseVersion(from: "- 1.0.0 -")?.product, nil, "单独的连字符也是分隔符，剥完为空")
+}
+
+// MARK: - Skills list: derived once, searched through one haystack
+
+do {
+	// The row filter used to lowercase three fields per skill on every keystroke,
+	// and every displayed field re-parsed the manifest on every access. Both are
+	// now computed during the scan; the part a user can observe is that the
+	// filter still matches the same three things.
+	let root = fixtureRoot.appendingPathComponent("search/skills")
+	let descriptor = try JSONDecoder().decode(
+		AgentDescriptor.self,
+		from: Data(try String(contentsOf: URL(fileURLWithPath: #filePath)
+			.deletingLastPathComponent()
+			.deletingLastPathComponent()
+			.appendingPathComponent("Resources/Agents/pi.json")).utf8)
+	)
+	let surface = descriptor.surface(id: "skills")!
+
+	let directory = root.appendingPathComponent("widget-tools")
+	try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+	try "---\nname: widget-tools\ndescription: Turns widgets into gadgets.\n---\n\n正文\n"
+		.write(to: directory.appendingPathComponent("SKILL.md"), atomically: true, encoding: .utf8)
+
+	let snapshot = SkillsScanner.scan(
+		roots: [(spec: RootEntry(path: root.path, scope: "user", writable: true), url: root)],
+		ignore: Set(surface.ignore ?? []),
+		maxDepth: surface.maxDepth ?? 4,
+		policy: descriptor.backupPolicy
+	)
+	let entry = snapshot.skills.first { $0.name == "widget-tools" }
+
+	if let entry {
+		// The haystack is the lowercased concatenation of name, description and
+		// directory path, and the query is lowercased before matching, which is
+		// what makes the match case-insensitive on both sides.
+		equal(entry.searchText, entry.searchText.lowercased(), "搜索串统一小写，查询侧再小写一次即可")
+
+		// Every needle that the old three-field expression matched must still
+		// match, and a needle that it did not match must not start matching —
+		// otherwise the filter would quietly change which skills are reachable.
+		let needles = ["widget", "WIDGET", "gadgets", "GADGETS", "search", "widget-tools", "nope", ""]
+		for needle in needles {
+			let lowercased = needle.lowercased()
+			let old = entry.name.lowercased().contains(lowercased)
+				|| entry.description.lowercased().contains(lowercased)
+				|| entry.directory.path.lowercased().contains(lowercased)
+			equal(
+				entry.searchText.contains(lowercased), old,
+				"预计算搜索串与原来的三字段匹配结果一致（query = \"\(needle)\"）"
+			)
+		}
+
+		// A query must not be able to match across the field boundary: the fields
+		// are joined with a newline, and the search field is single-line.
+		check(
+			entry.searchText.contains("\n"),
+			"三个字段以换行连接，查询无法跨字段命中"
+		)
+
+		// The point of the change: these are stored during the scan, so reading
+		// them cannot re-parse the manifest. `issues` is the expensive one (it
+		// runs the name regex), and the view reads it per skill for the header's
+		// problem count.
+		check(entry.issues.isEmpty, "正常 skill 没有问题项")
+		check(entry.hasDescription, "description 可见")
+	} else {
+		check(false, "夹具里的 skill 应该被扫描到", "扫描没找到 widget-tools，后面的断言全部无从谈起")
+	}
 }
 
 // MARK: - Summary
