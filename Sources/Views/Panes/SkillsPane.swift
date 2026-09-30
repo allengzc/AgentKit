@@ -298,7 +298,9 @@ struct SkillsPane: View {
 			.padding(.vertical, 6)
 		}
 		.frame(width: 320)
-		.background(Color(nsColor: .controlBackgroundColor))
+		// No fill of its own: see `paneListBackground()`. `controlBackgroundColor`
+		// happens to equal the pane's background in light mode and is visibly
+		// darker in dark mode, which is what made this column a black slab there.
 	}
 
 	private func row(_ entry: SkillEntry, isSelected: Bool) -> some View {

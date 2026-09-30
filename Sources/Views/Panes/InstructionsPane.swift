@@ -168,7 +168,8 @@ struct InstructionsPane: View {
 			.padding(.horizontal, 6)
 		}
 		.frame(width: 268)
-		.background(Color(nsColor: .controlBackgroundColor))
+		// No fill: the pane's own background is the right one in both appearances
+		// (see `paneListBackground()`).
 	}
 
 	private func sectionLabel(_ text: String) -> some View {

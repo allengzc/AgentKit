@@ -281,7 +281,7 @@ struct ProjectScopeBanner: View {
 }
 
 extension View {
-	/// The background for a pane's *own* master list.
+	/// A pane's *own* master list paints no background of its own.
 	///
 	/// `.listStyle(.sidebar)` is what gives the app its row style and capsule
 	/// selection, but it also paints the window sidebar's translucent material.
@@ -292,13 +292,18 @@ extension View {
 	/// `rgb(230,230,234)`, both with the same rounded top-left corner, i.e. two
 	/// panels where the eye expects one edge.
 	///
-	/// Hiding it and filling with the flat `controlBackgroundColor` is what the
-	/// panes without a `List` already do for their master column (`SkillsPane`,
-	/// `SessionsPane`, `InstructionsPane`), so this also makes the six panes
-	/// agree with each other instead of with the window's sidebar.
+	/// The column is therefore left transparent, and the pane's own background
+	/// shows through. The first attempt filled it with `controlBackgroundColor`
+	/// instead, which *looks* right in light mode because that colour happens to
+	/// equal the pane's background there (`rgb(254,254,254)` on both sides of the
+	/// divider) — but in dark mode it is much darker than the pane: measured
+	/// `rgb(30,30,30)` against a `rgb(42,42,42)` sidebar, i.e. the same "panel
+	/// bleeding into the sidebar" complaint, now as a black slab.
+	///
+	/// Nothing is lost by having no fill: in light mode the two colours were
+	/// already identical, so the only separation was ever the divider.
 	func paneListBackground() -> some View {
 		scrollContentBackground(.hidden)
-			.background(Color(nsColor: .controlBackgroundColor))
 	}
 }
 

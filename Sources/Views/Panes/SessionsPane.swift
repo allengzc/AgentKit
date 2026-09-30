@@ -237,7 +237,8 @@ struct SessionsPane: View {
 			.padding(.vertical, 6)
 		}
 		.frame(width: 380)
-		.background(Color(nsColor: .controlBackgroundColor))
+		// No fill: the pane's own background is the right one in both appearances
+		// (see `paneListBackground()`).
 	}
 
 	private struct ProjectGroup {
