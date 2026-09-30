@@ -64,5 +64,6 @@ python3 Tools/make-demo.py            # 生成到 /tmp/agentkit-demo，全假数
 | `iconpath.swift` | 打印系统连续曲率圆角路径（SVG path data） |
 | `windowid.swift` | 找窗口：`-a` 全部 / `-o` 含被遮挡 / `-v` 带尺寸 |
 | `click.swift` | 合成点击。**注意**：没有辅助功能权限时事件会被系统静默丢弃，用它得先确认对照组能点动 |
+| `bench-skills.swift` + `.sh` | Skills 面板的性能基准：造 50/200/500 个 skill 的夹具，分别量「扫描」「一次 body pass」「一次搜索」「每行解析选中项」；`real` 参数顺带量真机的 skill 根。`perf(views)` 那条提交里的数字都是它跑出来的 —— 结论要能被重跑，`Tools/bench-skills.sh` 就是重跑的入口 |
 
 `Tools/bin/` 是 gitignore 的，由 `./build.sh` 编译。
