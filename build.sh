@@ -11,13 +11,16 @@
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-OUT="$HERE/out"
+# Overridable so two agents can build at once: this script starts with
+# `rm -rf "$OUT"`, and a second build on the default `out/` would delete the
+# first one's bundle mid-link.
+OUT="${AGENTKIT_OUT:-$HERE/out}"
 APP="$OUT/AgentKit.app"
 RES="$HERE/Resources"
 SRC="$HERE/Sources"
 
 # The DSH sandbox can deny the shared clang module cache; keep every cache local.
-export TMPDIR="$HERE/.cache"
+export TMPDIR="${AGENTKIT_TMP:-$HERE/.cache}"
 mkdir -p "$TMPDIR/modules" "$TMPDIR/clang"
 CACHE_FLAGS=(
 	-module-cache-path "$TMPDIR/modules"
@@ -29,6 +32,12 @@ TARGET="${AGENTKIT_TARGET:-arm64-apple-macosx14.0}"
 echo "==> building tool helpers"
 mkdir -p "$HERE/Tools/bin"
 for tool in iconpath windowid click; do
+	# Shared path (Tools/bin is documented and used by the screenshot scripts),
+	# so skip a helper that is already newer than its source: two concurrent
+	# builds would otherwise link the same output at the same time.
+	if [[ -x "$HERE/Tools/bin/$tool" && "$HERE/Tools/bin/$tool" -nt "$HERE/Tools/$tool.swift" ]]; then
+		continue
+	fi
 	swiftc -swift-version 5 -target "$TARGET" \
 		"${CACHE_FLAGS[@]}" \
 		-framework SwiftUI -framework CoreGraphics -framework Foundation \
