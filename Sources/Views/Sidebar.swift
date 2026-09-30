@@ -59,19 +59,20 @@ struct Sidebar: View {
 			}
 
 			if let agent = model.selectedAgent {
-				HStack(spacing: 5) {
-					if agent.origin == .user {
-						StatusBadge(text: L.t("badge.customDescriptor", "自定义描述"), level: .info)
-					}
-					if !agent.rootExists {
-						StatusBadge(text: L.t("badge.notInstalled", "未安装"), level: .warning)
-					}
-					if let version = agent.cliVersion {
-						StatusBadge(text: version, level: .muted)
-					} else if model.cliResolving {
-						StatusBadge(text: L.t("badge.lookingUpCLI", "查找 CLI…"), level: .muted)
+				// Skipped entirely when there is nothing to badge: an empty
+				// HStack still costs a `spacing`-sized gap above the version
+				// row, and the version moved out of this row.
+				if agent.origin == .user || !agent.rootExists {
+					HStack(spacing: 5) {
+						if agent.origin == .user {
+							StatusBadge(text: L.t("badge.customDescriptor", "自定义描述"), level: .info)
+						}
+						if !agent.rootExists {
+							StatusBadge(text: L.t("badge.notInstalled", "未安装"), level: .warning)
+						}
 					}
 				}
+				versionRow(agent)
 				PathChip(path: agent.rootURL.path)
 				// The scope chip is the project menu now. It already showed which
 				// project is in scope and the ✕ that clears it, so selecting one
@@ -132,6 +133,80 @@ struct Sidebar: View {
 		}
 		.padding(.horizontal, 12)
 		.padding(.vertical, 10)
+	}
+
+	/// The CLI version line: `版本  0.87.1  ⟳`.
+	///
+	/// This replaces a bare muted badge that only existed once a version had been
+	/// read, so "we could not read it", "the lookup is still running" and "this
+	/// agent has no CLI at all" all looked like the header simply had no version.
+	/// A label, an always-present value and a refresh button make it an answer to
+	/// a question the user asked, and the raw `--version` output stays one hover
+	/// away — the parenthesised product name (`2.1.283 (Claude Code)`) is what
+	/// tells two installs apart, and the row itself only has 210pt to work with.
+	private func versionRow(_ agent: LoadedAgent) -> some View {
+		HStack(spacing: 5) {
+			Text(L.t("sidebar.version.label", "版本"))
+				.font(.caption)
+				.foregroundStyle(.secondary)
+			if let number = parsedVersionNumber(agent.cliVersion) {
+				Text(number)
+					.font(.system(.caption, design: .monospaced))
+					.lineLimit(1)
+					.truncationMode(.middle)
+			} else if model.cliResolving {
+				// Separate from 未知 on purpose: a lookup is in flight, and the
+				// answer is not in yet rather than absent.
+				Text(L.t("badge.lookingUpCLI", "查找 CLI…"))
+					.font(.caption)
+					.lineLimit(1)
+			} else {
+				Text(L.t("sidebar.version.unknown", "未知"))
+					.font(.caption)
+					.foregroundStyle(.secondary)
+			}
+			Spacer(minLength: 0)
+			Button {
+				model.refreshCLIVersion(for: agent.id)
+			} label: {
+				Image(systemName: "arrow.clockwise")
+					.font(.caption2)
+			}
+			.buttonStyle(.borderless)
+			// Enabled even when nothing was found: a lookup that came back empty
+			// is exactly when the user wants to try again. The spinner-free
+			// feedback is the row switching to 查找 CLI….
+			.help(L.t("sidebar.version.refreshHelp", "重新查询 CLI 版本"))
+		}
+		// The label and the button are fixed width and the number is `lineLimit(1)`
+		// with middle truncation, which is what keeps this on one line at the
+		// sidebar's 210pt minimum instead of wrapping the version to a second row.
+		.help(versionHoverText(agent))
+	}
+
+	/// The version number inside `--version` output.
+	///
+	/// An unparseable line falls back to the raw first line rather than to
+	/// nothing: `L.t("sidebar.version.unknown")` should mean "no CLI answered",
+	/// not "the CLI answered in a shape we did not expect" — the raw text is
+	/// still the most useful thing to show.
+	private func parsedVersionNumber(_ raw: String?) -> String? {
+		guard let raw, !raw.isEmpty else { return nil }
+		if let number = CLILocator.parseVersion(from: raw)?.number { return number }
+		return raw
+	}
+
+	/// What the hover shows: the raw `--version` line and which binary answered,
+	/// e.g. `0.87.1\n/Users/…/bin/pi`.
+	private func versionHoverText(_ agent: LoadedAgent) -> String {
+		var lines: [String] = []
+		if let raw = agent.cliVersion, !raw.isEmpty {
+			lines.append(raw)
+		} else {
+			lines.append(L.t("sidebar.version.unknown", "未知"))
+		}
+		if let url = agent.cliURL { lines.append(url.path) }
+		return lines.joined(separator: "\n")
 	}
 
 	/// The scope menu behind the chip.

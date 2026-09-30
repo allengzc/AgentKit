@@ -262,13 +262,55 @@ public enum CLILocator {
 	}
 
 	public static func version(of executable: URL, arguments: [String]?) -> String? {
+		// The login shell's PATH, not the inherited one. These CLIs are node
+		// scripts (`#!/usr/bin/env node`), and a GUI app started from Finder
+		// inherits `/usr/bin:/bin:…`, so the binary resolves but running it fails
+		// with exit 127 `env: node: No such file or directory` — measured with
+		// `env PATH=/usr/bin:/bin …/bin/pi --version`, and the sidebar then says
+		// 未知 for a CLI that is installed and working in a terminal. The panes
+		// already drive their CLIs through `LoginShell.environment()`; the version
+		// query was the one place left using the ambient environment.
 		let result = AgentProcess.run(
 			executable: executable,
 			arguments: arguments ?? ["--version"],
+			environment: LoginShell.environment(),
 			timeout: 15
 		)
 		guard result.succeeded else { return nil }
 		let text = result.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
 		return text.isEmpty ? nil : text.split(separator: "\n").first.map(String.init)
+	}
+
+	/// Splits a version line into the number and, when the CLI prints one, the
+	/// product name that came with it.
+	///
+	/// The three agents answer `--version` in three different shapes —
+	/// `0.87.1`, `codex-cli 0.157.1`, `2.1.283 (Claude Code)` — and the sidebar
+	/// shows the number on its own. Parsing here rather than in the view keeps
+	/// the rule testable; the raw line is what `version(of:arguments:)` already
+	/// returns and stays untouched, so the parenthesised product name is still
+	/// available for the hover text.
+	///
+	/// The number is the first `\d+(\.\d+)+` run: a bare major version (`2`) or a
+	/// date-like integer is not a version, and requiring the dot keeps a package
+	/// name such as `@openai/codex` from being mistaken for one. Whatever
+	/// remains after removing that run, once surrounding whitespace and the
+	/// separators a CLI wraps it in (`(`, `)`, `-`, `,`) are stripped, is the
+	/// product name — nil when nothing is left, which is the common case.
+	public static func parseVersion(from raw: String) -> (number: String, product: String?)? {
+		guard let expression = try? NSRegularExpression(pattern: "\\d+(\\.\\d+)+") else { return nil }
+		let text = raw as NSString
+		let full = NSRange(location: 0, length: text.length)
+		guard let match = expression.firstMatch(in: raw, options: [], range: full) else { return nil }
+
+		let number = text.substring(with: match.range)
+		let remainder = text.replacingCharacters(in: match.range, with: "")
+		// One trim pass over the union of the separators strips `(Claude Code)`
+		// and `- 1.0.0 -` alike: `trimmingCharacters` consumes every leading and
+		// trailing character that is in the set, in any order, so a lone `(`, its
+		// matching `)` and the spaces around them all go. Interior separators
+		// survive, which is what keeps `codex-cli` in one piece.
+		let product = remainder.trimmingCharacters(in: CharacterSet(charactersIn: "()-, \t\r\n"))
+		return (number, product.isEmpty ? nil : product)
 	}
 }

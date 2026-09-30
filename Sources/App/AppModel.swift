@@ -33,6 +33,8 @@ public final class AppModel {
 	// MARK: - Runtime state
 
 	public private(set) var runningProcesses: [RunningProcess] = []
+	/// True while any CLI lookup is in flight — the initial batch or a
+	/// user-triggered refresh of one agent.
 	public private(set) var cliResolving = false
 	public var statusMessage: String?
 	public var errorMessage: String?
@@ -115,13 +117,37 @@ public final class AppModel {
 
 	// MARK: - CLI resolution
 
+	/// Lookups in flight, fed by both the startup batch and the sidebar's
+	/// refresh button.
+	///
+	/// A single Bool could not express that: the batch and a refresh can overlap,
+	/// and whichever finished first would clear the flag under the other one —
+	/// the sidebar would claim the lookup is settled while a process is still
+	/// running, and the next refresh would look like it did nothing.
+	private var cliLookupsInFlight = 0
+	/// Guards the startup batch on its own, so a refresh in flight cannot make
+	/// `resolveCLIIfNeeded` skip the one lookup that fills in every agent's
+	/// `cliURL` (the panes stay disabled until that happens).
+	private var cliBatchRunning = false
+
+	private func beginCLILookup() {
+		cliLookupsInFlight += 1
+		cliResolving = true
+	}
+
+	private func endCLILookup() {
+		cliLookupsInFlight = max(0, cliLookupsInFlight - 1)
+		cliResolving = cliLookupsInFlight > 0
+	}
+
 	/// Resolving the CLI spawns a login shell, so it happens once in the
 	/// background instead of blocking the first paint.
 	public func resolveCLIIfNeeded() {
-		guard !cliResolving else { return }
+		guard !cliBatchRunning else { return }
 		let pending = agents.filter { $0.cliURL == nil && $0.descriptor.detect?.cli != nil }
 		guard !pending.isEmpty else { return }
-		cliResolving = true
+		cliBatchRunning = true
+		beginCLILookup()
 
 		let snapshot = agents
 		let support = appSupport
@@ -142,7 +168,8 @@ public final class AppModel {
 						self.agents[index].cliVersion = found.1
 					}
 				}
-				self.cliResolving = false
+				self.cliBatchRunning = false
+				self.endCLILookup()
 				if let agent = self.selectedAgent, agent.cliURL == nil {
 					self.statusMessage = String(
 						format: L.t("app.cliMissing", "找不到 %@，依赖命令行的功能已停用"),
@@ -150,6 +177,54 @@ public final class AppModel {
 					)
 				}
 				self.projects.refreshSuggestions(for: self.agents, appSupport: support)
+			}
+		}
+	}
+
+	/// Re-reads one agent's `<cli> --version`, in the background.
+	///
+	/// The version is the one field in that header that goes stale without
+	/// AgentKit doing anything: upgrading the CLI in a terminal leaves the number
+	/// from the last launch on screen. Re-running the lookup is therefore a
+	/// refresh the user asks for, not something a directory watcher could infer.
+	///
+	/// The task is shaped exactly like `resolveCLIIfNeeded`'s — `Task.detached`
+	/// plus `MainActor.run` — because `CLILocator.version` spawns a process with
+	/// a 15s timeout and `locate` may spawn a login shell; either on the main
+	/// thread would freeze the window for as long as the CLI takes to answer.
+	public func refreshCLIVersion(for agentID: String) {
+		guard let agent = agents.first(where: { $0.id == agentID }),
+			let spec = agent.descriptor.detect?.cli
+		else { return }
+
+		// A path already known is reused as-is: the point of the refresh is the
+		// version, and re-running the login-shell lookup here would turn a fast
+		// query into a slow one (and fail outright when the CLI moved).
+		let known = agent.cliURL
+		let support = appSupport
+		beginCLILookup()
+
+		Task.detached(priority: .utility) {
+			let url = known ?? CLILocator.locate(
+				spec: spec,
+				resolver: DescriptorLoader.resolver(for: agent, appSupport: support)
+			)
+			let version = url.flatMap { CLILocator.version(of: $0, arguments: spec.versionArgs) }
+			await MainActor.run {
+				// Logged because this is the one place the app spawns a process
+				// on the user's behalf outside the startup batch: when the row
+				// does not change, the log is what says whether the CLI answered
+				// the same thing or never answered at all.
+				Log.app.info("refreshed \(agentID, privacy: .public) CLI version: \(version ?? "none", privacy: .public)")
+				// Matched by id rather than by the index captured above: a
+				// descriptor reload can replace the whole array while the
+				// process runs, and a stale index would write the version onto
+				// whichever agent happens to sit there now.
+				if let index = self.agents.firstIndex(where: { $0.id == agentID }) {
+					if let url { self.agents[index].cliURL = url }
+					self.agents[index].cliVersion = version
+				}
+				self.endCLILookup()
 			}
 		}
 	}

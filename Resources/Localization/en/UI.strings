@@ -107,6 +107,11 @@
 "sidebar.diagnosticsCount" = "%d diagnostics";
 "sidebar.diagnosticsCount.one" = "%d diagnostic";
 "sidebar.reloadedAt" = "Reloaded at";
+/* The CLI version line in the agent header. "Version" is the inline label, so
+ * English keeps it short; the refresh help is the tooltip of its ⟳ button. */
+"sidebar.version.label" = "Version";
+"sidebar.version.unknown" = "Unknown";
+"sidebar.version.refreshHelp" = "Look up the CLI version again";
 
 /* Project scope (toolbar menu plus the banners panes show) */
 "project.scope.global" = "Global (project config not loaded)";
